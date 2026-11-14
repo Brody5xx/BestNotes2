@@ -15,9 +15,33 @@ object L {
     var lang = "es"
         private set
 
+    /** Formato de la hora: "auto", "12" o "24". */
+    var hourFmt = "auto"
+        private set
+    var is24 = false
+        private set
+
     fun init(ctx: Context) {
-        choice = ctx.getSharedPreferences("ajustes", 0).getString("lang", "auto") ?: "auto"
+        val p = ctx.getSharedPreferences("ajustes", 0)
+        choice = p.getString("lang", "auto") ?: "auto"
+        hourFmt = p.getString("hourFmt", "auto") ?: "auto"
+        is24 = when (hourFmt) { "24" -> true; "12" -> false; else -> android.text.format.DateFormat.is24HourFormat(ctx) }
         apply()
+    }
+
+    fun setHourFmt(ctx: Context, f: String) { ctx.getSharedPreferences("ajustes", 0).edit().putString("hourFmt", f).apply(); init(ctx) }
+
+    /** La hora con el formato escogido: 3:05 PM o 15:05. */
+    fun time(t: Long): String = java.text.SimpleDateFormat(if (is24) "HH:mm" else "h:mm a", locale).format(java.util.Date(t))
+
+    /** "Hoy 7:00 PM", "Mañana 8:00 AM" o "vie 21 nov, 7:00 PM". */
+    fun when_(t: Long): String {
+        val c = java.util.Calendar.getInstance(); val d = java.util.Calendar.getInstance().apply { timeInMillis = t }
+        val sameDay = { a: java.util.Calendar, b: java.util.Calendar -> a.get(java.util.Calendar.YEAR) == b.get(java.util.Calendar.YEAR) && a.get(java.util.Calendar.DAY_OF_YEAR) == b.get(java.util.Calendar.DAY_OF_YEAR) }
+        if (sameDay(c, d)) return t("today") + " " + time(t)
+        c.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        if (sameDay(c, d)) return t("tomorrow") + " " + time(t)
+        return java.text.SimpleDateFormat(if (lang == "es") "EEE d MMM" else "EEE, MMM d", locale).format(java.util.Date(t)) + ", " + time(t)
     }
 
     fun set(ctx: Context, c: String) {
@@ -91,6 +115,19 @@ object L {
         "titleColor" to "Color del título", "outline" to "Contorno de letras", "apply" to "Aplicar", "sizeNormal" to "Normal",
         "colorsBasic" to "Colores", "colorsRecent" to "Recientes", "colorsFav" to "Favoritos", "colorsFavAdd" to "Guardar este",
         "colorsFavHint" to "Mantén presionado un favorito para quitarlo",
+        "pending" to "Pendientes", "pendingHint" to "Todo lo que te falta, de todas tus notas", "pendingEmpty" to "¡No tienes pendientes! 🎉", "seeAll" to "Ver todo",
+        "reminder" to "Recordatorio", "reminders" to "Recordatorios", "in1h" to "En 1 hora", "in3h" to "En 3 horas", "today7" to "Hoy 7 PM",
+        "tomorrow8" to "Mañana 8 AM", "tomorrow6" to "Mañana 6 AM", "pickDateTime" to "Escoger día y hora", "removeReminder" to "Quitar",
+        "reminderSet" to "Te aviso: {w}", "tomorrow" to "Mañana",
+        "share" to "Compartir", "shareImg" to "Imagen (tal como se ve)", "sharePdf" to "PDF", "shareText" to "Solo texto", "shareSms" to "Mensaje de texto (SMS)",
+        "shareHint" to "Gmail, WhatsApp, Outlook, mensajes…", "preparing" to "Preparando…", "shareFail" to "No se pudo preparar. Prueba otra vez.",
+        "dictate" to "Dictar (voz a texto)", "dictateSub" to "Hablas y se escribe solo", "listening" to "Escuchando…", "stop" to "Parar",
+        "noDictation" to "Este teléfono no tiene reconocimiento de voz",
+        "hourFmt" to "Formato de hora", "hourAuto" to "Como el teléfono", "lockApp" to "Bloquear la app con PIN", "lockAppOn" to "La app pide tu PIN al abrirla",
+        "lockAppOff" to "La app ya no pide PIN", "changePin" to "Cambiar el PIN", "pinChanged" to "PIN cambiado", "unlockApp" to "Escribe tu PIN para entrar",
+        "anchored" to "Anclada", "anchoredHint" to "La foto está anclada. Toca «Anclada» para moverla",
+        "photoMoved" to "Foto movida. Toca Anclar para fijarla", "writeBeside" to "Ahora puedes escribir al lado de la foto",
+        "textRight" to "texto a la derecha", "textLeft" to "texto a la izquierda",
         "drawHint" to "Un dedo dibuja · dos dedos mueven la nota", "penColor" to "Color del lápiz", "clearDrawing" to "Borrar todo el dibujo",
         "clearDrawingMsg" to "Se borra todo el dibujo de esta nota. Con Deshacer lo recuperas.",
         "recordNow" to "Grabar ahora", "audioFile" to "Subir un audio", "audioFileSub" to "Nota de voz de WhatsApp, grabadora…",
@@ -155,6 +192,19 @@ object L {
         "titleColor" to "Title color", "outline" to "Letter outline", "apply" to "Apply", "sizeNormal" to "Normal",
         "colorsBasic" to "Colors", "colorsRecent" to "Recent", "colorsFav" to "Favorites", "colorsFavAdd" to "Save this one",
         "colorsFavHint" to "Long-press a favorite to remove it",
+        "pending" to "To-dos", "pendingHint" to "Everything left to do, from all your notes", "pendingEmpty" to "No to-dos left! 🎉", "seeAll" to "See all",
+        "reminder" to "Reminder", "reminders" to "Reminders", "in1h" to "In 1 hour", "in3h" to "In 3 hours", "today7" to "Today 7 PM",
+        "tomorrow8" to "Tomorrow 8 AM", "tomorrow6" to "Tomorrow 6 AM", "pickDateTime" to "Pick day and time", "removeReminder" to "Remove",
+        "reminderSet" to "I'll remind you: {w}", "tomorrow" to "Tomorrow",
+        "share" to "Share", "shareImg" to "Image (as it looks)", "sharePdf" to "PDF", "shareText" to "Text only", "shareSms" to "Text message (SMS)",
+        "shareHint" to "Gmail, WhatsApp, Outlook, messages…", "preparing" to "Preparing…", "shareFail" to "Couldn't prepare it. Try again.",
+        "dictate" to "Dictate (voice to text)", "dictateSub" to "Speak and it types itself", "listening" to "Listening…", "stop" to "Stop",
+        "noDictation" to "This phone has no speech recognition",
+        "hourFmt" to "Time format", "hourAuto" to "Like the phone", "lockApp" to "Lock the app with PIN", "lockAppOn" to "The app asks for your PIN when opened",
+        "lockAppOff" to "The app no longer asks for a PIN", "changePin" to "Change PIN", "pinChanged" to "PIN changed", "unlockApp" to "Enter your PIN to get in",
+        "anchored" to "Anchored", "anchoredHint" to "The photo is anchored. Tap “Anchored” to move it",
+        "photoMoved" to "Photo moved. Tap Anchor to fix it in place", "writeBeside" to "Now you can write next to the photo",
+        "textRight" to "text on the right", "textLeft" to "text on the left",
         "drawHint" to "One finger draws · two fingers move the note", "penColor" to "Pen color", "clearDrawing" to "Clear the whole drawing",
         "clearDrawingMsg" to "The whole drawing of this note is deleted. Undo brings it back.",
         "recordNow" to "Record now", "audioFile" to "Upload an audio", "audioFileSub" to "WhatsApp voice note, recorder…",

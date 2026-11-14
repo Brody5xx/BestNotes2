@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     private class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-14" to ("Parte 4a: mover fotos como antes (brillo azul, cruz roja, escribir al lado), compartir como imagen o PDF, dictar, pendientes, recordatorios, bloqueo de la app y formato de hora" to
+            "Part 4a: move photos like before (blue glow, red cross, write beside), share as image or PDF, dictation, to-dos, reminders, app lock and time format"),
         "2026-11-14" to ("Parte 3: grabar y escuchar audios, videos dentro de la nota (sin sonido y achicar), dibujar en la nota y encima de las fotos" to
             "Part 3: record and play audio, videos inside the note (mute and shrink), draw on the note and on top of photos"),
         "2026-11-14" to ("Parte 2: fotos (mover, a un lado con texto, tamaño, girar, recortar, sello, anclar), rueda de colores, tamaños de 5 a 100 y contorno de letras" to
@@ -75,19 +77,56 @@ class GuideActivity : Activity() {
         Sec(Icons.IMAGE,
             "Fotos" to listOf(
                 "Botón de la foto en la barra de abajo: Cámara o Galería (puedes escoger varias). Se pone donde está el cursor.",
-                "Toca la foto para seleccionarla. Con un dedo la mueves a los lados (salen guías rojas en la orilla y el centro) o arriba y abajo.",
+                "Toca la foto: brilla en azul y abajo sale su panel. Con un dedo la mueves a donde quieras: sale una cruz roja y cuántos px se movió.",
+                "Pégala a la orilla izquierda o derecha y suéltala: el texto se escribe AL LADO de la foto.",
                 "Con dos dedos la haces más grande o más chica y la giras (cerca de derecho se endereza sola).",
-                "Abajo de la foto: − y +, Izquierda / Derecha (la foto a un lado y el texto al lado), Sola, Girar, Recortar, Sello, Anclar (ya no se mueve), Subir, Bajar, Ver y Quitar.",
+                "Panel de la foto: Recortar, Dibujar encima, Sello, Girar 90°, Ver, Subir, Bajar y Quitar; Izquierda / Sola / Derecha; giro de 0° a 90°; y la barra del tamaño.",
+                "«Anclar» (debajo de la foto) la deja fija para que no se mueva sin querer.",
                 "Sello: cada foto sale con una franja abajo con la fecha y hora en que se tomó y el sitio (el título de la nota). Si lo quitas, las próximas fotos salen sin sello.",
                 "Las fotos se achican solas a un tamaño razonable: la nota pesa menos y abre más rápido.",
             ),
             "Photos" to listOf(
                 "Photo button in the bottom bar: Camera or Gallery (you can pick several). It goes where the cursor is.",
-                "Tap the photo to select it. With one finger you move it sideways (red guides show at the edges and center) or up and down.",
+                "Tap the photo: it glows blue and its panel shows at the bottom. With one finger you move it anywhere: a red cross and how many px it moved show.",
+                "Stick it to the left or right edge and let go: the text is written NEXT TO the photo.",
                 "With two fingers you make it bigger or smaller and rotate it (near straight it straightens itself).",
-                "Below the photo: − and +, Left / Right (photo on one side and text next to it), Alone, Rotate, Crop, Stamp, Pin (it won't move), Up, Down, View and Remove.",
+                "Photo panel: Crop, Draw on top, Stamp, Rotate 90°, View, Up, Down and Remove; Left / Alone / Right; rotation from 0° to 90°; and the size bar.",
+                "“Anchor” (below the photo) keeps it fixed so it doesn't move by accident.",
                 "Stamp: each photo gets a strip at the bottom with the date and time it was taken and the site (the note title). If you remove it, next photos come without a stamp.",
                 "Photos are resized automatically: the note weighs less and opens faster.",
+            )),
+        Sec(MoreIcons.IMPORT,
+            "Compartir" to listOf(
+                "Nota → ⋮ → Compartir: Imagen (tal como se ve, con fotos, colores y dibujos), PDF, Solo texto o Mensaje de texto (SMS).",
+                "Escoges la app: Gmail, WhatsApp, Outlook, mensajes…",
+                "En el texto, los checklist salen con ☐ y ☑.",
+            ),
+            "Share" to listOf(
+                "Note → ⋮ → Share: Image (as it looks, with photos, colors and drawings), PDF, Text only or Text message (SMS).",
+                "You pick the app: Gmail, WhatsApp, Outlook, messages…",
+                "In the text, checklists come with ☐ and ☑.",
+            )),
+        Sec(MoreIcons.TEXT_T,
+            "Dictar (voz a texto)" to listOf(
+                "Botón del micrófono → Dictar (o ⋮ → Dictar). Habla y se escribe solo donde está el cursor.",
+                "En la barrita cambias entre ES y EN. ■ Parar termina.",
+            ),
+            "Dictation (voice to text)" to listOf(
+                "Microphone button → Dictate (or ⋮ → Dictate). Speak and it types where the cursor is.",
+                "In the small bar switch between ES and EN. ■ Stop ends it.",
+            )),
+        Sec(MoreIcons.CHECKBOX,
+            "Pendientes y recordatorios" to listOf(
+                "Arriba en la pantalla principal sale la tarjeta de Pendientes: todo lo que falta de todas tus notas. «Ver todo» los muestra todos (también en ☰ → Pendientes).",
+                "Toca la casilla para marcarlo como hecho (en su nota baja a «Completados»).",
+                "⏰ Recordatorio: nota → ⋮ → Recordatorio, o la campanita en Pendientes. En 1 hora, Hoy 7 PM, Mañana 8 AM… o escoger día y hora.",
+                "El aviso suena aunque la app esté cerrada; al tocarlo se abre la nota. Las notas con recordatorio muestran un reloj.",
+            ),
+            "To-dos and reminders" to listOf(
+                "At the top of the home screen there's the To-dos card: everything left from all your notes. “See all” shows them all (also ☰ → To-dos).",
+                "Tap the box to mark it done (in its note it moves to “Completed”).",
+                "⏰ Reminder: note → ⋮ → Reminder, or the clock in To-dos. In 1 hour, Today 7 PM, Tomorrow 8 AM… or pick a day and time.",
+                "The alert rings even when the app is closed; tapping it opens the note. Notes with a reminder show a clock.",
             )),
         Sec(MoreIcons.MIC,
             "Notas de voz" to listOf(
@@ -160,11 +199,13 @@ class GuideActivity : Activity() {
                 "Locked notes don't show their text in the list or in search.",
             )),
         Sec(MoreIcons.INFO,
-            "Lo que viene" to listOf(
-                "Parte 4: dictado, IA, compartir como imagen o PDF, respaldo, bóveda, recordatorios, calculadora, reporte del día, pendientes, materiales, bloqueo de la app y más idiomas.",
+            "Lo que viene (parte 4b y 4c)" to listOf(
+                "Parte 4b: IA (asistente de trabajo, reescribir profesional, ortografía, frases), reporte del día, lista de materiales y pasar audios a texto.",
+                "Parte 4c: respaldo, bóveda, calculadora (moneda y horas de trabajo), historial y versiones, plantillas, apariencia (claro/oscuro, fondos) y más idiomas.",
             ),
-            "Coming next" to listOf(
-                "Part 4: dictation, AI, share as image or PDF, backup, vault, reminders, calculator, daily report, to-dos, materials, app lock and more languages.",
+            "Coming next (part 4b and 4c)" to listOf(
+                "Part 4b: AI (work assistant, professional rewrite, spelling, phrases), daily report, materials list and audio to text.",
+                "Part 4c: backup, vault, calculator (currency and work hours), history and versions, templates, appearance (light/dark, backgrounds) and more languages.",
             )),
     )
 

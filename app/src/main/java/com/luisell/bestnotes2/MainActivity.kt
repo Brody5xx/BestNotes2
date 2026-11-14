@@ -225,6 +225,7 @@ class MainActivity : Activity() {
             else -> L.t("noNotes")
         }
         paintHeader()
+        if (Store.loaded && query.isBlank()) loadTodo()
     }
 
     private fun toggleLayout() {
@@ -309,6 +310,10 @@ class MainActivity : Activity() {
         }
         nav(Icons.NOTEBOOK, L.t("all"), "all", count { !it.deleted })
         nav(MoreIcons.STAR5, L.t("fav"), "fav", count { !it.deleted && it.fav })
+        p.addView(menuRow(this, MoreIcons.CHECKBOX, L.t("pending"), L.t("pendingHint")) { closeDrawer(); startActivity(Intent(this, PendingActivity::class.java)) }.also { r ->
+            val n = Store.notes.filter { !it.deleted && !it.locked }.sumOf { maxOf(0, it.checkTotal - it.checkDone) }
+            if (n > 0) (r as LinearLayout).addView(tv("$n", 13f, 0xFF16161A.toInt(), true).apply { gravity = Gravity.CENTER; minWidth = dp(24); setPadding(dp(7), dp(2), dp(7), dp(2)); background = roundBg(T.text, dp(12).toFloat()) })
+        })
         p.addView(sep())
         p.addView(tv(L.t("folders"), 13f, T.muted, true).apply { setPadding(dp(14), dp(6), 0, dp(4)) })
         for (f in Store.folders) {
@@ -328,6 +333,9 @@ class MainActivity : Activity() {
         p.addView(sep())
         p.addView(menuRow(this, MoreIcons.IMPORT, L.t("import"), L.t("importSub")) { closeDrawer(); pickFile() })
         p.addView(menuRow(this, Icons.GLOBE, L.t("language"), when (L.choice) { "es" -> "Español"; "en" -> "English"; else -> L.t("langAuto") }) { closeDrawer(); pickLang() })
+        p.addView(menuRow(this, Icons.CLOCK, L.t("hourFmt"), when (L.hourFmt) { "12" -> "12 h (3:00 PM)"; "24" -> "24 h (15:00)"; else -> L.t("hourAuto") }) { closeDrawer(); pickHourFmt() })
+        p.addView(menuRow(this, Icons.LOCK, L.t("lockApp"), if (AppLock.on(this)) "✓ " + L.t("lockAppOn") else null) { closeDrawer(); toggleAppLock() })
+        if (Pin.saved(this) != null) p.addView(menuRow(this, Icons.KEY, L.t("changePin")) { closeDrawer(); Pin.check(this) { Pin.create(this) { toast(L.t("pinChanged")) } } })
         p.addView(menuRow(this, Icons.BOOK, L.t("guide")) { closeDrawer(); startActivity(Intent(this, GuideActivity::class.java)) })
         p.addView(sep())
         val ver = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (_: Exception) { "" }
@@ -386,6 +394,19 @@ class MainActivity : Activity() {
             }.setNegativeButton(L.t("cancel"), null).create()
         d.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
         d.show(); e.requestFocus()
+    }
+
+    private fun pickHourFmt() {
+        val keys = arrayOf("auto", "12", "24")
+        dialog().setTitle(L.t("hourFmt")).setSingleChoiceItems(arrayOf(L.t("hourAuto"), "12 h (3:00 PM)", "24 h (15:00)"), keys.indexOf(L.hourFmt)) { d, i ->
+            d.dismiss(); L.setHourFmt(this, keys[i]); refresh()
+        }.show()
+    }
+
+    private fun toggleAppLock() {
+        if (AppLock.on(this)) Pin.check(this) { AppLock.set(this, false); toast(L.t("lockAppOff")) }
+        else if (Pin.saved(this) == null) Pin.create(this) { AppLock.set(this, true); toast(L.t("lockAppOn")) }
+        else Pin.check(this) { AppLock.set(this, true); toast(L.t("lockAppOn")) }
     }
 
     private fun pickLang() {
@@ -461,9 +482,8 @@ class MainActivity : Activity() {
     /* ---------- tarjetas ---------- */
     private fun dateText(t: Long): String {
         val now = Calendar.getInstance(); val c = Calendar.getInstance().apply { timeInMillis = t }
-        val tf = DateFormat.getTimeInstance(DateFormat.SHORT, L.locale)
         return when {
-            DateUtils.isToday(t) -> tf.format(Date(t))
+            DateUtils.isToday(t) -> L.time(t)
             DateUtils.isToday(t + DateUtils.DAY_IN_MILLIS) -> L.t("yesterday")
             c.get(Calendar.YEAR) == now.get(Calendar.YEAR) -> DateUtils.formatDateTime(this, t, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_NO_YEAR or DateUtils.FORMAT_ABBREV_MONTH)
             else -> DateFormat.getDateInstance(DateFormat.MEDIUM, L.locale).format(Date(t))
@@ -514,21 +534,67 @@ class MainActivity : Activity() {
         }
     }
 
-    inner class NotesAdapter : RecyclerView.Adapter<VH>() {
+    /* ---------- ✅ tarjeta de pendientes arriba (como en Best Notes) ---------- */
+    private var todo: List<Pending.Row> = emptyList()
+    private var remindIds: Set<String> = emptySet()
+    private fun showTodo() = view == "all" && query.isBlank() && selected.isEmpty() && todo.isNotEmpty()
+
+    inner class HeadVH(val box: LinearLayout) : RecyclerView.ViewHolder(box)
+
+    private fun bindHead(h: HeadVH) {
+        val b = h.box
+        b.removeAllViews()
+        val open = prefs.getBoolean("homeTodoOpen", true)
+        val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        head.addView(IconView(this, MoreIcons.CHECKBOX, 8.5f).apply { color = 0xFF30D158.toInt(); isClickable = false }, lp(dp(26), dp(26)))
+        head.addView(tv(L.t("pending"), 17f, T.text, true).apply { setPadding(dp(8), 0, dp(8), 0) })
+        head.addView(tv("${todo.size}", 13f, 0xFF16161A.toInt(), true).apply { gravity = Gravity.CENTER; minWidth = dp(24); setPadding(dp(7), dp(2), dp(7), dp(2)); background = roundBg(T.text, dp(12).toFloat()) })
+        head.addView(tv(if (open) "  ▴" else "  ▾", 16f, T.muted), lp(0, WRAP, 1f))
+        head.addView(tv(L.t("seeAll") + " ›", 14f, T.muted, true).apply { setPadding(dp(8), dp(6), 0, dp(6)); setOnClickListener { startActivity(Intent(this@MainActivity, PendingActivity::class.java)) } })
+        head.setOnClickListener { prefs.edit().putBoolean("homeTodoOpen", !open).apply(); adapter.notifyItemChanged(0) }
+        b.addView(head)
+        if (open) for (r in todo.take(3)) {
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP; setPadding(0, dp(6), 0, 0) }
+            val box = ListaView.Mark(this, "check", false, 0)
+            box.setOnClickListener { dialog().setMessage(L.t("ckDoneQ") + "\n\n" + r.text).setPositiveButton(L.t("ckDoneYes")) { _, _ -> Pending.markDone(r) {} }.setNegativeButton(L.t("cancel"), null).show() }
+            row.addView(box, lp(dp(34), dp(34)))
+            val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setOnClickListener { open(r.note) } }
+            col.addView(tv(r.text, 15f, T.text).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END; setPadding(0, dp(5), 0, 0) })
+            col.addView(tv(r.note.title.ifEmpty { L.t("untitled") }, 12.5f, T.muted, true))
+            row.addView(col, lp(0, WRAP, 1f))
+            b.addView(row)
+        }
+    }
+
+    private fun loadTodo() {
+        remindIds = Reminders.all(this).filter { it.at > System.currentTimeMillis() }.map { it.noteId }.toSet()
+        Pending.load { rows -> val had = showTodo(); todo = rows; if (had != showTodo() || had) adapter.notifyDataSetChanged() }
+    }
+
+    inner class NotesAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         private var items: List<NoteMeta> = emptyList()
         init { setHasStableIds(true) }
         fun set(l: List<NoteMeta>) { items = l; notifyDataSetChanged() }
-        override fun getItemCount() = items.size
-        override fun getItemId(position: Int) = items[position].id.hashCode().toLong()
+        private fun off() = if (showTodo()) 1 else 0
+        override fun getItemCount() = items.size + off()
+        override fun getItemViewType(position: Int) = if (position < off()) 1 else 0
+        override fun getItemId(position: Int) = if (position < off()) -7L else items[position - off()].id.hashCode().toLong()
 
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+            if (viewType == 1) {
+                val box = LinearLayout(parent.context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(12), dp(14), dp(12)); background = roundBg(T.card, dp(20).toFloat(), T.border, dp(1)) }
+                box.layoutParams = StaggeredGridLayoutManager.LayoutParams(MATCH, WRAP).apply { setMargins(dp(5), dp(5), dp(5), dp(8)); isFullSpan = true }
+                return HeadVH(box)
+            }
             val card = LinearLayout(parent.context)
             card.layoutParams = StaggeredGridLayoutManager.LayoutParams(MATCH, WRAP).apply { setMargins(dp(5), dp(5), dp(5), dp(5)) }
             return VH(card)
         }
 
-        override fun onBindViewHolder(h: VH, position: Int) {
-            val n = items[position]
+        override fun onBindViewHolder(hh: RecyclerView.ViewHolder, position: Int) {
+            if (hh is HeadVH) { bindHead(hh); return }
+            val h = hh as VH
+            val n = items[position - off()]
             h.id = n.id
             val grid = lm.spanCount == 2
             val sel = n.id in selected
@@ -564,6 +630,7 @@ class MainActivity : Activity() {
             if (n.locked) ic(Icons.LOCK)
             if (n.fav) ic(MoreIcons.STAR5_ON, 0xFFFFD60A.toInt())
             if (n.pinned && view != "trash") ic(Icons.PIN)
+            if (n.id in remindIds) ic(Icons.CLOCK)
             h.card.setOnClickListener {
                 if (selected.isNotEmpty()) { if (!selected.remove(n.id)) selected.add(n.id); notifyItemChanged(h.bindingAdapterPosition); paintHeader() }
                 else open(n)

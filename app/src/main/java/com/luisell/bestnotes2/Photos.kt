@@ -89,7 +89,7 @@ object Photos {
 
     /** Texto del sello, igual que en Best Notes: 📅 fecha y hora · 📍 sitio. */
     fun stampText(taken: Long, site: String): String {
-        val f = SimpleDateFormat(if (L.lang == "es") "EEE, d MMM yyyy, h:mm a" else "EEE, MMM d, yyyy, h:mm a", L.locale)
+        val f = SimpleDateFormat((if (L.lang == "es") "EEE, d MMM yyyy, " else "EEE, MMM d, yyyy, ") + (if (L.is24) "HH:mm" else "h:mm a"), L.locale)
         val s = site.trim().replace('\n', ' ')
         return "📅 " + f.format(Date(if (taken > 0) taken else System.currentTimeMillis())) + if (s.isNotEmpty()) "  ·  📍 $s" else ""
     }

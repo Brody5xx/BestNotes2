@@ -88,7 +88,7 @@ class PantallaTest {
         val main = Robolectric.buildActivity(MainActivity::class.java).setup().get()
         idle()
         val rv = find(main.window.decorView, androidx.recyclerview.widget.RecyclerView::class.java).first()
-        assertEquals(5, rv.adapter!!.itemCount)           // todas menos la de la papelera
+        assertEquals(6, rv.adapter!!.itemCount)           // la tarjeta de pendientes + todas menos la de la papelera
 
         val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n1").putExtra(NoteActivity.EXTRA_Q, "camara")).setup().get()
         waitIo(); idle()
@@ -251,5 +251,58 @@ class PantallaTest {
         val back = Stroke.listFrom(ex.getJSONArray("ink"))
         assertEquals(3, back[0].p.size)
         assertTrue(n.hasMedia)
+    }
+
+    @Test fun pendientesYCompartir() {
+        reload(); Store.deleteForever(Store.notes.map { it.id }); waitIo()
+        importar()
+        var rows: List<Pending.Row> = emptyList()
+        Pending.load { rows = it }
+        waitIo(); idle()
+        assertEquals(listOf("Cable"), rows.map { it.text })
+        Pending.markDone(rows[0]) {}
+        waitIo(); idle(); waitIo()
+        assertEquals(2, Store.meta("n1")!!.checkDone)
+        val blocks = blocksFromJson(Store.readBody("n1").first)
+        val txt = Share.text("Ticket", blocks)
+        assertTrue(txt.contains("☑ Cable") && txt.contains("☑ Switch"))
+        assertEquals("Ticket de prueba.pdf", Share.fileName("Ticket de prueba", "pdf"))
+        // abrir la nota y compartir como imagen y PDF no se cae
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n1")).setup().get()
+        waitIo(); idle()
+        val page = act.javaClass.getDeclaredField("page").apply { isAccessible = true }.get(act) as android.view.View
+        page.measure(android.view.View.MeasureSpec.makeMeasureSpec(1080, android.view.View.MeasureSpec.EXACTLY), android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED))
+        page.layout(0, 0, 1080, page.measuredHeight)
+        val img = Share.image(act, page, minOf(page.height, 1500), T.bg, "Ticket")
+        assertTrue(img.length() > 0)          // (el PDF no se puede probar aquí: Robolectric no hace PDFs)
+        // recordatorio guardado
+        Reminders.add(ctx, "n1", "Cable", System.currentTimeMillis() + 3_600_000)
+        assertEquals(1, Reminders.forNote(ctx, "n1").size)
+        assertEquals("co7naf", Pin.hash("1234"))
+    }
+
+    @Test fun moverFotoAlLado() {
+        reload(); Store.deleteForever(Store.notes.map { it.id }); waitIo()
+        importar()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n6")).setup().visible().get()
+        waitIo(); idle()
+        val ed = find(act.window.decorView, EditorView::class.java).first()
+        ed.views[0].focusAt(-1, -1)
+        ed.insertImages(listOf(Block.Img(Store.meta("n1")!!.thumb!!, 40f, "", 30f, 0f, 40, 30)))
+        idle()
+        val f = ed.views.first { it is FotoView } as FotoView
+        val root = act.window.decorView
+        root.measure(android.view.View.MeasureSpec.makeMeasureSpec(1080, android.view.View.MeasureSpec.EXACTLY), android.view.View.MeasureSpec.makeMeasureSpec(2200, android.view.View.MeasureSpec.EXACTLY))
+        root.layout(0, 0, 1080, 2200); idle()
+        val box = find(f.view, android.widget.FrameLayout::class.java).first { it.layoutParams is android.widget.FrameLayout.LayoutParams && it.parent is android.widget.FrameLayout && it.width > 0 && it.width < 1000 }
+        fun ev(a: Int, x: Float, y: Float) = android.view.MotionEvent.obtain(0, 0, a, x, y, 0).also { box.dispatchTouchEvent(it); it.recycle() }
+        ev(android.view.MotionEvent.ACTION_DOWN, 50f, 50f); ev(android.view.MotionEvent.ACTION_UP, 50f, 50f); idle()
+        assertTrue("se selecciona", f.selected)
+        ev(android.view.MotionEvent.ACTION_DOWN, 50f, 50f)
+        ev(android.view.MotionEvent.ACTION_MOVE, -200f, 52f); ev(android.view.MotionEvent.ACTION_MOVE, -900f, 55f)
+        ev(android.view.MotionEvent.ACTION_UP, -900f, 55f); idle()
+        assertEquals("pegada a la izquierda = texto al lado", "l", f.block.side)
+        assertEquals(1, f.edits().size)
+        act.finish(); waitIo()
     }
 }
