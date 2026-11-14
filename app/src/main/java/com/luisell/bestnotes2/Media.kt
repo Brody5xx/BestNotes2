@@ -129,6 +129,146 @@ object MediaFiles {
     }
 }
 
+/** Convierte un audio (m4a, mp3, ogg…) en WAV de 16 kHz mono para pasarlo a texto. Máximo [maxSec] segundos. */
+object Wav {
+    fun fromFile(f: File, maxSec: Int = 600): ByteArray? {
+        val ex = MediaExtractor()
+        try {
+            ex.setDataSource(f.path)
+            var t = -1
+            for (i in 0 until ex.trackCount) if ((ex.getTrackFormat(i).getString(MediaFormat.KEY_MIME) ?: "").startsWith("audio/")) { t = i; break }
+            if (t < 0) return null
+            ex.selectTrack(t)
+            val fmt = ex.getTrackFormat(t)
+            val codec = MediaCodec.createDecoderByType(fmt.getString(MediaFormat.KEY_MIME)!!)
+            codec.configure(fmt, null, null, 0); codec.start()
+            var rate = fmt.getInteger(MediaFormat.KEY_SAMPLE_RATE); var ch = fmt.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+            val out = java.io.ByteArrayOutputStream()
+            val info = MediaCodec.BufferInfo()
+            var inDone = false; var outDone = false
+            var acc = 0.0                                   // para bajar a 16 kHz
+            val step = { r: Int -> r / 16000.0 }
+            var limit = 16000L * maxSec
+            var written = 0L
+            while (!outDone && written < limit) {
+                if (!inDone) {
+                    val ii = codec.dequeueInputBuffer(10000)
+                    if (ii >= 0) {
+                        val buf = codec.getInputBuffer(ii)!!
+                        val n = ex.readSampleData(buf, 0)
+                        if (n < 0) { codec.queueInputBuffer(ii, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM); inDone = true }
+                        else { codec.queueInputBuffer(ii, 0, n, ex.sampleTime, 0); ex.advance() }
+                    }
+                }
+                val oi = codec.dequeueOutputBuffer(info, 10000)
+                if (oi == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                    val of = codec.outputFormat; rate = of.getInteger(MediaFormat.KEY_SAMPLE_RATE); ch = of.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+                } else if (oi >= 0) {
+                    val buf = codec.getOutputBuffer(oi)!!
+                    buf.position(info.offset); buf.limit(info.offset + info.size)
+                    val sh = buf.order(java.nio.ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+                    val frames = sh.remaining() / ch
+                    val k = step(rate)
+                    for (fI in 0 until frames) {
+                        acc += 1.0
+                        if (acc >= k) {
+                            acc -= k
+                            var sum = 0
+                            for (c in 0 until ch) sum += sh.get(fI * ch + c).toInt()
+                            val v = (sum / ch).toShort()
+                            out.write(v.toInt() and 0xFF); out.write((v.toInt() shr 8) and 0xFF)
+                            written++
+                        }
+                    }
+                    codec.releaseOutputBuffer(oi, false)
+                    if ((info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) outDone = true
+                }
+            }
+            codec.stop(); codec.release()
+            val pcm = out.toByteArray()
+            if (pcm.isEmpty()) return null
+            return header(pcm.size) + pcm
+        } catch (_: Exception) { return null } finally { ex.release() }
+    }
+
+    private fun header(n: Int): ByteArray {
+        val b = java.nio.ByteBuffer.allocate(44).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        b.put("RIFF".toByteArray()); b.putInt(36 + n); b.put("WAVE".toByteArray())
+        b.put("fmt ".toByteArray()); b.putInt(16); b.putShort(1); b.putShort(1); b.putInt(16000); b.putInt(32000); b.putShort(2); b.putShort(16)
+        b.put("data".toByteArray()); b.putInt(n)
+        return b.array()
+    }
+}
+
+/**
+ * 🎙️→📝 Pasar un audio a texto DENTRO del teléfono (sin internet).
+ * Usa el reconocimiento de voz del teléfono (Android 13 o más nuevo).
+ */
+object Transcriber {
+    fun available(ctx: Context): Boolean =
+        Build.VERSION.SDK_INT >= 33 && android.speech.SpeechRecognizer.isOnDeviceRecognitionAvailable(ctx)
+
+    /** [onDone] recibe el texto (o null). Se llama en la pantalla. */
+    fun run(ctx: Context, file: File, lang: String, onDone: (String?) -> Unit) {
+        if (Build.VERSION.SDK_INT < 33) { onDone(null); return }
+        Thread {
+            val wav = Wav.fromFile(file)
+            Store.main.post {
+                if (wav == null || wav.size <= 44) { onDone(null); return@post }
+                start(ctx, wav.copyOfRange(44, wav.size), lang, onDone)
+            }
+        }.start()
+    }
+
+    @android.annotation.TargetApi(33)
+    private fun start(ctx: Context, pcm: ByteArray, lang: String, onDone: (String?) -> Unit) {
+        val sr = try { android.speech.SpeechRecognizer.createOnDeviceSpeechRecognizer(ctx) } catch (_: Exception) { onDone(null); return }
+        val pipe = android.os.ParcelFileDescriptor.createPipe()
+        val text = StringBuilder()
+        var finished = false
+        fun end() {
+            if (finished) return
+            finished = true
+            try { sr.destroy() } catch (_: Exception) {}
+            try { pipe[0].close() } catch (_: Exception) {}
+            onDone(text.toString().trim().ifEmpty { null })
+        }
+        sr.setRecognitionListener(object : android.speech.RecognitionListener {
+            override fun onReadyForSpeech(p: android.os.Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(v: Float) {}
+            override fun onBufferReceived(b: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onError(e: Int) { end() }
+            override fun onResults(r: android.os.Bundle?) {
+                r?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.let { text.append(it).append(' ') }
+                end()
+            }
+            override fun onPartialResults(r: android.os.Bundle?) {}
+            override fun onEvent(t: Int, b: android.os.Bundle?) {}
+            override fun onSegmentResults(r: android.os.Bundle) {
+                r.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.let { if (it.isNotBlank()) text.append(it.trim()).append(". ") }
+            }
+            override fun onEndOfSegmentedSession() { end() }
+        })
+        val tag = if (lang == "en") "en-US" else "es-US"
+        val i = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, tag)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_AUDIO_SOURCE, pipe[0])
+            .putExtra(android.speech.RecognizerIntent.EXTRA_AUDIO_SOURCE_CHANNEL_COUNT, 1)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_AUDIO_SOURCE_ENCODING, android.media.AudioFormat.ENCODING_PCM_16BIT)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_AUDIO_SOURCE_SAMPLING_RATE, 16000)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_SEGMENTED_SESSION, android.speech.RecognizerIntent.EXTRA_AUDIO_SOURCE)
+        try { sr.startListening(i) } catch (_: Exception) { end(); return }
+        // el audio se le pasa por un "tubo", como si alguien estuviera hablando
+        Thread {
+            try { android.os.ParcelFileDescriptor.AutoCloseOutputStream(pipe[1]).use { o -> var p = 0; while (p < pcm.size) { val n = minOf(32000, pcm.size - p); o.write(pcm, p, n); p += n } } } catch (_: Exception) {}
+        }.start()
+        Store.main.postDelayed({ end() }, 15 * 60_000L)
+    }
+}
+
 /** 🎙️ Grabadora (una a la vez). */
 class Recorder(private val ctx: Context) {
     private var rec: MediaRecorder? = null

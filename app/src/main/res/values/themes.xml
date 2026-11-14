@@ -1,13 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="AppTheme" parent="android:Theme.DeviceDefault.NoActionBar">
-        <item name="android:windowBackground">@color/fondo</item>
-        <item name="android:statusBarColor">@color/fondo</item>
-        <item name="android:navigationBarColor">@color/fondo</item>
+        <item name="android:windowBackground">@drawable/fondo</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">#1F1F1F</item>
         <item name="android:colorAccent">#8B7CFF</item>
         <item name="android:colorControlActivated">#8B7CFF</item>
         <item name="android:textColorHighlight">#558B7CFF</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
-    <color name="fondo">#161618</color>
+    <!-- La nota se abre como un círculo que crece desde donde tocaste (por eso la ventana es transparente) -->
+    <style name="AppTheme.Nota">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+    <color name="fondo">#242424</color>
 </resources>

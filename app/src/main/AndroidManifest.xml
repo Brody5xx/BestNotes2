@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Internet: SOLO para la IA gratis (cuando tocas un botón ✨) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Micrófono: solo para grabar notas de voz, y solo cuando tocas Grabar -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Recordatorios: el aviso a la hora exacta, aunque la app esté cerrada -->
@@ -55,6 +58,7 @@
         <activity
             android:name=".NoteActivity"
             android:exported="false"
+            android:theme="@style/AppTheme.Nota"
             android:windowSoftInputMode="adjustResize" />
 
         <activity
@@ -63,6 +67,14 @@
 
         <activity
             android:name=".PhotoDrawActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ReportActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".MaterialsActivity"
             android:exported="false" />
 
         <activity

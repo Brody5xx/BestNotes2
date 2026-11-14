@@ -157,11 +157,23 @@ fun Context.colorRow(colors: IntArray, withNone: Boolean, selected: Int, onPick:
 
 /** Barra de arriba con la altura de la barra de estado ya sumada. */
 fun Activity.edgeToEdge(root: View) {
-    window.statusBarColor = T.bg
-    window.navigationBarColor = T.bg
-    root.setBackgroundColor(T.bg)
+    // El fondo de vidrio de Best Notes se ve también detrás de la barra de arriba
+    window.statusBarColor = android.graphics.Color.TRANSPARENT
+    window.navigationBarColor = 0xFF1F1F1F.toInt()
+    @Suppress("DEPRECATION")
+    window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+    root.background = null
     root.fitsSystemWindows = true
 }
+
+/** Botón redondo de vidrio (como los de arriba en Best Notes). */
+fun Context.glassBtn(kind: Int, sizeDp: Float = 10f, color: Int = T.text, onClick: (View) -> Unit): IconView =
+    IconView(this, kind, sizeDp).apply {
+        this.color = color
+        layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply { marginStart = dp(3); marginEnd = dp(3) }
+        background = RippleDrawable(ColorStateList.valueOf(0x33FFFFFF), Glass.make(context, 22f), roundBg(Color.WHITE, dp(22).toFloat()))
+        setOnClickListener { it.animate().scaleX(0.9f).scaleY(0.9f).setDuration(70).withEndAction { it.animate().scaleX(1f).scaleY(1f).setDuration(120).start() }.start(); onClick(it) }
+    }
 
 fun menuRow(ctx: Context, icon: Int, label: String, sub: String? = null, color: Int = T.text, iconColor: Int = 0, onClick: () -> Unit): View {
     val row = LinearLayout(ctx).apply {

@@ -55,7 +55,7 @@ android {
 
 // Las pruebas de pantalla (Robolectric) se corren aquí antes de subir; en GitHub solo las rápidas
 tasks.withType<Test>().configureEach {
-    if (System.getenv("CI") != null) exclude("**/PantallaTest*")
+    if (System.getenv("CI") != null) { exclude("**/PantallaTest*"); exclude("**/CapturasTest*") }
 }
 
 dependencies {

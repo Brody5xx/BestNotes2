@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- El fondo desenfocado de Best Notes, estirado suave a toda la pantalla -->
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@drawable/bg_dark"
+    android:gravity="fill"
+    android:filter="true"
+    android:dither="true" />

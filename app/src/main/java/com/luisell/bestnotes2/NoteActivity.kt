@@ -74,7 +74,7 @@ class NoteActivity : Activity(), EditorView.Host {
         Store.init(this); L.init(this)
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         // Si la app se acaba de abrir (Android la cerró por memoria), primero se carga la lista
-        if (!Store.loaded) { setContentView(View(this).apply { setBackgroundColor(T.bg) }); Store.load { init() }; return }
+        if (!Store.loaded) { setContentView(View(this).apply { background = Glass.background(this@NoteActivity) }); Store.load { init() }; return }
         init()
     }
 
@@ -133,15 +133,18 @@ class NoteActivity : Activity(), EditorView.Host {
         edgeToEdge(root)
         tint()
 
-        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(4), dp(4), dp(4), dp(4)) }
-        top.addView(iconBtn(Icons.BACK) { finish() })
+        // Arriba: botones de vidrio como en Best Notes (← · deshacer/rehacer en una pastilla · ⭐ · ⋮)
+        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(6), dp(8), dp(6)) }
+        top.addView(glassBtn(Icons.BACK) { finish() })
         top.addView(View(this), lp(0, 1, 1f))
+        val pill = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; background = Glass.make(this@NoteActivity, 22f); setPadding(dp(2), 0, dp(2), 0) }
         undoBtn = iconBtn(Icons.UNDO) { undo() }
         redoBtn = iconBtn(MoreIcons.REDO) { redo() }
-        top.addView(undoBtn); top.addView(redoBtn)
-        star = iconBtn(MoreIcons.STAR5) { meta.fav = !meta.fav; paintStar(); Store.saveMeta(meta); Store.changed() }
+        pill.addView(undoBtn); pill.addView(redoBtn)
+        top.addView(pill, lp(WRAP, dp(44)).apply { marginEnd = dp(3) })
+        star = glassBtn(MoreIcons.STAR5) { meta.fav = !meta.fav; paintStar(); Store.saveMeta(meta); Store.changed() }
         top.addView(star)
-        top.addView(iconBtn(MoreIcons.DOTS_V) { options() })
+        top.addView(glassBtn(MoreIcons.DOTS_V) { options() })
         root.addView(top, lp(MATCH, WRAP))
         paintStar(); paintUndo()
 
@@ -202,12 +205,13 @@ class NoteActivity : Activity(), EditorView.Host {
         root.addView(holder, lp(MATCH, 0, 1f))
 
         // Barra de herramientas
-        val hs = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; setBackgroundColor(0xF01C1C1F.toInt()) }
+        val hs = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(4), dp(6), dp(4)) }
         fun tool(key: String, icon: Int, size: Float = 10.5f, act: () -> Unit) {
             val b = iconBtn(icon, size) { act() }
             toolBtns[key] = b; bar.addView(b)
         }
+        tool("ai", Icons.STAR, 10f) { aiMenu() }
         tool("photo", Icons.IMAGE) { addPhoto() }
         tool("mic", MoreIcons.MIC) { audioMenu() }
         tool("video", MoreIcons.VIDEO) { videoMenu() }
@@ -226,11 +230,41 @@ class NoteActivity : Activity(), EditorView.Host {
         tool("out", MoreIcons.OUTLINE) { pickColor("ol") }
         hs.addView(bar)
         formatBar = hs
-        root.addView(View(this).apply { setBackgroundColor(T.border) }, lp(MATCH, dp(1)))
-        bottom = android.widget.FrameLayout(this).apply { setBackgroundColor(0xF01C1C1F.toInt()) }
+        // Abajo: la barra de vidrio flotante (como en Best Notes)
+        bottom = android.widget.FrameLayout(this).apply { background = Glass.make(this@NoteActivity, 26f, strong = true); setPadding(dp(4), dp(2), dp(4), dp(2)) }
         bottom.addView(hs, android.widget.FrameLayout.LayoutParams(MATCH, WRAP))
-        root.addView(bottom, lp(MATCH, WRAP))
+        root.addView(bottom, lp(MATCH, WRAP).apply { setMargins(dp(8), dp(4), dp(8), dp(8)) })
         setContentView(root)
+        root.alpha = 0f
+        reveal(true)
+    }
+
+    /* ---------- 🔵 abrir y cerrar como un círculo que crece desde donde tocaste ---------- */
+    private var closing = false
+
+    private fun reveal(open: Boolean, after: () -> Unit = {}) {
+        val v = root
+        v.post {
+            val w = v.width.toFloat(); val h = v.height.toFloat()
+            if (w <= 0 || !v.isAttachedToWindow) { v.alpha = 1f; after(); return@post }
+            v.alpha = 1f
+            val loc = IntArray(2); v.getLocationOnScreen(loc)
+            val cx = (intent.getFloatExtra("x", w / 2) - loc[0]).coerceIn(0f, w)
+            val cy = (intent.getFloatExtra("y", h / 3) - loc[1]).coerceIn(0f, h)
+            val rMax = Math.hypot(maxOf(cx, w - cx).toDouble(), maxOf(cy, h - cy).toDouble()).toFloat() + dp(12)
+            val anim = android.view.ViewAnimationUtils.createCircularReveal(v, cx.toInt(), cy.toInt(), if (open) 0f else rMax, if (open) rMax else 0f)
+            anim.duration = if (open) 420 else 320
+            anim.interpolator = android.view.animation.PathInterpolator(0.65f, 0f, 0.35f, 1f)
+            anim.addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(a: android.animation.Animator) { if (!open) v.visibility = View.INVISIBLE; after() }
+            })
+            anim.start()
+            // ✨ estrellitas alrededor del círculo
+            val deco = window.decorView as android.view.ViewGroup
+            val sp = SparkleView(this, Fx.ring(this, cx + loc[0], cy + loc[1], rMax * (if (open) 0.9f else 0.5f)))
+            deco.addView(sp, android.widget.FrameLayout.LayoutParams(MATCH, MATCH))
+            sp.play(if (open) 760 else 560)
+        }
     }
 
     private lateinit var bannerBox: LinearLayout
@@ -248,7 +282,10 @@ class NoteActivity : Activity(), EditorView.Host {
     private fun tint() {
         val c = meta.color
         val bg = if (c == 0) T.bg else blend(T.bg, c, 0.14f)
-        root.setBackgroundColor(bg); window.statusBarColor = bg
+        // el fondo de vidrio de Best Notes, con el color de la nota encima (suavecito)
+        val layers = arrayListOf<android.graphics.drawable.Drawable>(Glass.background(this))
+        if (c != 0) layers.add(android.graphics.drawable.ColorDrawable((c and 0xFFFFFF) or 0x24000000))
+        root.background = android.graphics.drawable.LayerDrawable(layers.toTypedArray())
         bgColor = bg
     }
     private var bgColor = T.bg
@@ -409,6 +446,147 @@ class NoteActivity : Activity(), EditorView.Host {
         try {
             startActivity(Intent.createChooser(Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), L.t("openWith")))
         } catch (_: Exception) { toast(L.t("cantOpen")) }
+    }
+
+    /* ---------- ✨ IA (la gratis de Best Notes: Pollinations) ---------- */
+    private fun noteText(): String { editor.flushAll(); return Share.text(title.text.toString(), editor.blocks) }
+
+    private fun aiMenu() {
+        val e = editor.focused?.takeIf { it.hasFocus() }
+        val selA = e?.let { minOf(it.selectionStart, it.selectionEnd) } ?: -1
+        val selB = e?.let { maxOf(it.selectionStart, it.selectionEnd) } ?: -1
+        val sel = if (e != null && selA in 0 until selB) e.text.substring(selA, selB) else ""
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), dp(10), dp(6), dp(10)) }
+        val d = dialog().setTitle("✨ " + L.t("ai")).setView(ScrollView(this).apply { addView(list) }).create()
+        fun add(icon: Int, label: String, sub: String?, act: () -> Unit) { list.addView(menuRow(this, icon, label, sub) { d.dismiss(); act() }) }
+        add(Icons.BRIEFCASE, L.t("aiAssistant"), L.t("aiAssistantSub")) { aiAssistant() }
+        add(Icons.FORMAL, L.t("aiRewrite"), if (sel.isNotEmpty()) "«" + sel.take(40) + "»" else L.t("aiRewriteSub")) { aiRewrite(e, selA, selB) }
+        add(Icons.BOOK, L.t("aiWord"), L.t("aiWordSub")) { aiWord(e, selA, selB, "syn") }
+        add(Icons.BUBBLE, L.t("aiPhrase"), L.t("aiPhraseSub")) { aiWord(e, selA, selB, "phrase") }
+        add(Icons.SPELL, L.t("aiSpell"), L.t("aiSpellSub")) { aiSpell() }
+        d.show()
+    }
+
+    /** 👔 Asistente de trabajo: trabaja con TODA la nota. */
+    private fun aiAssistant() {
+        val txt = noteText()
+        if (txt.isBlank()) { toast(L.t("aiEmpty")); return }
+        val opts = listOf("report" to L.t("aiReport"), "pronote" to L.t("aiProNote"), "email" to L.t("aiEmail"), "chat" to L.t("aiChat"),
+            "english" to L.t("aiEnglish"), "todo" to L.t("aiTodo"), "summary" to L.t("aiSummary"), "steps" to L.t("aiSteps"))
+        dialog().setTitle("✨ " + L.t("aiAssistant")).setItems(opts.map { it.second }.toTypedArray()) { _, i ->
+            val (style, label) = opts[i]
+            val langs = if (style == "english") listOf("en") else listOf("es", "en")
+            val jobs = langs.map { lg -> AiJob(if (lg == "es") "Español" else "English") { Ai.ask(Ai.system(style, lg), txt) } }
+            val actions = ArrayList<AiAction>()
+            if (style == "todo") actions.add(AiAction(L.t("aiAddChecklist"), true) { out -> appendBlocks(aiToBlocks(out, checklist = true)) })
+            else {
+                actions.add(AiAction(L.t("aiNewNote"), true) { out -> openNew(label + " · " + title.text.toString().ifBlank { L.t("untitled") }, aiToBlocks(out)) })
+                actions.add(AiAction(L.t("aiAppend")) { out -> appendBlocks(aiToBlocks(out)) })
+                if (style == "pronote") actions.add(AiAction(L.t("aiReplaceNote")) { out -> replaceAll(aiToBlocks(out)) })
+            }
+            actions.add(AiAction(L.t("share")) { out -> Share.sendText(this, title.text.toString(), out) })
+            aiDialog(label, jobs, actions)
+        }.show()
+    }
+
+    /** ✍️ Reescribir lo seleccionado (o el renglón donde está el cursor). Sale en español y en inglés. */
+    private fun aiRewrite(e0: RichEdit?, a0: Int, b0: Int) {
+        val e = e0 ?: run { toast(L.t("aiSelect")); return }
+        var a = a0; var b = b0
+        if (a < 0 || a >= b) {                       // sin selección: el renglón del cursor
+            val t = e.text.toString(); val c = maxOf(0, e.selectionStart)
+            a = t.lastIndexOf('\n', c - 1) + 1; b = t.indexOf('\n', c).let { if (it < 0) t.length else it }
+        }
+        val src = e.text.substring(a, b)
+        if (src.isBlank()) { toast(L.t("aiSelect")); return }
+        val styles = listOf("pro" to L.t("rwPro"), "formal" to L.t("rwFormal"), "biz" to L.t("rwBiz"), "fix" to L.t("rwFix"), "clear" to L.t("rwClear"),
+            "short" to L.t("rwShort"), "long" to L.t("rwLong"), "friendly" to L.t("rwFriendly"), "persuasive" to L.t("rwPersuasive"),
+            "funny" to L.t("rwFunny"), "emoji" to L.t("rwEmoji"), "translate" to L.t("rwTranslate"))
+        dialog().setTitle("✨ " + L.t("aiRewrite")).setItems(styles.map { it.second }.toTypedArray()) { _, i ->
+            val (style, label) = styles[i]
+            val jobs = if (style == "translate") listOf(AiJob("") { Ai.ask(Ai.system("translate", ""), src) })
+                else listOf("es", "en").map { lg -> AiJob(if (lg == "es") "Español" else "English") { Ai.ask(Ai.system(style, lg), src) } }
+            aiDialog(label, jobs, listOf(
+                AiAction(L.t("aiUse"), true) { out -> replaceRange(e, a, b, out) },
+                AiAction(L.t("aiBelow")) { out -> replaceRange(e, b, b, "\n" + out) },
+            ))
+        }.show()
+    }
+
+    /** 📖 Palabra o frase más profesional: escoges una y la cambia. */
+    private fun aiWord(e: RichEdit?, a: Int, b: Int, style: String) {
+        if (e == null || a < 0 || a >= b) { toast(L.t("aiSelectWord")); return }
+        val src = e.text.substring(a, b)
+        aiDialog(L.t(if (style == "syn") "aiWord" else "aiPhrase"), listOf(AiJob("«" + src.take(50) + "»") { Ai.ask(Ai.system(style, ""), src) }), emptyList(), lines = true) { pick ->
+            replaceRange(e, a, b, pick)
+        }
+    }
+
+    /** ✅ Revisar ortografía de toda la nota (renglón por renglón, sin perder el orden). */
+    private fun aiSpell() {
+        editor.flushAll()
+        val pieces = ArrayList<String>()
+        for (bl in editor.blocks) when (bl) {
+            is Block.Text -> runsPlain(bl.runs).split('\n').forEach { pieces.add(it) }
+            is Block.ListB -> bl.items.forEach { pieces.add(runsPlain(it.runs)) }
+            is Block.Img -> runsPlain(bl.beside).split('\n').forEach { pieces.add(it) }
+            else -> {}
+        }
+        val idx = pieces.indices.filter { pieces[it].isNotBlank() }
+        if (idx.isEmpty()) { toast(L.t("aiEmpty")); return }
+        val input = idx.joinToString("\n") { "[${it + 1}] " + pieces[it] }
+        val sys = Ai.system("fix", "") + " IMPORTANT: the text is a note split into numbered pieces like \"[1] ...\". Return EVERY piece, each on its own line starting with the same number (\"[n] new text\"), in the same order. Never merge, split, add or drop pieces."
+        aiDialog(L.t("aiSpell"), listOf(AiJob("") { Ai.ask(sys, input) }), listOf(AiAction(L.t("aiApplyFix"), true) { out ->
+            val fixed = HashMap<Int, String>()
+            Regex("^\\[(\\d+)]\\s?(.*)$", RegexOption.MULTILINE).findAll(out).forEach { m -> fixed[m.groupValues[1].toInt() - 1] = m.groupValues[2] }
+            applyPieces(fixed)
+        }))
+    }
+
+    /** Cambia los renglones arreglados (cada renglón conserva el estilo de su principio). */
+    private fun applyPieces(fixed: Map<Int, String>) {
+        if (fixed.isEmpty()) return
+        editor.change { bl ->
+            var k = 0
+            fun fix(runs: MutableList<Run>): MutableList<Run> {
+                val lines = runsPlain(runs).split('\n'); val out = ArrayList<Run>(); var pos = 0
+                lines.forEachIndexed { li, line ->
+                    if (li > 0) out.add(Run("\n"))
+                    val f = fixed[k]
+                    if (f != null && f != line && line.isNotBlank()) out.add(Run(f, sliceRuns(runs, pos, pos + line.length).firstOrNull()?.st ?: St.PLAIN))
+                    else out.addAll(sliceRuns(runs, pos, pos + line.length))
+                    pos += line.length + 1; k++
+                }
+                return mergeRuns(out)
+            }
+            for (b in bl) when (b) {
+                is Block.Text -> b.runs = fix(b.runs)
+                is Block.ListB -> b.items.forEach { it.runs = fix(it.runs) }
+                is Block.Img -> b.beside = fix(b.beside)
+                else -> {}
+            }
+            null
+        }
+        toast(L.t("aiFixed"))
+    }
+
+    private fun replaceRange(e: RichEdit, a: Int, b: Int, text: String) {
+        val t = e.text
+        if (a > t.length || b > t.length) return
+        t.replace(a, b, text)
+        e.requestFocus(); e.setSelection(minOf(t.length, a + text.length))
+    }
+
+    private fun appendBlocks(add: List<Block>) {
+        editor.change { bl -> bl.addAll(add); null }
+        editor.post { scroll.smoothScrollTo(0, editor.bottom) }
+    }
+
+    private fun replaceAll(newBlocks: MutableList<Block>) { editor.change { bl -> bl.clear(); bl.addAll(newBlocks); null } }
+
+    private fun openNew(t: String, blocks: MutableList<Block>) {
+        val m = Store.createNote(t, blocks, meta.folder)
+        startActivity(Intent(this, NoteActivity::class.java).putExtra(EXTRA_ID, m.id))
     }
 
     /* ---------- 📤 compartir ---------- */
@@ -604,7 +782,6 @@ class NoteActivity : Activity(), EditorView.Host {
         wallImg.visibility = View.VISIBLE
         wallImg.setColorFilter(0x59000000, android.graphics.PorterDuff.Mode.SRC_ATOP)
         Thumbs.load(w, resources.displayMetrics.widthPixels) { bm -> if (bm != null) wallImg.setImageBitmap(bm) else wallImg.visibility = View.GONE }
-        root.setBackgroundColor(T.bg)
     }
 
     /** La hoja crece para que quepa todo el dibujo (y en modo dibujo, un poco más para seguir). */
@@ -915,6 +1092,7 @@ class NoteActivity : Activity(), EditorView.Host {
                 confirm(L.t("delForever"), L.t("delForeverMsg"), L.t("del"), true) { Store.deleteForever(listOf(meta.id)); Store.changed(); loaded = false; finish() }
             }
         } else {
+            add(Icons.STAR, L.t("aiAssistant"), sub = L.t("aiAssistantSub")) { aiAssistant() }
             add(MoreIcons.IMPORT, L.t("share"), sub = L.t("shareHint")) { shareMenu() }
             add(Icons.CLOCK, L.t("reminder") + (Reminders.forNote(this, meta.id).firstOrNull()?.let { "  ·  " + L.when_(it.at) } ?: "")) {
                 save(); remind(this, meta.id, (meta.title.ifEmpty { blocksPlain(editor.blocks).lineSequence().firstOrNull { it.isNotBlank() } ?: L.t("untitled") }).take(120)) { Store.changed() }
@@ -974,8 +1152,12 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     override fun finish() {
+        if (closing) return
         if (rec != null) stopRecording(true)
         save()
-        super.finish()
+        if (!::root.isInitialized || !root.isAttachedToWindow) { super.finish(); return }
+        closing = true
+        currentFocus?.let { v -> (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).hideSoftInputFromWindow(v.windowToken, 0) }
+        reveal(false) { super.finish(); overridePendingTransition(0, 0) }
     }
 }

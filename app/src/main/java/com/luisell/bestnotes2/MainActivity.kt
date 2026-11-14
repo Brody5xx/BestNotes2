@@ -73,14 +73,17 @@ class MainActivity : Activity() {
         root = FrameLayout(this)
         edgeToEdge(root)
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(4), dp(6), dp(4), 0) }
-        col.addView(header, lp(MATCH, dp(56)))
-        titleTv = tv("", 22f, T.text, true).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }
+        header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(10), dp(8), dp(10), 0) }
+        col.addView(header, lp(MATCH, dp(60)))
+        // Título grande y cuántas notas (como "All notes / 35 notes" en Best Notes)
+        titleTv = tv("", 34f, T.text, true).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END; setPadding(dp(18), dp(10), dp(18), 0) }
+        countTv = tv("", 15f, T.muted).apply { setPadding(dp(18), 0, dp(18), dp(6)) }
+        col.addView(titleTv, lp(MATCH, WRAP)); col.addView(countTv, lp(MATCH, WRAP))
 
         // Buscar
         val sb = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            background = roundBg(T.card, dp(24).toFloat(), T.border, dp(1)); setPadding(dp(14), 0, dp(4), 0)
+            background = Glass.make(this@MainActivity, 24f); setPadding(dp(16), 0, dp(4), 0)
         }
         sb.addView(IconView(this, Icons.SEARCH, 8.5f).apply { color = T.muted; isClickable = false }, lp(dp(22), dp(22)))
         search = EditText(this).apply {
@@ -98,7 +101,7 @@ class MainActivity : Activity() {
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun afterTextChanged(s: Editable) { query = s.toString(); clear.visibility = if (query.isEmpty()) View.GONE else View.VISIBLE; refresh() }
         })
-        col.addView(sb, lp(MATCH, dp(48)).apply { setMargins(dp(14), dp(4), dp(14), dp(8)) })
+        col.addView(sb, lp(MATCH, dp(50)).apply { setMargins(dp(14), dp(4), dp(14), dp(10)) })
 
         val fl = FrameLayout(this)
         lm = StaggeredGridLayoutManager(if (prefs.getString("layout", "grid") == "grid") 2 else 1, StaggeredGridLayoutManager.VERTICAL)
@@ -117,20 +120,20 @@ class MainActivity : Activity() {
         // Botones de nota nueva
         val fabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val ck = IconView(this, MoreIcons.CHECKBOX, 10f).apply {
-            color = T.text; pressBg(T.cardStrong, 26f, T.border); elevation = dp(4).toFloat()
-            setOnClickListener { newNote("check") }
+            color = T.text; background = Glass.make(this@MainActivity, 26f, strong = true)
+            setOnClickListener { pop(it); newNote("check", it) }
             contentDescription = L.t("newCheck")
         }
         val pen = IconView(this, MoreIcons.PEN, 10f).apply {
-            color = T.text; pressBg(T.cardStrong, 26f, T.border); elevation = dp(4).toFloat()
-            setOnClickListener { newNote("draw") }
+            color = T.text; background = Glass.make(this@MainActivity, 26f, strong = true)
+            setOnClickListener { pop(it); newNote("draw", it) }
             contentDescription = L.t("newDraw")
         }
         fabs.addView(pen, lp(dp(52), dp(52)).apply { marginEnd = dp(12) })
         fabs.addView(ck, lp(dp(52), dp(52)).apply { marginEnd = dp(12) })
         val fab = IconView(this, MoreIcons.PLUS, 12f).apply {
-            color = 0xFF16161A.toInt(); pressBg(T.text, 30f); elevation = dp(6).toFloat()
-            setOnClickListener { newNote("text") }
+            color = 0xFF16161A.toInt(); pressBg(T.text, 30f); elevation = dp(8).toFloat()
+            setOnClickListener { pop(it); newNote("text", it) }
             contentDescription = L.t("newNote")
         }
         fabs.addView(fab, lp(dp(60), dp(60)))
@@ -145,38 +148,43 @@ class MainActivity : Activity() {
 
     private fun paintHeader() {
         header.removeAllViews()
+        titleTv.text = viewName()
+        val total = visibleCount
+        countTv.text = if (total == 1) L.t("nNotes1") else L.t("nNotes", "n" to total)
         if (selected.isNotEmpty()) {
-            header.addView(iconBtn(Icons.CLOSE) { selected.clear(); refresh() })
-            header.addView(tv(if (selected.size == 1) L.t("selected1") else L.t("selected", "n" to selected.size), 18f, T.text, true), lp(0, WRAP, 1f))
+            header.addView(glassBtn(Icons.CLOSE) { selected.clear(); refresh() })
+            header.addView(tv(if (selected.size == 1) L.t("selected1") else L.t("selected", "n" to selected.size), 17f, T.text, true).apply { setPadding(dp(6), 0, 0, 0) }, lp(0, WRAP, 1f))
             if (view == "trash") {
-                header.addView(iconBtn(MoreIcons.RESTORE) { selRecover() })
-                header.addView(iconBtn(Icons.TRASH, 11f, T.danger) { selDeleteForever() })
+                header.addView(glassBtn(MoreIcons.RESTORE) { selRecover() })
+                header.addView(glassBtn(Icons.TRASH, 10f, T.danger) { selDeleteForever() })
             } else {
-                header.addView(iconBtn(Icons.PIN) { selPin() })
-                header.addView(iconBtn(MoreIcons.STAR5) { selFav() })
-                header.addView(iconBtn(MoreIcons.FOLDER) { selFolder() })
-                header.addView(iconBtn(MoreIcons.PALETTE) { selColor() })
-                header.addView(iconBtn(Icons.TRASH) { selTrash() })
+                header.addView(glassBtn(Icons.PIN, 9f) { selPin() })
+                header.addView(glassBtn(MoreIcons.STAR5, 9f) { selFav() })
+                header.addView(glassBtn(MoreIcons.FOLDER, 9f) { selFolder() })
+                header.addView(glassBtn(MoreIcons.PALETTE, 9f) { selColor() })
+                header.addView(glassBtn(Icons.TRASH, 9f) { selTrash() })
             }
             fabBox.visibility = View.GONE
             return
         }
         fabBox.visibility = if (view == "trash") View.GONE else View.VISIBLE
-        header.addView(iconBtn(Icons.MENU) { openDrawer() })
-        titleTv.text = viewName()
-        (titleTv.parent as? ViewGroup)?.removeView(titleTv)
-        header.addView(titleTv, lp(0, WRAP, 1f).apply { marginStart = dp(6) })
+        // Fila de botones redondos de vidrio (como en Best Notes)
+        val spread = { header.addView(View(this), lp(0, 1, 1f)) }
+        header.addView(glassBtn(Icons.MENU) { openDrawer() })
         if (view == "trash") {
-            header.addView(tv(L.t("emptyTrash"), 14f, T.danger, true).apply { setPadding(dp(12), dp(10), dp(12), dp(10)); setOnClickListener { emptyTrash() } })
+            spread()
+            header.addView(tv(L.t("emptyTrash"), 14f, T.danger, true).apply { setPadding(dp(16), dp(10), dp(16), dp(10)); background = Glass.make(this@MainActivity, 22f); setOnClickListener { emptyTrash() } })
         } else {
             val grid = lm.spanCount == 2
-            header.addView(iconBtn(if (grid) MoreIcons.LISTV else MoreIcons.GRID, 10f) { toggleLayout() })
-            header.addView(iconBtn(MoreIcons.SORT, 10f) { pickSort() })
+            spread(); header.addView(glassBtn(MoreIcons.CHECKBOX) { startActivity(Intent(this, PendingActivity::class.java)) })
+            spread(); header.addView(glassBtn(MoreIcons.SORT) { pickSort() })
+            spread(); header.addView(glassBtn(if (grid) MoreIcons.LISTV else MoreIcons.GRID) { toggleLayout() })
+            spread(); header.addView(glassBtn(Icons.BOOK) { startActivity(Intent(this, GuideActivity::class.java)) })
         }
     }
 
     private fun viewName(): String = when {
-        view == "all" -> L.t("appName")
+        view == "all" -> L.t("all")
         view == "fav" -> L.t("fav")
         view == "trash" -> L.t("trash")
         view.startsWith("f:") -> Store.folders.firstOrNull { it.id == view.substring(2) }?.name ?: L.t("all")
@@ -212,9 +220,16 @@ class MainActivity : Activity() {
         return l.sortedWith(compareByDescending<NoteMeta> { if (view == "trash") false else it.pinned }.then(cmp))
     }
 
+    private var visibleCount = 0
+    private lateinit var countTv: TextView
+
+    /** Saltito al tocar un botón. */
+    private fun pop(v: View) { v.animate().scaleX(0.88f).scaleY(0.88f).setDuration(70).withEndAction { v.animate().scaleX(1f).scaleY(1f).setDuration(160).setInterpolator(android.view.animation.OvershootInterpolator(3f)).start() }.start() }
+
     fun refresh() {
         selected.retainAll(Store.notes.map { it.id }.toSet())
         val items = visible()
+        visibleCount = items.size
         adapter.set(items)
         empty.visibility = if (items.isEmpty() && Store.loaded) View.VISIBLE else View.GONE
         empty.text = when {
@@ -244,8 +259,17 @@ class MainActivity : Activity() {
     }
 
     /* ---------- abrir y crear ---------- */
-    private fun newNote(kind: String) {
+    private var touchX = -1f; private var touchY = -1f
+
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN) { touchX = ev.rawX; touchY = ev.rawY }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    private fun newNote(kind: String, from: View? = null) {
         val i = Intent(this, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_NEW, kind)
+        if (touchX >= 0) i.putExtra("x", touchX).putExtra("y", touchY)
+        i.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
         if (view.startsWith("f:")) i.putExtra(NoteActivity.EXTRA_FOLDER, view.substring(2))
         startActivity(i)
     }
@@ -254,8 +278,9 @@ class MainActivity : Activity() {
         val go = {
             val i = Intent(this, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, n.id)
             if (query.isNotBlank()) i.putExtra(NoteActivity.EXTRA_Q, query.trim())
+            if (touchX >= 0) i.putExtra("x", touchX).putExtra("y", touchY)
             startActivity(i)
-            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            overridePendingTransition(0, 0)
         }
         if (n.locked) Pin.check(this) { go() } else go()
     }
@@ -295,12 +320,27 @@ class MainActivity : Activity() {
     /* ---------- menú ☰ ---------- */
     private fun openDrawer() {
         hideKb()
-        val scrim = View(this).apply { setBackgroundColor(0x99000000.toInt()); alpha = 0f; setOnClickListener { closeDrawer() } }
-        val panelW = minOf(dp(310), (resources.displayMetrics.widthPixels * 0.84f).toInt())
-        val sv = ScrollView(this).apply { setBackgroundColor(T.sheet); isVerticalScrollBarEnabled = false }
-        val p = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), dp(18), dp(10), dp(24)) }
+        val scrim = View(this).apply { setBackgroundColor(0x66000000); alpha = 0f; setOnClickListener { closeDrawer() } }
+        val panelW = minOf(dp(300), (resources.displayMetrics.widthPixels * 0.82f).toInt())
+        val sv = ScrollView(this).apply { background = Glass.make(this@MainActivity, 28f, strong = true); isVerticalScrollBarEnabled = false; clipToOutline = true }
+        val p = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), dp(12), dp(10), dp(24)) }
         sv.addView(p)
-        p.addView(tv("Best Notes 2", 24f, T.text, true).apply { setPadding(dp(14), dp(4), 0, dp(14)) })
+        // Arriba: el logo, BEST NOTES 2 y "Listo" (como en Best Notes)
+        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(2), dp(4), dp(10)) }
+        top.addView(android.widget.ImageView(this).apply { setImageResource(R.mipmap.ic_launcher); clipToOutline = true; background = roundBg(0, dp(10).toFloat()) }, lp(dp(40), dp(40)))
+        top.addView(tv("BEST\nNOTES 2", 15f, T.text, true).apply { letterSpacing = 0.18f; setPadding(dp(10), 0, 0, 0); setLineSpacing(0f, 0.9f) }, lp(0, WRAP, 1f))
+        top.addView(tv(L.t("done"), 14f, 0xFF16161A.toInt(), true).apply { setPadding(dp(16), dp(8), dp(16), dp(8)); pressBg(T.text, 18f); setOnClickListener { closeDrawer() } })
+        p.addView(top)
+        // Tarjeta blanca de la guía (como "App guide")
+        val guide = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(12), dp(10), dp(12))
+            pressBg(0xF2FFFFFF.toInt(), 18f); setOnClickListener { closeDrawer(); startActivity(Intent(this@MainActivity, GuideActivity::class.java)) }
+        }
+        guide.addView(IconView(this, Icons.BOOK, 9f).apply { color = 0xFF16161A.toInt(); isClickable = false }, lp(dp(26), dp(26)))
+        val gcol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, 0, 0) }
+        gcol.addView(tv(L.t("guide"), 15f, 0xFF16161A.toInt(), true)); gcol.addView(tv(L.t("guideSub"), 12f, 0xFF55555A.toInt()))
+        guide.addView(gcol, lp(0, WRAP, 1f)); guide.addView(tv("›", 20f, 0xFF16161A.toInt()))
+        p.addView(guide, lp(MATCH, WRAP).apply { bottomMargin = dp(10) })
         fun count(f: (NoteMeta) -> Boolean) = Store.notes.count(f)
         fun nav(icon: Int, label: String, v: String, n: Int, dot: Int = 0) {
             val r = menuRow(this, icon, label, null, T.text, dot) { view = v; selected.clear(); closeDrawer(); refresh(); list.scrollToPosition(0) }
@@ -314,6 +354,8 @@ class MainActivity : Activity() {
             val n = Store.notes.filter { !it.deleted && !it.locked }.sumOf { maxOf(0, it.checkTotal - it.checkDone) }
             if (n > 0) (r as LinearLayout).addView(tv("$n", 13f, 0xFF16161A.toInt(), true).apply { gravity = Gravity.CENTER; minWidth = dp(24); setPadding(dp(7), dp(2), dp(7), dp(2)); background = roundBg(T.text, dp(12).toFloat()) })
         })
+        p.addView(menuRow(this, Icons.REPORT, L.t("report"), L.t("reportHint")) { closeDrawer(); startActivity(Intent(this, ReportActivity::class.java)) })
+        p.addView(menuRow(this, Icons.BOX, L.t("materials"), L.t("materialsHint")) { closeDrawer(); startActivity(Intent(this, MaterialsActivity::class.java)) })
         p.addView(sep())
         p.addView(tv(L.t("folders"), 13f, T.muted, true).apply { setPadding(dp(14), dp(6), 0, dp(4)) })
         for (f in Store.folders) {
@@ -336,30 +378,55 @@ class MainActivity : Activity() {
         p.addView(menuRow(this, Icons.CLOCK, L.t("hourFmt"), when (L.hourFmt) { "12" -> "12 h (3:00 PM)"; "24" -> "24 h (15:00)"; else -> L.t("hourAuto") }) { closeDrawer(); pickHourFmt() })
         p.addView(menuRow(this, Icons.LOCK, L.t("lockApp"), if (AppLock.on(this)) "✓ " + L.t("lockAppOn") else null) { closeDrawer(); toggleAppLock() })
         if (Pin.saved(this) != null) p.addView(menuRow(this, Icons.KEY, L.t("changePin")) { closeDrawer(); Pin.check(this) { Pin.create(this) { toast(L.t("pinChanged")) } } })
-        p.addView(menuRow(this, Icons.BOOK, L.t("guide")) { closeDrawer(); startActivity(Intent(this, GuideActivity::class.java)) })
         p.addView(sep())
         val ver = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (_: Exception) { "" }
         p.addView(tv(L.t("devBy") + "\n" + L.t("version", "v" to (ver ?: "")), 12.5f, T.muted).apply { setPadding(dp(14), dp(8), dp(8), 0) })
 
         val box = FrameLayout(this)
         box.addView(scrim, FrameLayout.LayoutParams(MATCH, MATCH))
-        box.addView(sv, FrameLayout.LayoutParams(panelW, MATCH))
-        sv.translationX = -panelW.toFloat()
+        box.addView(sv, FrameLayout.LayoutParams(panelW, MATCH).apply { setMargins(dp(10), dp(10), 0, dp(10)) })
+        // la línea de luz que va con el borde del panel
+        val line = View(this).apply { background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(0x00FFFFFF, 0xEEFFFFFF.toInt(), 0x00FFFFFF)); alpha = 0f }
+        box.addView(line, FrameLayout.LayoutParams(dp(10), MATCH).apply { setMargins(0, dp(14), 0, dp(14)) })
         root.addView(box, FrameLayout.LayoutParams(MATCH, MATCH))
         drawer = box
-        scrim.animate().alpha(1f).setDuration(180).start()
-        sv.animate().translationX(0f).setDuration(200).start()
+        // Se abre creciendo desde la izquierda, con la línea de luz en el borde
+        sv.pivotX = 0f; sv.scaleX = 0.02f; sv.alpha = 0.4f
+        scrim.animate().alpha(1f).setDuration(220).start()
+        val va = android.animation.ValueAnimator.ofFloat(0f, 1f).setDuration(300)
+        va.interpolator = android.view.animation.DecelerateInterpolator(1.6f)
+        va.addUpdateListener {
+            val k = it.animatedValue as Float
+            sv.scaleX = 0.02f + 0.98f * k; sv.alpha = 0.4f + 0.6f * k
+            line.translationX = dp(10) + panelW * sv.scaleX - dp(5); line.alpha = if (k < 0.85f) 1f else (1 - k) / 0.15f
+        }
+        va.start()
     }
 
     private fun sep() = View(this).apply { setBackgroundColor(T.border) }.also { it.layoutParams = lp(MATCH, dp(1)).apply { setMargins(dp(14), dp(8), dp(14), dp(8)) } }
 
+    /** Al cerrar, el panel se encoge hacia la izquierda dejando un rastro de estrellitas ✨ (como en Best Notes). */
     private fun closeDrawer() {
         val d = drawer ?: return
         drawer = null
         val box = d as FrameLayout
-        box.getChildAt(0).animate().alpha(0f).setDuration(160).start()
-        val sv = box.getChildAt(1)
-        sv.animate().translationX(-sv.width.toFloat()).setDuration(180).withEndAction { root.removeView(box) }.start()
+        val scrim = box.getChildAt(0); val sv = box.getChildAt(1); val line = box.getChildAt(2)
+        scrim.animate().alpha(0f).setDuration(320).start()
+        val loc = IntArray(2); sv.getLocationInWindow(loc)
+        val sp = SparkleView(this, Fx.menuTrail(this, loc[0].toFloat(), loc[1].toFloat(), sv.width.toFloat(), sv.height.toFloat(), root.width.toFloat()))
+        root.addView(sp, FrameLayout.LayoutParams(MATCH, MATCH))
+        sp.play(820)
+        val w = sv.width.toFloat()
+        val va = android.animation.ValueAnimator.ofFloat(1f, 0f).setDuration(340)
+        va.interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+        va.addUpdateListener {
+            val k = it.animatedValue as Float
+            sv.pivotX = 0f; sv.scaleX = maxOf(0.001f, k); sv.alpha = 0.3f + 0.7f * k
+            line.alpha = if (k > 0.05f) 1f else k / 0.05f
+            line.translationX = dp(10) + w * k - dp(5)
+        }
+        va.addListener(object : android.animation.AnimatorListenerAdapter() { override fun onAnimationEnd(a: android.animation.Animator) { root.removeView(box) } })
+        va.start()
     }
 
     private fun folderMenu(f: Folder) {
@@ -582,7 +649,7 @@ class MainActivity : Activity() {
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
             if (viewType == 1) {
-                val box = LinearLayout(parent.context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(12), dp(14), dp(12)); background = roundBg(T.card, dp(20).toFloat(), T.border, dp(1)) }
+                val box = LinearLayout(parent.context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(14), dp(16), dp(14)); background = Glass.make(this@MainActivity, 24f) }
                 box.layoutParams = StaggeredGridLayoutManager.LayoutParams(MATCH, WRAP).apply { setMargins(dp(5), dp(5), dp(5), dp(8)); isFullSpan = true }
                 return HeadVH(box)
             }
@@ -598,8 +665,7 @@ class MainActivity : Activity() {
             h.id = n.id
             val grid = lm.spanCount == 2
             val sel = n.id in selected
-            val base = if (n.color != 0) blendCard(n.color) else T.card
-            h.card.background = roundBg(base, dp(18).toFloat(), if (sel) T.accent else if (n.color != 0) (n.color and 0x00FFFFFF) or 0x66000000 else T.border, dp(if (sel) 2.5f else 1f))
+            h.card.background = Glass.make(this@MainActivity, 22f, tint = n.color, bar = n.color != 0, selected = sel)
             h.title.text = highlighted(n.title.ifEmpty { "" })
             h.title.visibility = if (n.title.isEmpty()) View.GONE else View.VISIBLE
             h.title.setTextColor(if (n.titleColor != 0) n.titleColor else T.text)

@@ -294,7 +294,7 @@ class PantallaTest {
         val root = act.window.decorView
         root.measure(android.view.View.MeasureSpec.makeMeasureSpec(1080, android.view.View.MeasureSpec.EXACTLY), android.view.View.MeasureSpec.makeMeasureSpec(2200, android.view.View.MeasureSpec.EXACTLY))
         root.layout(0, 0, 1080, 2200); idle()
-        val box = find(f.view, android.widget.FrameLayout::class.java).first { it.layoutParams is android.widget.FrameLayout.LayoutParams && it.parent is android.widget.FrameLayout && it.width > 0 && it.width < 1000 }
+        val box = FotoView::class.java.getDeclaredField("box").apply { isAccessible = true }.get(f) as android.view.View
         fun ev(a: Int, x: Float, y: Float) = android.view.MotionEvent.obtain(0, 0, a, x, y, 0).also { box.dispatchTouchEvent(it); it.recycle() }
         ev(android.view.MotionEvent.ACTION_DOWN, 50f, 50f); ev(android.view.MotionEvent.ACTION_UP, 50f, 50f); idle()
         assertTrue("se selecciona", f.selected)

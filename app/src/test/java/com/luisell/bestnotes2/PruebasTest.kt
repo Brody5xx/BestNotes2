@@ -58,4 +58,15 @@ class PruebasTest {
         assertEquals(3, r[0].first)
         assertEquals("Cámara", "La Cámara del sótano".substring(r[0].first, r[0].last + 1))
     }
+
+    @Test fun textoDeLaIa() {
+        val r = ReportAi.blocks("## Resumen\nTodo bien.\n## Trabajo realizado\n- Sitio A: cámara\n## Pendientes\n- Cambiar cable\n## Materiales\n- 2 x Switch\n## Notas\n- Ninguna")
+        val lists = r.filterIsInstance<Block.ListB>()
+        assertEquals(listOf("ul", "check", "check", "ul"), lists.map { it.kind })
+        val b = aiToBlocks("Ubicación:\n- uno\n- dos\n1. paso\ntexto")
+        assertTrue(b.any { it is Block.ListB && it.kind == "ul" && it.items.size == 2 })
+        assertTrue(b.any { it is Block.ListB && it.kind == "ol" })
+        val m = Materials.parse("Aquí está: [{\"item\":\"Cable Cat 6\",\"qty\":3,\"site\":\"Sitio A\"}] listo")!!
+        assertEquals("Cable Cat 6", m.getJSONObject(0).getString("item"))
+    }
 }

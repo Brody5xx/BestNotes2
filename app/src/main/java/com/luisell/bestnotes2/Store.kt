@@ -129,6 +129,16 @@ object Store {
         }
     }
 
+    /** Crea una nota nueva ya guardada (reporte del día, resultado de la IA…). */
+    fun createNote(title: String, blocks: MutableList<Block>, folder: String? = null): NoteMeta {
+        val m = NoteMeta(newId()); m.title = title; m.folder = folder
+        val b = normalize(blocks)
+        fillMeta(m, b)
+        saveNote(m, blocksJson(b), null)
+        changed()
+        return m
+    }
+
     /** Guarda solo los datos de la lista (favorito, color, carpeta…). */
     fun saveMeta(m: NoteMeta) {
         val v = values(m)

@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     private class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-14" to ("Parte 4b: el diseño de vidrio de Best Notes con sus animaciones (estrellitas, círculo al abrir), fotos que acomodan el texto en vivo, IA (asistente, reescribir, palabras y frases profesionales, ortografía), reporte del día, lista de materiales y pasar audios a texto" to
+            "Part 4b: Best Notes glass design with its animations (sparkles, circle when opening), photos that move the text live, AI (assistant, rewrite, professional words and phrases, spelling), daily report, materials list and audio to text"),
         "2026-11-14" to ("Parte 4a: mover fotos como antes (brillo azul, cruz roja, escribir al lado), compartir como imagen o PDF, dictar, pendientes, recordatorios, bloqueo de la app y formato de hora" to
             "Part 4a: move photos like before (blue glow, red cross, write beside), share as image or PDF, dictation, to-dos, reminders, app lock and time format"),
         "2026-11-14" to ("Parte 3: grabar y escuchar audios, videos dentro de la nota (sin sonido y achicar), dibujar en la nota y encima de las fotos" to
@@ -95,6 +97,30 @@ class GuideActivity : Activity() {
                 "Stamp: each photo gets a strip at the bottom with the date and time it was taken and the site (the note title). If you remove it, next photos come without a stamp.",
                 "Photos are resized automatically: the note weighs less and opens faster.",
             )),
+        Sec(Icons.STAR,
+            "IA (la gratis de Best Notes)" to listOf(
+                "Botón ✨ en la barra de la nota. Solo se manda tu texto cuando tocas un botón de IA.",
+                "Asistente de trabajo: con TODA la nota hace reporte de trabajo, toda la nota profesional, email para el jefe, mensaje para compañeros, inglés profesional, lista de tareas, resumen o paso a paso. Sale en español y en inglés.",
+                "Reescribir con IA: lo seleccionado (o el renglón del cursor) en profesional, formal, de negocios, más claro, más corto, más largo, amigable, convincente, gracioso, con emojis, o traducido. «Usar este» lo cambia.",
+                "Palabra más profesional y Frase profesional: selecciona y escoge una de las opciones (para ir aprendiendo).",
+                "Revisar ortografía: arregla toda la nota renglón por renglón.",
+            ),
+            "AI (Best Notes' free AI)" to listOf(
+                "✨ button in the note's bar. Your text is only sent when you tap an AI button.",
+                "Work assistant: with the WHOLE note it makes a work report, the whole note professional, an email to the boss, a message for coworkers, professional English, a to-do list, a summary or step by step. It comes in Spanish and English.",
+                "Rewrite with AI: the selection (or the cursor's line) as professional, formal, business, clearer, shorter, longer, friendly, persuasive, funny, with emojis, or translated. “Use this” replaces it.",
+                "More professional word and Professional phrase: select and pick one of the options (to keep learning).",
+                "Spell check: fixes the whole note line by line.",
+            )),
+        Sec(Icons.REPORT,
+            "Reporte del día y Lista de materiales" to listOf(
+                "☰ → Reporte del día: escoge el día con ‹ ›, quita las notas que no quieras, el idioma (Español, English o Los dos) y si van las fotos. La IA arma el reporte: Resumen, Trabajo realizado (por sitio), Pendientes y Materiales (como checklist) y Notas para el supervisor. Nunca inventa; si la IA falla, pone tus notas tal cual.",
+                "☰ → Lista de materiales: «Buscar en mis notas» (Hoy, Esta semana o Todas) y la IA saca lo que hay que pedir. Cada material con su total y para dónde va. Toca el círculo: ○ Por pedir → 🛒 Pedido → ✅ Llegó. Con ＋ agregas a mano; ⋮ → Mandar a mi jefe o Guardar como nota.",
+            ),
+            "Daily report and Materials list" to listOf(
+                "☰ → Daily report: pick the day with ‹ ›, unselect notes you don't want, the language (Español, English or Both) and whether photos go in. The AI writes the report: Summary, Work completed (by site), Pending and Materials (as checklists) and Notes for the supervisor. It never makes things up; if the AI fails, it puts your notes as written.",
+                "☰ → Materials list: “Search my notes” (Today, This week or All) and the AI pulls out what must be ordered. Each material with its total and where it goes. Tap the circle: ○ To order → 🛒 Ordered → ✅ Arrived. ＋ adds by hand; ⋮ → Send to my boss or Save as note.",
+            )),
         Sec(MoreIcons.IMPORT,
             "Compartir" to listOf(
                 "Nota → ⋮ → Compartir: Imagen (tal como se ve, con fotos, colores y dibujos), PDF, Solo texto o Mensaje de texto (SMS).",
@@ -133,13 +159,13 @@ class GuideActivity : Activity() {
                 "Botón del micrófono en la barra de abajo → Grabar ahora. Sale una barra con el tiempo: Pausa, Cancelar o ✓ Listo.",
                 "El audio queda dentro de la nota: ▶ para escucharlo, la barra para adelantar y 1x / 1.5x / 2x para la velocidad.",
                 "«Subir un audio»: pon una nota de voz de WhatsApp o de la grabadora.",
-                "Pasar la voz a texto llega en la parte 4 (con el dictado y la IA).",
+                "⋮ del audio → Pasar a texto: se hace dentro del teléfono, sin internet (Android 13 o más nuevo).",
             ),
             "Voice notes" to listOf(
                 "Microphone button in the bottom bar → Record now. A bar with the time shows: Pause, Cancel or ✓ Done.",
                 "The audio stays inside the note: ▶ to play it, the bar to skip ahead and 1x / 1.5x / 2x for speed.",
                 "“Upload an audio”: add a WhatsApp or recorder voice note.",
-                "Turning voice into text comes in part 4 (with dictation and AI).",
+                "Audio ⋮ → Turn into text: it runs inside the phone, no internet (Android 13 or newer).",
             )),
         Sec(MoreIcons.VIDEO,
             "Videos" to listOf(
@@ -199,12 +225,10 @@ class GuideActivity : Activity() {
                 "Locked notes don't show their text in the list or in search.",
             )),
         Sec(MoreIcons.INFO,
-            "Lo que viene (parte 4b y 4c)" to listOf(
-                "Parte 4b: IA (asistente de trabajo, reescribir profesional, ortografía, frases), reporte del día, lista de materiales y pasar audios a texto.",
+            "Lo que viene (parte 4c)" to listOf(
                 "Parte 4c: respaldo, bóveda, calculadora (moneda y horas de trabajo), historial y versiones, plantillas, apariencia (claro/oscuro, fondos) y más idiomas.",
             ),
-            "Coming next (part 4b and 4c)" to listOf(
-                "Part 4b: AI (work assistant, professional rewrite, spelling, phrases), daily report, materials list and audio to text.",
+            "Coming next (part 4c)" to listOf(
                 "Part 4c: backup, vault, calculator (currency and work hours), history and versions, templates, appearance (light/dark, backgrounds) and more languages.",
             )),
     )

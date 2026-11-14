@@ -283,6 +283,14 @@ class EditorView(ctx: Context, val host: Host) : LinearLayout(ctx) {
         host.onDirty()
     }
 
+    fun insertAfter(v: BlockView, b: Block) {
+        val i = views.indexOf(v); if (i < 0) return
+        flushAll()
+        blocks.add(i + 1, b)
+        blocks = normalize(blocks)
+        rebuild(null); host.onDirty()
+    }
+
     fun removeBlock(v: BlockView) {
         val i = views.indexOf(v); if (i < 0) return
         flushAll()
@@ -587,44 +595,84 @@ class ListaView(val ed: EditorView, override val block: Block.ListB) : BlockView
 /**
  * Una foto en la nota (como en Best Notes). Tócala para seleccionarla:
  *  - brilla con un borde azul y abajo sale el panel de la foto
- *  - un dedo: la mueves a donde quieras (cruz roja + cuántos px se movió);
- *    si la pegas a la orilla izquierda o derecha, el texto se escribe AL LADO
- *  - dos dedos: más grande / más chica y girarla
+ *  - un dedo: la mueves a donde quieras y el texto se acomoda EN VIVO
+ *    (cruz roja + cuántos px se movió); pegada a una orilla = texto al lado
+ *  - dos dedos: más grande / más chica (en vivo) y girarla
  *  - "Anclar": ya no se mueve sin querer
  */
 @SuppressLint("ViewConstructor", "ClickableViewAccessibility")
 class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
     private val ctx = ed.context
-    private val root = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+    private val root = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; clipChildren = false }
     override val view: View get() = root
-    private val lane = FrameLayout(ctx)                 // franja de todo el ancho
     private val box = FrameLayout(ctx)                  // la foto (con su sello)
-    private val img = object : ImageView(ctx) {
-        override fun onMeasure(w: Int, h: Int) {
-            val width = MeasureSpec.getSize(w)
-            setMeasuredDimension(width, (width * ratio()).toInt())
-        }
-    }
+    private val img = ImageView(ctx)
     private val stampTv = TextView(ctx)
-    private var besideEdit: RichEdit? = null
+    private val edit = RichEdit(ctx)                    // el texto de al lado
     private var anchorPill: TextView? = null
     var selected = false
         private set
-    // (van antes de init: build() los usa)
-    private var lastW = -1
-    private val sizer = View.OnLayoutChangeListener { _, l, _, r, _, _, _, _, _ -> place(r - l) }
+    private var loadedW = 0
+
+    // mientras arrastras: dónde va (en vivo)
+    private var dragLeft = -1f
+    private var liveSide: String? = null
 
     private fun dp(v: Int) = ed.dp(v)
     private fun ratio(): Float = if (block.w > 0 && block.h > 0) block.h.toFloat() / block.w
         else img.drawable?.let { d -> if (d.intrinsicWidth > 0) d.intrinsicHeight.toFloat() / d.intrinsicWidth else 0.75f } ?: 0.75f
+    private fun side() = liveSide ?: block.side
+
+    /** La fila: acomoda la foto y el texto (al lado o debajo) cada vez que algo cambia. */
+    private val flow = object : ViewGroup(ctx) {
+        override fun onMeasure(ws: Int, hs: Int) {
+            val W = MeasureSpec.getSize(ws)
+            val pw = (W * block.pct / 100f).toInt().coerceIn(dp(40), W)
+            val ph = (pw * ratio()).toInt()
+            box.measure(MeasureSpec.makeMeasureSpec(pw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(ph, MeasureSpec.EXACTLY))
+            val top = dp(block.y.toInt())
+            var h = top + ph
+            val gap = dp(12)
+            if (edit.visibility != View.GONE) {
+                if (side().isNotEmpty()) {
+                    edit.measure(MeasureSpec.makeMeasureSpec(maxOf(dp(60), W - pw - gap), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+                    h = maxOf(h, edit.measuredHeight)
+                } else {
+                    edit.measure(MeasureSpec.makeMeasureSpec(W, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+                    h += gap / 2 + edit.measuredHeight
+                }
+            }
+            setMeasuredDimension(W, h)
+            if (pw > loadedW * 1.3f || loadedW == 0) { loadedW = pw; post { loadImg(pw) } }
+        }
+        override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+            val W = r - l; val pw = box.measuredWidth; val ph = box.measuredHeight
+            val top = dp(block.y.toInt())
+            val left = when {
+                dragLeft >= 0 -> dragLeft.toInt()
+                side() == "l" -> 0
+                side() == "r" -> W - pw
+                else -> (W * block.x / 100f).toInt()
+            }.coerceIn(0, maxOf(0, W - pw))
+            box.layout(left, top, left + pw, top + ph)
+            if (edit.visibility != View.GONE) {
+                val gap = dp(12)
+                when (side()) {
+                    "l" -> { val x = left + pw + gap; edit.layout(x, 0, x + edit.measuredWidth, edit.measuredHeight) }
+                    "r" -> { val x = maxOf(0, left - gap - edit.measuredWidth); edit.layout(x, 0, x + edit.measuredWidth, edit.measuredHeight) }
+                    else -> { val y = top + ph + gap / 2; edit.layout(0, y, W, y + edit.measuredHeight) }
+                }
+            }
+        }
+    }
 
     init {
         root.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6); bottomMargin = dp(6) }
-        root.clipChildren = false; lane.clipChildren = false
-        img.scaleType = ImageView.ScaleType.FIT_CENTER
+        flow.clipChildren = false
+        img.scaleType = ImageView.ScaleType.CENTER_CROP
         box.background = roundBg(0x10FFFFFF, dp(12).toFloat())
         box.clipToOutline = true
-        box.addView(img, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        box.addView(img, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         // Sello: franja oscura abajo con la fecha, la hora y el sitio
         stampTv.setTextColor(0xFFFFFFFF.toInt()); stampTv.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 10.5f)
         stampTv.typeface = Typeface.DEFAULT_BOLD; stampTv.gravity = Gravity.END
@@ -633,72 +681,41 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         stampTv.background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0x00000000, 0x9E000000.toInt()))
         stampTv.setPadding(dp(8), dp(14), dp(8), dp(5))
         box.addView(stampTv, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
-        build()
+        edit.setRuns(block.beside); edit.hint = L.t("besidePh"); edit.minHeight = dp(70)
+        ed.wire(edit)
+        flow.addView(box); flow.addView(edit)
+        root.addView(flow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        paint()
         box.setOnTouchListener(Touch())
     }
 
-    /** Arma la fila: foto sola, o foto + texto al lado. */
-    private fun build() {
-        root.removeAllViews(); lane.removeAllViews()
-        (box.parent as? ViewGroup)?.removeView(box)
+    private fun loadImg(pw: Int) {
+        Thumbs.load(block.file, pw) { bm -> if (bm != null) img.setImageBitmap(bm) else img.setImageDrawable(null) }
+    }
+
+    /** Muestra el sello, el giro y si hay texto al lado. */
+    private fun paint() {
         stampTv.text = block.stamp
         stampTv.visibility = if (block.stamp.isEmpty()) View.GONE else View.VISIBLE
         box.rotation = block.rot
-        box.translationX = 0f; box.translationY = 0f; box.scaleX = 1f; box.scaleY = 1f
-        if (block.side.isEmpty()) {
-            besideEdit = null
-            lane.addView(box, FrameLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(block.y.toInt()) })
-            root.addView(lane, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        } else {
-            val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false }
-            val e = besideEdit ?: RichEdit(ctx).also { r ->
-                r.setRuns(block.beside); r.hint = L.t("besidePh"); ed.wire(r)
-            }
-            besideEdit = e
-            (e.parent as? ViewGroup)?.removeView(e)
-            e.minHeight = dp(80)
-            val boxLp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(block.y.toInt()) }
-            val eLp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            if (block.side == "l") { row.addView(box, boxLp); eLp.marginStart = dp(12); row.addView(e, eLp) }
-            else { eLp.marginEnd = dp(12); row.addView(e, eLp); row.addView(box, boxLp) }
-            lane.addView(row, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-            root.addView(lane, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        }
-        if (selected) showAnchor()
-        lane.removeOnLayoutChangeListener(sizer); lane.addOnLayoutChangeListener(sizer)
-        lane.requestLayout()
-        lastW = -1
+        val hasText = edit.length() > 0
+        edit.visibility = if (side().isNotEmpty() || hasText) View.VISIBLE else View.GONE
     }
 
-    /** Pone la foto de su tamaño y en su lugar según el ancho de la nota. */
-    private fun place(W: Int) {
-        if (W <= 0) return
-        val pw = (W * block.pct / 100f).toInt().coerceAtLeast(dp(40))
-        val lpB = box.layoutParams ?: return
-        var changed = lpB.width != pw
-        lpB.width = pw
-        if (lpB is FrameLayout.LayoutParams) {
-            val left = (W * block.x / 100f).toInt().coerceIn(0, maxOf(0, W - pw))
-            if (lpB.leftMargin != left) { lpB.leftMargin = left; changed = true }
-        }
-        val top = dp(block.y.toInt())
-        if ((lpB as ViewGroup.MarginLayoutParams).topMargin != top) { lpB.topMargin = top; changed = true }
-        if (changed) box.post { box.layoutParams = lpB }
-        if (W != lastW || changed) {
-            lastW = W
-            Thumbs.load(block.file, pw) { bm -> if (bm != null) { img.setImageBitmap(bm); img.requestLayout() } else img.setImageDrawable(null) }
-        }
+    /** Cambio con animación suave (tamaño, lado, giro…). */
+    private fun animateChange() {
+        android.transition.TransitionManager.beginDelayedTransition(ed, android.transition.ChangeBounds().setDuration(220).setInterpolator(android.view.animation.DecelerateInterpolator()))
     }
 
-    fun relayout() { place(lane.width) }
+    fun relayout() { paint(); flow.requestLayout() }
 
-    override fun flush() { besideEdit?.let { block.beside = it.runs() } }
-    override fun edits() = listOfNotNull(besideEdit)
+    override fun flush() { block.beside = edit.runs() }
+    override fun edits() = if (edit.visibility == View.VISIBLE) listOf(edit) else emptyList()
     override fun focusAt(item: Int, offset: Int) {
-        val e = besideEdit ?: return
-        e.requestFocus(); e.setSelection(if (offset < 0) e.length() else offset.coerceIn(0, e.length())); showKeyboard(e)
+        edit.visibility = View.VISIBLE
+        edit.requestFocus(); edit.setSelection(if (offset < 0) edit.length() else offset.coerceIn(0, edit.length())); showKeyboard(edit)
     }
-    override fun highlight(q: String?): Int = besideEdit?.let { Rich.highlight(it.text, q) } ?: -1
+    override fun highlight(q: String?): Int = Rich.highlight(edit.text, q)
 
     /* ---------- seleccionar (con brillo azul, como en Best Notes) ---------- */
     fun setSelected(on: Boolean) {
@@ -709,11 +726,12 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                 roundBg(0, dp(12).toFloat(), 0x664FC3F7, dp(6)),
                 roundBg(0, dp(12).toFloat(), 0xFF4FC3F7.toInt(), dp(2)),
             ))
-            box.animate().scaleX(1.025f).scaleY(1.025f).setDuration(110).withEndAction { box.animate().scaleX(1f).scaleY(1f).setDuration(140).start() }.start()
+            box.animate().scaleX(1.03f).scaleY(1.03f).setDuration(120).setInterpolator(android.view.animation.DecelerateInterpolator())
+                .withEndAction { box.animate().scaleX(1f).scaleY(1f).setDuration(180).setInterpolator(android.view.animation.OvershootInterpolator(2f)).start() }.start()
             showAnchor()
         } else {
             box.foreground = null
-            anchorPill?.let { root.removeView(it) }; anchorPill = null
+            anchorPill?.let { p -> p.animate().alpha(0f).setDuration(120).withEndAction { root.removeView(p) }.start() }; anchorPill = null
         }
     }
 
@@ -722,16 +740,17 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         anchorPill?.let { root.removeView(it) }
         val t = ctx.tv((if (block.pin) "⚓ " + L.t("anchored") else "⚓ " + L.t("imgPin")), 14f, if (block.pin) 0xFF16161A.toInt() else T.text, true)
         t.setPadding(dp(16), dp(7), dp(16), dp(7))
-        t.pressBg(if (block.pin) T.text else T.cardStrong, 18f, T.border)
+        if (block.pin) t.pressBg(T.text, 18f) else t.background = Glass.make(ctx, 18f)
         t.setOnClickListener { setPin(!block.pin) }
         anchorPill = t
         root.addView(t, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(8) })
-        t.alpha = 0f; t.animate().alpha(1f).setDuration(160).start()
+        t.alpha = 0f; t.translationY = -dp(6).toFloat(); t.animate().alpha(1f).translationY(0f).setDuration(200).start()
     }
 
     fun setPin(on: Boolean) { block.pin = on; ed.host.onDirty(); showAnchor(); ed.host.onImageChanged(this) }
 
     fun setPct(p: Float) {
+        animateChange()
         block.pct = p.coerceIn(10f, if (block.side.isEmpty()) 100f else 75f)
         block.x = block.x.coerceIn(0f, 100f - block.pct)
         relayout(); ed.host.onDirty(); ed.host.onImageChanged(this)
@@ -739,23 +758,18 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
 
     fun setRot(r: Float) {
         block.rot = r
-        box.animate().rotation(r).setDuration(160).start()
+        box.animate().rotation(r).setDuration(200).setInterpolator(android.view.animation.DecelerateInterpolator()).start()
         ed.host.onDirty(); ed.host.onImageChanged(this)
     }
 
     fun setSide(side: String) {
         if (block.side == side) return
         flush()
-        if (side.isEmpty() && block.beside.isNotEmpty()) {
-            // el texto que estaba al lado pasa abajo de la foto
-            val runs = block.beside
-            block.beside = ArrayList(); block.side = ""; block.x = (100f - block.pct) / 2
-            ed.afterImage(this, runs); return
-        }
+        animateChange()
         if (side.isNotEmpty() && block.pct > 60f) block.pct = 45f
         block.side = side
         block.x = if (side == "r") 100f - block.pct else if (side == "l") 0f else (100f - block.pct) / 2
-        build(); ed.host.onDirty(); ed.host.onImageChanged(this)
+        relayout(); ed.host.onDirty(); ed.host.onImageChanged(this)
     }
 
     fun toggleStamp() {
@@ -763,121 +777,119 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             block.stamp = Photos.stampText(if (block.taken > 0) block.taken else System.currentTimeMillis(), ed.host.noteTitle())
             Photos.setStampOn(ctx, true)
         } else { block.stamp = ""; Photos.setStampOn(ctx, false) }
-        stampTv.text = block.stamp
-        stampTv.visibility = if (block.stamp.isEmpty()) View.GONE else View.VISIBLE
+        stampTv.alpha = 0f; paint(); stampTv.animate().alpha(1f).setDuration(200).start()
         ed.host.onDirty(); ed.host.onImageChanged(this)
     }
 
     /** La foto cambió de archivo (girar o recortar). */
-    fun reload() { lastW = -1; img.setImageDrawable(null); img.requestLayout(); relayout() }
+    fun reload() { loadedW = 0; img.setImageDrawable(null); flow.requestLayout() }
 
     /* ---------- tocar, mover, agrandar y girar ---------- */
     private inner class Touch : View.OnTouchListener {
         private var downX = 0f; private var downY = 0f
         private var moved = false; private var multi = false
-        private var startDist = 0f; private var startAng = 0f
-        private var baseLeft = 0f                        // dónde estaba la foto (px) al empezar
+        private var startDist = 0f; private var startAng = 0f; private var startPct = 0f; private var startRot = 0f
+        private var baseLeft = 0f; private var baseY = 0f
         private var snap = ""
         private val slop = android.view.ViewConfiguration.get(ctx).scaledTouchSlop
 
         private fun dist(e: MotionEvent) = Math.hypot((e.getX(0) - e.getX(1)).toDouble(), (e.getY(0) - e.getY(1)).toDouble()).toFloat()
         private fun ang(e: MotionEvent) = Math.toDegrees(Math.atan2((e.getY(1) - e.getY(0)).toDouble(), (e.getX(1) - e.getX(0)).toDouble())).toFloat()
 
-        /** Dónde está el centro de la foto en la hoja (para la cruz roja). */
         private fun guides(label: String?) {
             val loc = IntArray(2); box.getLocationInWindow(loc)
-            ed.host.showGuides(loc[0] + box.width / 2f + 0f, loc[1] + box.height / 2f, snap, label)
+            ed.host.showGuides(loc[0] + box.width / 2f, loc[1] + box.height / 2f, snap, label)
         }
 
         override fun onTouch(v: View, e: MotionEvent): Boolean {
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downX = e.rawX; downY = e.rawY; moved = false; multi = false; snap = ""
-                    baseLeft = box.left.toFloat() + ((box.parent as? View)?.left ?: 0)
+                    baseLeft = box.left.toFloat(); baseY = block.y
                     if (selected) v.parent.requestDisallowInterceptTouchEvent(true)
                 }
                 MotionEvent.ACTION_POINTER_DOWN -> if (selected && !block.pin && e.pointerCount == 2) {
-                    multi = true; startDist = dist(e); startAng = ang(e)
-                    box.translationX = 0f; box.translationY = 0f
+                    multi = true; startDist = dist(e); startAng = ang(e); startPct = block.pct; startRot = block.rot
+                    dragLeft = -1f
                     v.parent.requestDisallowInterceptTouchEvent(true)
                 }
                 MotionEvent.ACTION_MOVE -> {
                     if (!selected) return true
                     if (block.pin) {
-                        if (!moved && (Math.abs(e.rawX - downX) > slop * 2 || Math.abs(e.rawY - downY) > slop * 2)) { moved = true; ed.host.hint(L.t("anchoredHint")) }
+                        if (!moved && (Math.abs(e.rawX - downX) > slop * 2 || Math.abs(e.rawY - downY) > slop * 2)) {
+                            moved = true; ed.host.hint(L.t("anchoredHint"))
+                            anchorPill?.animate()?.scaleX(1.12f)?.scaleY(1.12f)?.setDuration(120)?.withEndAction { anchorPill?.animate()?.scaleX(1f)?.scaleY(1f)?.setDuration(160)?.start() }?.start()
+                        }
                         return true
                     }
                     if (multi && e.pointerCount >= 2) {
-                        // dos dedos: tamaño y giro (se ve en vivo; se guarda al soltar)
+                        // dos dedos: tamaño EN VIVO (el texto se acomoda) y giro
                         val k = (dist(e) / maxOf(1f, startDist)).coerceIn(0.25f, 4f)
-                        box.scaleX = k; box.scaleY = k
-                        var r = block.rot + (ang(e) - startAng)
+                        block.pct = (startPct * k).coerceIn(10f, if (side().isEmpty()) 100f else 75f)
+                        var r = startRot + (ang(e) - startAng)
                         while (r > 180) r -= 360; while (r < -180) r += 360
                         if (Math.abs(r) < 4) r = 0f                 // se endereza sola cerca de 0°
-                        box.rotation = r
+                        block.rot = r; box.rotation = r
                         moved = true
-                        ed.host.showGuides(-1f, -1f, "", "${(block.pct * k).toInt()}%  ↻ ${r.toInt()}°")
+                        flow.requestLayout()
+                        ed.host.showGuides(-1f, -1f, "", "${block.pct.toInt()}%  ↻ ${r.toInt()}°")
                         return true
                     }
-                    var dx = e.rawX - downX; val dy = e.rawY - downY
+                    if (multi) return true
+                    val dx = e.rawX - downX; val dy = e.rawY - downY
                     if (!moved && Math.abs(dx) < slop && Math.abs(dy) < slop) return true
                     moved = true
-                    val W = lane.width.toFloat(); val pw = box.width.toFloat()
+                    val W = flow.width.toFloat(); val pw = box.width.toFloat()
                     // a los lados, "pegando" en la orilla izquierda, el centro y la orilla derecha
                     var left = (baseLeft + dx).coerceIn(0f, maxOf(0f, W - pw))
                     snap = ""
-                    val near = dp(10).toFloat()
+                    val near = dp(14).toFloat()
                     when {
                         left < near -> { left = 0f; snap = "l" }
                         Math.abs(left - (W - pw) / 2) < near -> { left = (W - pw) / 2; snap = "c" }
                         left > W - pw - near -> { left = W - pw; snap = "r" }
                     }
-                    dx = left - baseLeft
-                    box.translationX = dx; box.translationY = dy
+                    // el texto se acomoda al lado EN VIVO cuando la foto toca una orilla
+                    val want = when { snap == "l" && block.pct <= 75 -> "l"; snap == "r" && block.pct <= 75 -> "r"; else -> "" }
+                    if (want != side()) { liveSide = want; paint() }
+                    dragLeft = left
                     val d = ctx.resources.displayMetrics.density
-                    val side = when { snap == "l" && block.pct <= 75 -> "  ·  " + L.t("textRight"); snap == "r" && block.pct <= 75 -> "  ·  " + L.t("textLeft"); else -> "" }
-                    guides("${if (dx >= 0) "+" else ""}${(dx / d).toInt()} px  ↕ ${(dy / d).toInt()} px$side")
+                    block.y = (baseY + dy / d).coerceAtLeast(0f)
+                    // hacia arriba más allá de su lugar: se ve que se va a subir
+                    box.translationY = if (baseY + dy / d < 0) dy + baseY * d else 0f
+                    flow.requestLayout()
+                    val sideTxt = when (want) { "l" -> "  ·  " + L.t("textRight"); "r" -> "  ·  " + L.t("textLeft"); else -> "" }
+                    guides("${if (left - baseLeft >= 0) "+" else ""}${((left - baseLeft) / d).toInt()} px  ↕ ${(dy / d).toInt()} px$sideTxt")
                 }
                 MotionEvent.ACTION_UP -> {
                     ed.host.showGuides(-1f, -1f, "", null)
                     if (!moved) { ed.selectImage(if (selected) null else this@FotoView); return true }
-                    if (multi) { finishPinch(); return true }
+                    if (multi) { ed.host.onDirty(); ed.host.onImageChanged(this@FotoView); return true }
                     finishDrag()
                 }
                 MotionEvent.ACTION_CANCEL -> {
                     ed.host.showGuides(-1f, -1f, "", null)
-                    box.animate().translationX(0f).translationY(0f).scaleX(1f).scaleY(1f).rotation(block.rot).setDuration(150).start()
+                    dragLeft = -1f; liveSide = null; block.y = baseY; box.translationY = 0f
+                    animateChange(); relayout()
                 }
             }
             return true
         }
 
-        private fun finishPinch() {
-            val k = box.scaleX
-            block.rot = box.rotation
-            box.scaleX = 1f; box.scaleY = 1f
-            setPct(block.pct * k)
-        }
-
-        /** Al soltar: se guarda dónde quedó. Pegada a una orilla = texto al lado. */
+        /** Al soltar: se guarda dónde quedó. */
         private fun finishDrag() {
-            val W = lane.width.toFloat(); val pw = box.width.toFloat()
-            val d = ctx.resources.displayMetrics.density
-            val left = baseLeft + box.translationX
-            val newY = block.y + box.translationY / d
-            box.translationX = 0f; box.translationY = 0f
-            // muy arriba o muy abajo: pasa por encima del bloque de al lado
-            if (newY < -50f) { block.y = 0f; ed.moveBlock(this@FotoView, -1); ed.host.hint(L.t("photoMoved")); return }
-            if (newY > 220f) { block.y = 0f; ed.moveBlock(this@FotoView, 1); ed.host.hint(L.t("photoMoved")); return }
-            block.y = newY.coerceIn(0f, 220f)
-            val want = when { snap == "l" && block.pct <= 75 -> "l"; snap == "r" && block.pct <= 75 -> "r"; else -> "" }
-            if (want != block.side) {
-                block.x = if (W > pw) left / W * 100f else 0f
-                setSide(want)
-            } else {
-                if (block.side.isEmpty() && W > 0) block.x = (left / W * 100f).coerceIn(0f, 100f - block.pct)
-                relayout(); ed.host.onDirty()
-            }
+            val W = flow.width.toFloat()
+            val up = box.translationY < -dp(40)
+            box.animate().translationY(0f).setDuration(150).start()
+            val want = liveSide ?: block.side
+            val left = dragLeft
+            dragLeft = -1f; liveSide = null
+            if (up) { block.y = 0f; ed.moveBlock(this@FotoView, -1); ed.host.hint(L.t("photoMoved")); return }
+            if (block.y > 220f) { block.y = 0f; ed.moveBlock(this@FotoView, 1); ed.host.hint(L.t("photoMoved")); return }
+            block.side = want
+            if (want.isEmpty() && W > 0 && left >= 0) block.x = (left / W * 100f).coerceIn(0f, 100f - block.pct)
+            else if (want == "l") block.x = 0f else if (want == "r") block.x = 100f - block.pct
+            relayout(); ed.host.onDirty(); ed.host.onImageChanged(this@FotoView)
             ed.host.hint(if (want.isNotEmpty()) L.t("writeBeside") else L.t("photoMoved"))
         }
     }
@@ -938,13 +950,30 @@ class MediaView(val ed: EditorView, override val block: Block.Media) : BlockView
         speedTv.setPadding(ctx.dp(8), ctx.dp(6), ctx.dp(8), ctx.dp(6))
         speedTv.setOnClickListener { AudioPlayer.setSpeedNow(when (AudioPlayer.speed) { 1f -> 1.5f; 1.5f -> 2f; else -> 1f }) }
         row.addView(speedTv)
-        row.addView(ctx.iconBtn(MoreIcons.DOTS_V, 8f, T.muted) { mediaOptions(ed, this, block, emptyList()) }.apply { layoutParams = lp(ctx.dp(36), ctx.dp(40)) })
+        row.addView(ctx.iconBtn(MoreIcons.DOTS_V, 8f, T.muted) { mediaOptions(ed, this, block, listOf(L.t("transcribe") to { transcribe() })) }.apply { layoutParams = lp(ctx.dp(36), ctx.dp(40)) })
         row.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(v: View) { AudioPlayer.addListener(listener); paint() }
             override fun onViewDetachedFromWindow(v: View) { AudioPlayer.removeListener(listener); row.removeCallbacks(tick) }
         })
         if (block.dur <= 0) Loader.pool.execute { val i = MediaFiles.info(block.file); Store.main.post { if (i.dur > 0) { block.dur = i.dur; block.size = i.size; paint() } } }
         paint()
+    }
+
+    /** 🎙️→📝 Pasar el audio a texto (con la IA gratis) y ponerlo debajo. */
+    private fun transcribe() {
+        val a = ctx as? android.app.Activity ?: return
+        ctx.dialog().setTitle(L.t("transcribe")).setMessage(L.t("transcribeNote")).setPositiveButton("Español") { _, _ -> go(a, "es") }
+            .setNeutralButton("English") { _, _ -> go(a, "en") }.setNegativeButton(L.t("cancel"), null).show()
+    }
+
+    private fun go(a: android.app.Activity, lang: String) {
+        if (!Transcriber.available(ctx)) { ctx.dialog().setMessage(L.t("transcribeNo")).setPositiveButton(L.t("ok"), null).show(); return }
+        val wait = ctx.dialog().setMessage(L.t("transcribing")).setCancelable(false).show()
+        Transcriber.run(ctx, File(Store.mediaDir, block.file), lang) { out ->
+            wait.dismiss()
+            if (out == null) ctx.toast(L.t("transcribeFail"))
+            else ed.insertAfter(this, Block.Text(mutableListOf(Run(out))))
+        }
     }
 
     private fun paint() {
