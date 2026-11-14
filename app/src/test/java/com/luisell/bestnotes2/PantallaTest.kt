@@ -305,4 +305,32 @@ class PantallaTest {
         assertEquals(1, f.edits().size)
         act.finish(); waitIo()
     }
+
+    @Test fun bovedaDeBestNotes() {
+        val v = org.json.JSONObject(javaClass.classLoader!!.getResource("boveda.json")!!.readText())
+        val files = HashMap<String, String>()
+        val fo = v.getJSONObject("files"); fo.keys().forEach { files[it] = fo.getString(it) }
+        VaultBox.wipe(ctx)
+        assertEquals("ok", VaultBox.importRaw(ctx, files))
+        try { VaultBox.open(ctx, "otra"); fail("debía fallar") } catch (_: VaultBox.WrongPass) {}
+        val k = VaultBox.open(ctx, v.getString("pass"))
+        val list = VaultBox.loadIndex(ctx, k)
+        assertEquals("Secreta-123", list.getJSONObject(0).getString("pass"))
+        val out = File(ctx.cacheDir, "x.txt")
+        VaultBox.unsealStream(ctx, "f_abc.bin", k, out)
+        assertEquals("hola archivo", out.readText())
+        // guardar algo nuevo y volverlo a leer
+        VaultBox.sealStream(ctx, "f_new.bin", k, "contenido grande".byteInputStream())
+        VaultBox.unsealStream(ctx, "f_new.bin", k, out)
+        assertEquals("contenido grande", out.readText())
+        // cambiar la contraseña
+        list.getJSONObject(0).put("file", org.json.JSONObject().put("name", "a.txt"))
+        val k2 = VaultBox.changePass(ctx, k, "nueva123", list)
+        VaultBox.open(ctx, "nueva123")
+        VaultBox.unsealStream(ctx, "f_abc.bin", k2, out)
+        assertEquals("hola archivo", out.readText())
+        // la calculadora y la bóveda abren sin errores
+        Robolectric.buildActivity(CalcActivity::class.java).setup()
+        Robolectric.buildActivity(VaultActivity::class.java).setup()
+    }
 }

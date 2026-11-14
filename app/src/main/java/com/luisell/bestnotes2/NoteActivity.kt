@@ -46,6 +46,7 @@ class NoteActivity : Activity(), EditorView.Host {
         const val REQ_AUDIO_PICK = 57
         const val REQ_PHOTO_DRAW = 58
         const val REQ_DICT = 59
+        const val REQ_CALC = 60
     }
 
     private lateinit var meta: NoteMeta
@@ -130,7 +131,7 @@ class NoteActivity : Activity(), EditorView.Host {
     /* ---------- pantalla ---------- */
     private fun buildUi() {
         root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        edgeToEdge(root)
+        edgeToEdge(root, windowBg = false)
         tint()
 
         // Arriba: botones de vidrio como en Best Notes (← · deshacer/rehacer en una pastilla · ⭐ · ⋮)
@@ -253,7 +254,7 @@ class NoteActivity : Activity(), EditorView.Host {
             val cy = (intent.getFloatExtra("y", h / 3) - loc[1]).coerceIn(0f, h)
             val rMax = Math.hypot(maxOf(cx, w - cx).toDouble(), maxOf(cy, h - cy).toDouble()).toFloat() + dp(12)
             val anim = android.view.ViewAnimationUtils.createCircularReveal(v, cx.toInt(), cy.toInt(), if (open) 0f else rMax, if (open) rMax else 0f)
-            anim.duration = if (open) 420 else 320
+            anim.duration = if (open) 600 else 460
             anim.interpolator = android.view.animation.PathInterpolator(0.65f, 0f, 0.35f, 1f)
             anim.addListener(object : android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(a: android.animation.Animator) { if (!open) v.visibility = View.INVISIBLE; after() }
@@ -1007,8 +1008,30 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     @Deprecated("Deprecated in Java")
+    /* ---------- 🧮 calculadora: el resultado se pone donde estaba el cursor ---------- */
+    private var calcEdit: RichEdit? = null
+    private var calcPos = -1
+    private fun openCalc() {
+        calcEdit = editor.focused; calcPos = calcEdit?.selectionEnd ?: -1
+        startActivityForResult(Intent(this, CalcActivity::class.java).putExtra(CalcActivity.EXTRA_CAN_INSERT, true), REQ_CALC)
+    }
+    private fun putCalc(text: String) {
+        val e = calcEdit?.takeIf { it.isAttachedToWindow }
+        if (e == null) {
+            (getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("calc", text))
+            toast(L.t("calcCopied")); return
+        }
+        val at = calcPos.coerceIn(0, e.text.length)
+        val before = if (at > 0 && e.text[at - 1] != '\n') "\n" else ""
+        val after = if (at < e.text.length && e.text[at] != '\n') "\n" else ""
+        e.text.insert(at, before + text + after)
+        e.requestFocus(); e.setSelection((at + before.length + text.length).coerceAtMost(e.text.length))
+        toast(L.t("calcInserted"))
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_CALC) { if (resultCode == RESULT_OK) data?.getStringExtra(CalcActivity.RESULT_TEXT)?.let { putCalc(it) }; return }
         if (resultCode != RESULT_OK) { if (requestCode == REQ_CAMERA) camFile?.delete(); if (requestCode == REQ_VIDEO_CAM) vidFile?.delete(); return }
         when (requestCode) {
             REQ_VIDEO_CAM -> {
@@ -1098,6 +1121,7 @@ class NoteActivity : Activity(), EditorView.Host {
                 save(); remind(this, meta.id, (meta.title.ifEmpty { blocksPlain(editor.blocks).lineSequence().firstOrNull { it.isNotBlank() } ?: L.t("untitled") }).take(120)) { Store.changed() }
             }
             add(MoreIcons.MIC, L.t("dictate")) { startDictation() }
+            add(Icons.CALC, L.t("calc"), sub = L.t("calcSub")) { openCalc() }
             add(MoreIcons.PALETTE, L.t("noteColor")) { noteColor() }
             add(MoreIcons.PALETTE, L.t("titleColor")) { title.requestFocus(); pickColor("color") }
             add(MoreIcons.FOLDER, L.t("moveToFolder")) { moveFolder() }

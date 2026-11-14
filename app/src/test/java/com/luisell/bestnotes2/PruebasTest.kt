@@ -69,4 +69,26 @@ class PruebasTest {
         val m = Materials.parse("Aquí está: [{\"item\":\"Cable Cat 6\",\"qty\":3,\"site\":\"Sitio A\"}] listo")!!
         assertEquals("Cable Cat 6", m.getJSONObject(0).getString("item"))
     }
+
+    @Test fun calculadora() {
+        Formula.deg = false; Formula.ans = 0.0
+        fun c(t: String) = Formula.eval(t)!!
+        assertEquals(14.0, c("2+3×4"), 1e-9)
+        assertEquals(20.0, c("(2+3)4"), 1e-9)
+        assertEquals(3.0, c("√(9"), 1e-9)                // cierra el paréntesis solo
+        assertEquals(-8.0, c("−2³"), 1e-9)
+        assertEquals(120.0, c("5!"), 1e-9)
+        assertEquals(0.25, c("25%"), 1e-9)
+        assertEquals(2 * Math.PI, c("2π"), 1e-9)
+        assertEquals(1000.0, c("10^(3)"), 1e-9)
+        Formula.deg = true
+        assertEquals(0.5, c("sin(30)"), 1e-9)
+        assertEquals(30.0, c("sin⁻¹(0.5)"), 1e-9)
+        Formula.deg = false
+        assertEquals(12.0, Formula.compile("x²+3")(3.0), 1e-9)
+        assertEquals(null, Formula.eval("2++"))
+        assertEquals("0.3333333333", Formula.fmt(1.0 / 3))
+        assertEquals("1.5ᴇ12", Formula.fmt(1.5e12))
+        assertEquals("−4", Formula.fmt(-4.0))
+    }
 }

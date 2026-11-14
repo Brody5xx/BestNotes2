@@ -53,7 +53,7 @@ class MainActivity : Activity() {
     private var drawer: View? = null
     private val listener: () -> Unit = { refresh() }
 
-    companion object { const val PICK_FILE = 41 }
+    companion object { const val PICK_FILE = 41; const val REQ_WALL = 42 }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -175,11 +175,13 @@ class MainActivity : Activity() {
             spread()
             header.addView(tv(L.t("emptyTrash"), 14f, T.danger, true).apply { setPadding(dp(16), dp(10), dp(16), dp(10)); background = Glass.make(this@MainActivity, 22f); setOnClickListener { emptyTrash() } })
         } else {
+            // la misma fila de Best Notes: ☰ · calculadora · bóveda · ordenar · vista · ☀️ apariencia
             val grid = lm.spanCount == 2
-            spread(); header.addView(glassBtn(MoreIcons.CHECKBOX) { startActivity(Intent(this, PendingActivity::class.java)) })
+            spread(); header.addView(glassBtn(Icons.CALC) { startActivity(Intent(this, CalcActivity::class.java)) })
+            spread(); header.addView(glassBtn(MoreIcons.SHIELD) { startActivity(Intent(this, VaultActivity::class.java)) })
             spread(); header.addView(glassBtn(MoreIcons.SORT) { pickSort() })
             spread(); header.addView(glassBtn(if (grid) MoreIcons.LISTV else MoreIcons.GRID) { toggleLayout() })
-            spread(); header.addView(glassBtn(Icons.BOOK) { startActivity(Intent(this, GuideActivity::class.java)) })
+            spread(); header.addView(glassBtn(MoreIcons.SUN) { appearance() })
         }
     }
 
@@ -354,6 +356,8 @@ class MainActivity : Activity() {
             val n = Store.notes.filter { !it.deleted && !it.locked }.sumOf { maxOf(0, it.checkTotal - it.checkDone) }
             if (n > 0) (r as LinearLayout).addView(tv("$n", 13f, 0xFF16161A.toInt(), true).apply { gravity = Gravity.CENTER; minWidth = dp(24); setPadding(dp(7), dp(2), dp(7), dp(2)); background = roundBg(T.text, dp(12).toFloat()) })
         })
+        p.addView(menuRow(this, MoreIcons.SHIELD, L.t("vault"), L.t("vaultHint")) { closeDrawer(); startActivity(Intent(this, VaultActivity::class.java)) })
+        p.addView(menuRow(this, Icons.CALC, L.t("calc"), L.t("calcSub")) { closeDrawer(); startActivity(Intent(this, CalcActivity::class.java)) })
         p.addView(menuRow(this, Icons.REPORT, L.t("report"), L.t("reportHint")) { closeDrawer(); startActivity(Intent(this, ReportActivity::class.java)) })
         p.addView(menuRow(this, Icons.BOX, L.t("materials"), L.t("materialsHint")) { closeDrawer(); startActivity(Intent(this, MaterialsActivity::class.java)) })
         p.addView(sep())
@@ -406,8 +410,8 @@ class MainActivity : Activity() {
         drawer = box
         // Se abre creciendo desde la izquierda (blanco al principio, como en Best Notes), con la línea de luz en el borde
         holder.pivotX = 0f; holder.scaleX = 0.02f; wash.alpha = 0.85f
-        scrim.animate().alpha(1f).setDuration(220).start()
-        val va = android.animation.ValueAnimator.ofFloat(0f, 1f).setDuration(340)
+        scrim.animate().alpha(1f).setDuration(320).start()
+        val va = android.animation.ValueAnimator.ofFloat(0f, 1f).setDuration(520)
         va.interpolator = android.view.animation.DecelerateInterpolator(1.6f)
         va.addUpdateListener {
             val k = it.animatedValue as Float
@@ -416,6 +420,49 @@ class MainActivity : Activity() {
             line.translationX = dp(10) + panelW * holder.scaleX - dp(7); line.alpha = if (k < 0.85f) 1f else (1 - k) / 0.15f
         }
         va.start()
+    }
+
+    /* ---------- ☀️ Apariencia: el fondo de la app ---------- */
+    private fun appearance() {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(10), dp(16), dp(6)) }
+        val grid = android.widget.GridLayout(this).apply { columnCount = 3 }
+        val d = dialog().setTitle("☀️ " + L.t("appearance")).setView(ScrollView(this).apply { addView(box) }).setNegativeButton(L.t("done"), null).create()
+        val cur = Wall.current(this)
+        val opts = listOf("best" to "Best Notes") + Wall.GRADS.map { it[0] as String to (if (L.lang == "es") it[1] else it[2]) as String } +
+            ("photo" to L.t("wallPhoto"))
+        val cell = (resources.displayMetrics.widthPixels - dp(120)) / 3
+        for ((id, name) in opts) {
+            val v = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(4), dp(4), dp(4), dp(8)) }
+            val th = FrameLayout(this).apply {
+                background = if (id == "photo" && !Wall.photoFile(this@MainActivity).exists()) roundBg(0x1AFFFFFF, dp(14).toFloat(), T.border, dp(1))
+                    else Wall.drawable(this@MainActivity, id)
+                clipToOutline = true; outlineProvider = object : android.view.ViewOutlineProvider() {
+                    override fun getOutline(view: View, o: android.graphics.Outline) { o.setRoundRect(0, 0, view.width, view.height, dp(14).toFloat()) }
+                }
+                foreground = if (id == cur) roundBg(0, dp(14).toFloat(), 0xFF4FC3F7.toInt(), dp(3)) else null
+            }
+            if (id == "photo") th.addView(tv("🖼️", 26f).apply { gravity = Gravity.CENTER }, FrameLayout.LayoutParams(MATCH, MATCH))
+            v.addView(th, lp(cell, (cell * 1.5f).toInt()))
+            v.addView(tv(name, 12f, if (id == cur) 0xFF4FC3F7.toInt() else T.muted, id == cur).apply { gravity = Gravity.CENTER; setPadding(0, dp(4), 0, 0) })
+            v.setOnClickListener {
+                d.dismiss()
+                if (id == "photo") pickWallPhoto() else { Wall.set(this, id); recreate() }
+            }
+            grid.addView(v)
+        }
+        box.addView(grid)
+        val blur = android.widget.Switch(this).apply {
+            text = L.t("wallBlur"); setTextColor(T.text); isChecked = Wall.blur(this@MainActivity); setPadding(dp(6), dp(12), dp(6), dp(4))
+            setOnCheckedChangeListener { _, on -> Wall.setBlur(this@MainActivity, on); if (Wall.current(this@MainActivity) == "photo") { d.dismiss(); recreate() } }
+        }
+        box.addView(blur)
+        box.addView(tv(L.t("lightSoon"), 12f, T.muted).apply { setPadding(dp(6), dp(8), dp(6), 0) })
+        d.show()
+    }
+
+    private fun pickWallPhoto() {
+        val i = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*")
+        try { startActivityForResult(i, REQ_WALL) } catch (_: Exception) { toast(L.t("cantOpen")) }
     }
 
     private fun sep() = View(this).apply { setBackgroundColor(T.border) }.also { it.layoutParams = lp(MATCH, dp(1)).apply { setMargins(dp(14), dp(8), dp(14), dp(8)) } }
@@ -437,14 +484,14 @@ class MainActivity : Activity() {
         val left = (loc[0] - rl[0]).toFloat(); val top = (loc[1] - rl[1]).toFloat()
         val sp = SparkleView(this, Fx.menuTrail(this, left, top, w, h, root.width.toFloat()))
         root.addView(sp, FrameLayout.LayoutParams(MATCH, MATCH))
-        sp.play(900)
+        sp.play(1400)
         // el destello va en el centro de la izquierda
         flash.translationX = left - dp(60) + dp(3); flash.translationY = top + h / 2 - dp(60)
         holder.pivotX = 0f; holder.pivotY = h / 2
         line.pivotY = (line.height / 2).toFloat()
-        scrim.animate().alpha(0f).setDuration(520).start()
+        scrim.animate().alpha(0f).setDuration(820).start()
         val parts = CloseParts(holder, wash, line, flash, w, left)
-        val va = android.animation.ValueAnimator.ofFloat(0f, 1f).setDuration(720)
+        val va = android.animation.ValueAnimator.ofFloat(0f, 1f).setDuration(1150)
         va.interpolator = android.view.animation.LinearInterpolator()
         va.addUpdateListener { closeFrame(parts, it.animatedValue as Float) }
         va.addListener(object : android.animation.AnimatorListenerAdapter() { override fun onAnimationEnd(a: android.animation.Animator) { root.removeView(box) } })
@@ -550,6 +597,12 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == PICK_FILE && resultCode == RESULT_OK) data?.data?.let { askPassword(it) }
+        if (requestCode == REQ_WALL && resultCode == RESULT_OK) data?.data?.let { u ->
+            Thread {
+                val ok = try { contentResolver.openInputStream(u)!!.use { inp -> Wall.photoFile(this).outputStream().use { inp.copyTo(it) } }; true } catch (_: Exception) { false }
+                runOnUiThread { if (ok) { Wall.set(this, "photo"); recreate() } else toast(L.t("cantOpen")) }
+            }.start()
+        }
     }
 
     private fun handleIntent(i: Intent?) {
@@ -576,7 +629,8 @@ class MainActivity : Activity() {
             val res: String = try {
                 val s = Backup.importFile(this, uri, pass) { n -> runOnUiThread { step.text = L.t("importing") + "\n" + n } }
                 L.t("importDone", "n" to s.total, "u" to s.written) + "\n\n" + L.t("importKeepNewer") +
-                    (if (s.missing > 0) "\n\n" + L.t("importMediaFail", "n" to s.missing) else "")
+                    (if (s.missing > 0) "\n\n" + L.t("importMediaFail", "n" to s.missing) else "") +
+                    (when (s.vault) { "ok" -> "\n\n🛡️ " + L.t("vImported"); "exists" -> "\n\n🛡️ " + L.t("vImportExists"); else -> "" })
             } catch (_: Backup.WrongPassword) { "!" + L.t("importWrongPass") }
             catch (_: Backup.BadFile) { "!" + L.t("importBadFile") }
             catch (e: Throwable) { "!" + L.t("importFail", "e" to (e.message ?: e.javaClass.simpleName)) }

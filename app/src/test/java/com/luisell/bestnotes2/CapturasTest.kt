@@ -55,6 +55,9 @@ class CapturasTest {
         val foto = ed.views.first { it is FotoView } as FotoView
         ed.selectImage(foto); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
         shot(act.window.decorView, "4_foto")
+        val gf = FotoView::class.java.getDeclaredField("glow").apply { isAccessible = true }
+        val g = gf.get(foto) as android.graphics.drawable.Drawable?
+        println("GLOW " + g + " " + g?.bounds)
     }
 
     @Test fun cierreDelMenu() {
@@ -78,5 +81,23 @@ class CapturasTest {
         for ((i, t) in listOf(0.2f, 0.4f, 0.55f, 0.72f, 0.84f, 0.9f).withIndex()) {
             main.closeFrame(parts, t); shot(v, "cierre_$i")
         }
+    }
+
+    @Test fun capturasCalcYBoveda() {
+        if (System.getenv("CAPTURAS") == null) return
+        val ca = Robolectric.buildActivity(CalcActivity::class.java).setup().visible().get()
+        idle()
+        val tab = CalcActivity::class.java.getDeclaredMethod("setTab", String::class.java).apply { isAccessible = true }
+        val ins = CalcActivity::class.java.getDeclaredMethod("insert", String::class.java, Boolean::class.javaPrimitiveType).apply { isAccessible = true }
+        val ent = CalcActivity::class.java.getDeclaredMethod("enter").apply { isAccessible = true }
+        ins.invoke(ca, "2+3×4", true); ent.invoke(ca); ins.invoke(ca, "√(81", true); idle()
+        shot(ca.window.decorView, "5_calc")
+        tab.invoke(ca, "y"); ins.invoke(ca, "x²−4", true); idle()
+        tab.invoke(ca, "graph"); idle(); shot(ca.window.decorView, "6_grafica")
+        tab.invoke(ca, "hrs"); idle(); shot(ca.window.decorView, "7_horas")
+        tab.invoke(ca, "fx"); idle(); shot(ca.window.decorView, "8_divisas")
+        VaultBox.wipe(ctx)
+        val va = Robolectric.buildActivity(VaultActivity::class.java).setup().visible().get(); idle()
+        shot(va.window.decorView, "9_boveda")
     }
 }

@@ -95,6 +95,15 @@
         </receiver>
 
         <activity
+            android:name=".CalcActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".VaultActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
             android:name=".GuideActivity"
             android:exported="false" />
 

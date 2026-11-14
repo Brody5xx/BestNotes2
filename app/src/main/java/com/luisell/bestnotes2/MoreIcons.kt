@@ -46,6 +46,10 @@ object MoreIcons {
     const val FULL = 232
     const val MUTE = 233
     const val ATTACH = 234
+    const val SHIELD = 235
+    const val SUN = 236
+    const val MOON = 237
+    const val COPY = 238
 
     private val path = Path()
     private val r = RectF()
@@ -250,6 +254,47 @@ object MoreIcons {
                 c.drawPath(path, st)
                 c.drawLine(cx + s * 0.3f, cy - s * 0.3f, cx + s * 0.9f, cy + s * 0.3f, st)
                 c.drawLine(cx + s * 0.9f, cy - s * 0.3f, cx + s * 0.3f, cy + s * 0.3f, st)
+            }
+            SHIELD -> {
+                // escudo con candado (la bóveda)
+                path.reset()
+                path.moveTo(cx, cy - s * 0.95f)
+                path.lineTo(cx + s * 0.8f, cy - s * 0.65f)
+                path.cubicTo(cx + s * 0.8f, cy + s * 0.15f, cx + s * 0.45f, cy + s * 0.7f, cx, cy + s * 0.98f)
+                path.cubicTo(cx - s * 0.45f, cy + s * 0.7f, cx - s * 0.8f, cy + s * 0.15f, cx - s * 0.8f, cy - s * 0.65f)
+                path.close()
+                c.drawPath(path, st)
+                r.set(cx - s * 0.3f, cy - s * 0.05f, cx + s * 0.3f, cy + s * 0.42f)
+                c.drawRoundRect(r, s * 0.06f, s * 0.06f, st)
+                r.set(cx - s * 0.19f, cy - s * 0.35f, cx + s * 0.19f, cy + s * 0.05f)
+                c.drawArc(r, 180f, 180f, false, st)
+            }
+            SUN -> {
+                c.drawCircle(cx, cy, s * 0.38f, st)
+                for (k in 0 until 8) {
+                    val a = Math.PI * k / 4
+                    val ca = Math.cos(a).toFloat(); val sa = Math.sin(a).toFloat()
+                    c.drawLine(cx + ca * s * 0.62f, cy + sa * s * 0.62f, cx + ca * s * 0.92f, cy + sa * s * 0.92f, st)
+                }
+            }
+            MOON -> {
+                path.reset()
+                r.set(cx - s * 0.8f, cy - s * 0.8f, cx + s * 0.8f, cy + s * 0.8f)
+                path.addCircle(cx, cy, s * 0.8f, Path.Direction.CW)
+                val cut = Path().apply { addCircle(cx + s * 0.45f, cy - s * 0.35f, s * 0.62f, Path.Direction.CW) }
+                path.op(cut, Path.Op.DIFFERENCE)
+                c.drawPath(path, st)
+            }
+            COPY -> {
+                r.set(cx - s * 0.35f, cy - s * 0.45f, cx + s * 0.75f, cy + s * 0.85f)
+                c.drawRoundRect(r, s * 0.15f, s * 0.15f, st)
+                path.reset()
+                path.moveTo(cx - s * 0.6f, cy + s * 0.5f)
+                path.lineTo(cx - s * 0.75f, cy + s * 0.5f)
+                path.lineTo(cx - s * 0.75f, cy - s * 0.85f)
+                path.lineTo(cx + s * 0.35f, cy - s * 0.85f)
+                path.lineTo(cx + s * 0.35f, cy - s * 0.7f)
+                c.drawPath(path, st)
             }
             ATTACH -> {
                 // clip

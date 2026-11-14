@@ -22,9 +22,81 @@ object Glass {
     fun make(ctx: Context, radiusDp: Float, strong: Boolean = false, tint: Int = 0, bar: Boolean = false, selected: Boolean = false): Drawable =
         GlassDrawable(ctx.resources.displayMetrics.density, radiusDp, strong, tint, bar, selected)
 
-    /** El fondo desenfocado de Best Notes (se estira suave a toda la pantalla). */
-    fun background(ctx: Context): Drawable =
-        BitmapDrawable(ctx.resources, android.graphics.BitmapFactory.decodeResource(ctx.resources, R.drawable.bg_dark)).apply { isFilterBitmap = true; setDither(true) }
+    /** El fondo de la app: el de Best Notes, un degradado o tu foto (☀️ Apariencia). */
+    fun background(ctx: Context): Drawable = Wall.drawable(ctx)
+}
+
+/** 🖼️ Los fondos de pantalla de la app. */
+object Wall {
+    /** [id, nombre ES, nombre EN, colores] (los degradados son inventados, oscuros para que se lea bien). */
+    val GRADS: List<List<Any>> = listOf(
+        listOf("aurora", "Aurora", "Aurora", intArrayOf(0xFF0F2027.toInt(), 0xFF203A43.toInt(), 0xFF2C5364.toInt())),
+        listOf("violeta", "Violeta", "Violet", intArrayOf(0xFF140C2B.toInt(), 0xFF3A1C71.toInt(), 0xFF5B2A86.toInt())),
+        listOf("oceano", "Océano", "Ocean", intArrayOf(0xFF000428.toInt(), 0xFF003366.toInt(), 0xFF004E92.toInt())),
+        listOf("bosque", "Bosque", "Forest", intArrayOf(0xFF07211A.toInt(), 0xFF0B3D2E.toInt(), 0xFF134E4A.toInt())),
+        listOf("atardecer", "Atardecer", "Sunset", intArrayOf(0xFF2B1055.toInt(), 0xFF7A2E3B.toInt(), 0xFF3A1C1C.toInt())),
+        listOf("noche", "Noche", "Night", intArrayOf(0xFF000000.toInt(), 0xFF141416.toInt(), 0xFF1C1C1E.toInt())),
+    )
+    private var cacheKey = ""
+    private var cacheBmp: android.graphics.Bitmap? = null
+
+    fun current(ctx: Context): String = ctx.getSharedPreferences("ajustes", 0).getString("wall", "best") ?: "best"
+    fun blur(ctx: Context): Boolean = ctx.getSharedPreferences("ajustes", 0).getBoolean("wallBlur", true)
+    fun photoFile(ctx: Context) = java.io.File(ctx.filesDir, "fondo_app.jpg")
+
+    fun set(ctx: Context, id: String) { ctx.getSharedPreferences("ajustes", 0).edit().putString("wall", id).apply(); cacheKey = "" }
+    fun setBlur(ctx: Context, on: Boolean) { ctx.getSharedPreferences("ajustes", 0).edit().putBoolean("wallBlur", on).apply(); cacheKey = "" }
+
+    fun drawable(ctx: Context, id: String = current(ctx)): Drawable {
+        GRADS.firstOrNull { (it[0] as String) == id }?.let {
+            return android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, it[3] as IntArray)
+        }
+        val key = id + blur(ctx) + (if (id == "photo") photoFile(ctx).lastModified() else 0L)
+        if (key != cacheKey || cacheBmp == null) {
+            cacheBmp = if (id == "photo" && photoFile(ctx).exists()) loadPhoto(ctx) else null
+            if (cacheBmp == null) cacheBmp = android.graphics.BitmapFactory.decodeResource(ctx.resources, R.drawable.bg_dark)
+            cacheKey = key
+        }
+        val bd = BitmapDrawable(ctx.resources, cacheBmp).apply { isFilterBitmap = true; setDither(true) }
+        if (id != "photo") return bd
+        // tu foto se oscurece un poco para que las letras blancas se lean
+        return android.graphics.drawable.LayerDrawable(arrayOf(CoverDrawable(cacheBmp!!), android.graphics.drawable.ColorDrawable(0x73000000)))
+    }
+
+    /** Tu foto: más chiquita (rápida) y, si quieres, difuminada. */
+    private fun loadPhoto(ctx: Context): android.graphics.Bitmap? {
+        val f = photoFile(ctx)
+        val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeFile(f.path, o)
+        var smp = 1; while (o.outWidth / smp > 1400 || o.outHeight / smp > 1400) smp *= 2
+        val b = android.graphics.BitmapFactory.decodeFile(f.path, android.graphics.BitmapFactory.Options().apply { inSampleSize = smp }) ?: return null
+        if (!blur(ctx)) return b
+        // difuminado barato: se achica mucho y se vuelve a agrandar suave (dos veces)
+        var x = b
+        repeat(2) {
+            val small = android.graphics.Bitmap.createScaledBitmap(x, maxOf(1, x.width / 10), maxOf(1, x.height / 10), true)
+            x = android.graphics.Bitmap.createScaledBitmap(small, b.width / 2, b.height / 2, true)
+        }
+        return x
+    }
+
+    /** Muestra la foto llenando la pantalla sin estirarla (como "cover"). */
+    class CoverDrawable(private val bmp: android.graphics.Bitmap) : Drawable() {
+        private val p = Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG)
+        private val src = android.graphics.Rect()
+        override fun draw(c: Canvas) {
+            val b = bounds; if (b.isEmpty) return
+            val sc = maxOf(b.width() / bmp.width.toFloat(), b.height() / bmp.height.toFloat())
+            val w = (b.width() / sc).toInt(); val h = (b.height() / sc).toInt()
+            val l = (bmp.width - w) / 2; val t = (bmp.height - h) / 2
+            src.set(l, t, l + w, t + h)
+            c.drawBitmap(bmp, src, b, p)
+        }
+        override fun setAlpha(alpha: Int) { p.alpha = alpha }
+        override fun setColorFilter(cf: ColorFilter?) { p.colorFilter = cf }
+        @Deprecated("Deprecated in Java")
+        override fun getOpacity() = PixelFormat.OPAQUE
+    }
 }
 
 class GlassDrawable(
@@ -79,6 +151,61 @@ class GlassDrawable(
         p.shader = null
     }
 
+    override fun setAlpha(alpha: Int) {}
+    override fun setColorFilter(cf: ColorFilter?) {}
+    @Deprecated("Deprecated in Java")
+    override fun getOpacity() = PixelFormat.TRANSLUCENT
+}
+
+/**
+ * ✨ El borde azul que BRILLA alrededor de la foto seleccionada (como en Best Notes):
+ * un halo azul que respira y una luz que da vueltas por la orilla.
+ */
+class GlowBorder(private val d: Float, private val radiusDp: Float, private val padDp: Float = 10f) : Drawable(), android.graphics.drawable.Animatable {
+    private val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND }
+    private val r = RectF()
+    private val m = android.graphics.Matrix()
+    private var t = 0f
+    private val anim = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+        duration = 2600; repeatCount = android.animation.ValueAnimator.INFINITE
+        interpolator = android.view.animation.LinearInterpolator()
+        addUpdateListener { t = it.animatedValue as Float; invalidateSelf() }
+    }
+
+    private val HALO = (0 until 9).map { i -> val k = i / 8f; (18f - 15f * k) to (0.035f + 0.07f * k * k) }
+
+    /** [bounds] = la foto + [padDp] de cada lado (el brillo va por FUERA de la foto). */
+    override fun draw(c: Canvas) {
+        val b = bounds
+        if (b.width() <= 0) return
+        val pad = padDp * d
+        val rad = radiusDp * d
+        val breathe = 0.5f + 0.5f * Math.sin(t * Math.PI * 4).toFloat()     // respira 2 veces por vuelta
+        // halo azul por fuera (capas cada vez más anchas y suaves)
+        for ((w, a) in HALO) {
+            val sw = w * d
+            p.shader = null; p.strokeWidth = sw
+            p.color = 0x4FC3F7 or ((255 * a * (0.55f + 0.45f * breathe)).toInt() shl 24)
+            val o = pad - sw / 2                       // el borde de adentro del halo pega con la foto
+            r.set(b.left + o, b.top + o, b.right - o, b.bottom - o)
+            c.drawRoundRect(r, rad + sw / 2, rad + sw / 2, p)
+        }
+        // la línea azul pegada a la foto
+        p.strokeWidth = 2.2f * d; p.color = 0xFF4FC3F7.toInt()
+        r.set(b.left + pad, b.top + pad, b.right - pad, b.bottom - pad)
+        c.drawRoundRect(r, rad, rad, p)
+        // la luz blanca que da vueltas por la orilla
+        val sg = android.graphics.SweepGradient(b.exactCenterX(), b.exactCenterY(),
+            intArrayOf(0x00FFFFFF, 0x00FFFFFF, 0xCCE1F5FE.toInt(), 0xFFFFFFFF.toInt(), 0x00FFFFFF), floatArrayOf(0f, 0.70f, 0.85f, 0.92f, 1f))
+        m.setRotate(t * 360f, b.exactCenterX(), b.exactCenterY()); sg.setLocalMatrix(m)
+        p.shader = sg; p.strokeWidth = 3.4f * d
+        c.drawRoundRect(r, rad, rad, p)
+        p.shader = null
+    }
+
+    override fun start() { if (!anim.isRunning) anim.start() }
+    override fun stop() { anim.cancel() }
+    override fun isRunning() = anim.isRunning
     override fun setAlpha(alpha: Int) {}
     override fun setColorFilter(cf: ColorFilter?) {}
     @Deprecated("Deprecated in Java")

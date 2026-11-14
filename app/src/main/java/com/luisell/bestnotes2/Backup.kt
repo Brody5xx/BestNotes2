@@ -34,7 +34,7 @@ object Backup {
     class WrongPassword : Exception()
     class BadFile : Exception()
 
-    class Summary(var total: Int = 0, var written: Int = 0, var missing: Int = 0)
+    class Summary(var total: Int = 0, var written: Int = 0, var missing: Int = 0, var vault: String = "")
 
     /* ---------- cifrado ---------- */
     private fun hmac(key: ByteArray): Mac = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(key, "HmacSHA256")) }
@@ -261,6 +261,21 @@ object Backup {
                             if (r.peek() == JsonToken.STRING) saveDataUri(r.nextString())?.let { walls[id] = it } else r.skipValue()
                         }
                         r.endObject()
+                    }
+                    "vault" -> {
+                        // 🛡️ la bóveda viaja tal cual (sigue cifrada con su contraseña)
+                        if (r.peek() == JsonToken.BEGIN_OBJECT) {
+                            val files = HashMap<String, String>()
+                            r.beginObject()
+                            while (r.hasNext()) { val n = r.nextName(); if (r.peek() == JsonToken.STRING) files[n] = r.nextString() else r.skipValue() }
+                            r.endObject()
+                            sum.vault = try { VaultBox.importRaw(ctx, files) } catch (_: Exception) { "" }
+                        } else r.skipValue()
+                    }
+                    "calc" -> {
+                        // 🧮 lo que la calculadora recordaba (historial, Y=, divisas, horas)
+                        val c = readAny(r) as? JSONObject
+                        if (c != null && prefs.getString("calcState", null).isNullOrEmpty()) prefs.edit().putString("calcState", c.toString()).apply()
                     }
                     "settings" -> {
                         val s = readAny(r) as? JSONObject

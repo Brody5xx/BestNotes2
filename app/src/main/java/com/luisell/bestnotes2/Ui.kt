@@ -156,7 +156,7 @@ fun Context.colorRow(colors: IntArray, withNone: Boolean, selected: Int, onPick:
 }
 
 /** Barra de arriba con la altura de la barra de estado ya sumada. */
-fun Activity.edgeToEdge(root: View) {
+fun Activity.edgeToEdge(root: View, windowBg: Boolean = true) {
     // El fondo de vidrio de Best Notes se ve también detrás de la barra de arriba
     window.statusBarColor = android.graphics.Color.TRANSPARENT
     window.navigationBarColor = 0xFF1F1F1F.toInt()
@@ -164,6 +164,7 @@ fun Activity.edgeToEdge(root: View) {
     window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
     root.background = null
     root.fitsSystemWindows = true
+    if (windowBg) window.setBackgroundDrawable(Glass.background(this))       // el fondo escogido en ☀️ Apariencia
 }
 
 /** Botón redondo de vidrio (como los de arriba en Best Notes). */

@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     private class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-14" to ("Parte 4c-1: calculadora (gráficas, tabla, divisas y horas de trabajo), bóveda cifrada, fondos de pantalla, la misma fila de botones de Best Notes, brillo azul que da vueltas en la foto seleccionada y animaciones más lentas" to
+            "Part 4c-1: calculator (graphs, table, currency and work hours), encrypted vault, wallpapers, the same button row as Best Notes, spinning blue glow on the selected photo and slower animations"),
         "2026-11-14" to ("Parte 4b: el diseño de vidrio de Best Notes con sus animaciones (estrellitas, círculo al abrir), fotos que acomodan el texto en vivo, IA (asistente, reescribir, palabras y frases profesionales, ortografía), reporte del día, lista de materiales y pasar audios a texto" to
             "Part 4b: Best Notes glass design with its animations (sparkles, circle when opening), photos that move the text live, AI (assistant, rewrite, professional words and phrases, spelling), daily report, materials list and audio to text"),
         "2026-11-14" to ("Parte 4a: mover fotos como antes (brillo azul, cruz roja, escribir al lado), compartir como imagen o PDF, dictar, pendientes, recordatorios, bloqueo de la app y formato de hora" to
@@ -224,12 +226,57 @@ class GuideActivity : Activity() {
                 "Note → ⋮ → Lock with PIN. It's the same PIN as Best Notes if you imported your notes.",
                 "Locked notes don't show their text in the list or in search.",
             )),
-        Sec(MoreIcons.INFO,
-            "Lo que viene (parte 4c)" to listOf(
-                "Parte 4c: respaldo, bóveda, calculadora (moneda y horas de trabajo), historial y versiones, plantillas, apariencia (claro/oscuro, fondos) y más idiomas.",
+        Sec(Icons.CALC,
+            "Calculadora" to listOf(
+                "Arriba en la pantalla principal (🧮) o en la nota: ⋮ → Calculadora.",
+                "Calc: como una calculadora científica. 2nd cambia las teclas (sin⁻¹, eˣ, √…). ENTER vacío repite lo último. Toca un resultado viejo para usarlo.",
+                "Y= y Gráfica: escribe hasta 4 funciones (por ejemplo x²−4). En la gráfica mueve con un dedo y acerca con dos. ⌖ sigue la línea y te dice x y y.",
+                "Tabla: los valores de tus funciones desde «Inicio», de «Paso» en «Paso».",
+                "Divisas: cambio de moneda con las tasas del día (necesita internet una vez; luego recuerda las últimas).",
+                "Horas: pon entrada, salida y descanso de cada día; suma la semana (los turnos de noche cuentan bien).",
+                "Desde una nota, «Poner en la nota» escribe el resultado donde estaba el cursor.",
             ),
-            "Coming next (part 4c)" to listOf(
-                "Part 4c: backup, vault, calculator (currency and work hours), history and versions, templates, appearance (light/dark, backgrounds) and more languages.",
+            "Calculator" to listOf(
+                "At the top of the home screen (🧮) or in a note: ⋮ → Calculator.",
+                "Calc: like a scientific calculator. 2nd changes the keys (sin⁻¹, eˣ, √…). Empty ENTER repeats the last one. Tap an old result to use it.",
+                "Y= and Graph: type up to 4 functions (for example x²−4). Move the graph with one finger and zoom with two. ⌖ follows the line and shows x and y.",
+                "Table: the values of your functions from “Start”, “Step” by “Step”.",
+                "Currency: exchange with today's rates (needs internet once; then it remembers the last ones).",
+                "Hours: set start, end and break for each day; it adds up the week (night shifts count right).",
+                "From a note, “Insert in note” writes the result where the cursor was.",
+            )),
+        Sec(MoreIcons.SHIELD,
+            "Bóveda" to listOf(
+                "Botón del escudo arriba (o ☰ → Bóveda). La primera vez creas una contraseña.",
+                "Guarda contraseñas, correos, enlaces, notas secretas, fotos, videos y archivos. Todo se cifra con tu contraseña.",
+                "🎲 crea una contraseña segura. El botón de copiar la copia sin mostrarla.",
+                "Al salir de la app la bóveda se cierra sola.",
+                "Si pasas tus notas desde Best Notes, la bóveda viene también y se abre con la misma contraseña.",
+                "⚠️ Si olvidas la contraseña no hay forma de recuperar lo de adentro.",
+            ),
+            "Vault" to listOf(
+                "Shield button at the top (or ☰ → Vault). The first time you create a password.",
+                "Keep passwords, emails, links, secret notes, photos, videos and files. Everything is encrypted with your password.",
+                "🎲 creates a strong password. The copy button copies it without showing it.",
+                "When you leave the app, the vault locks itself.",
+                "If you bring your notes from Best Notes, the vault comes too and opens with the same password.",
+                "⚠️ If you forget the password, there is no way to get back what's inside.",
+            )),
+        Sec(MoreIcons.SUN,
+            "Apariencia y fondos" to listOf(
+                "Botón ☀️ arriba: escoge el fondo de Best Notes, un degradado o tu propia foto.",
+                "Tu foto se puede difuminar para que las letras se lean mejor.",
+            ),
+            "Appearance and backgrounds" to listOf(
+                "☀️ button at the top: pick the Best Notes background, a gradient or your own photo.",
+                "Your photo can be blurred so the text is easier to read.",
+            )),
+        Sec(MoreIcons.INFO,
+            "Lo que viene (parte 4c-2)" to listOf(
+                "Respaldo, historial y versiones de cada nota, plantillas, modo claro y más idiomas.",
+            ),
+            "Coming next (part 4c-2)" to listOf(
+                "Backup, history and versions of each note, templates, light mode and more languages.",
             )),
     )
 

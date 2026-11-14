@@ -613,6 +613,13 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
     var selected = false
         private set
     private var loadedW = 0
+    private var glow: GlowBorder? = null
+    /** El brillo sigue a la foto (también mientras la mueves). */
+    private fun placeGlow() {
+        val g = glow ?: return
+        val pad = dp(10)
+        g.setBounds(box.left - pad, box.top - pad + box.translationY.toInt(), box.right + pad, box.bottom + pad + box.translationY.toInt())
+    }
 
     // mientras arrastras: dónde va (en vivo)
     private var dragLeft = -1f
@@ -625,6 +632,9 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
 
     /** La fila: acomoda la foto y el texto (al lado o debajo) cada vez que algo cambia. */
     private val flow = object : ViewGroup(ctx) {
+        // el brillo se pinta ENCIMA de la foto (y un poquito por fuera)
+        override fun dispatchDraw(canvas: android.graphics.Canvas) { super.dispatchDraw(canvas); glow?.draw(canvas) }
+        override fun verifyDrawable(who: android.graphics.drawable.Drawable) = who === glow || super.verifyDrawable(who)
         override fun onMeasure(ws: Int, hs: Int) {
             val W = MeasureSpec.getSize(ws)
             val pw = (W * block.pct / 100f).toInt().coerceIn(dp(40), W)
@@ -655,6 +665,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                 else -> (W * block.x / 100f).toInt()
             }.coerceIn(0, maxOf(0, W - pw))
             box.layout(left, top, left + pw, top + ph)
+            placeGlow()
             if (edit.visibility != View.GONE) {
                 val gap = dp(12)
                 when (side()) {
@@ -722,15 +733,15 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         if (selected == on) return
         selected = on
         if (on) {
-            box.foreground = android.graphics.drawable.LayerDrawable(arrayOf(
-                roundBg(0, dp(12).toFloat(), 0x664FC3F7, dp(6)),
-                roundBg(0, dp(12).toFloat(), 0xFF4FC3F7.toInt(), dp(2)),
-            ))
+            glow = GlowBorder(ctx.resources.displayMetrics.density, 12f).also { g -> g.callback = flow; g.start() }
+            flow.clipChildren = false; (root.parent as? ViewGroup)?.clipChildren = false
+            flow.invalidate()
+            placeGlow()
             box.animate().scaleX(1.03f).scaleY(1.03f).setDuration(120).setInterpolator(android.view.animation.DecelerateInterpolator())
                 .withEndAction { box.animate().scaleX(1f).scaleY(1f).setDuration(180).setInterpolator(android.view.animation.OvershootInterpolator(2f)).start() }.start()
             showAnchor()
         } else {
-            box.foreground = null
+            glow?.let { it.stop(); it.callback = null }; glow = null; flow.invalidate()
             anchorPill?.let { p -> p.animate().alpha(0f).setDuration(120).withEndAction { root.removeView(p) }.start() }; anchorPill = null
         }
     }
@@ -857,7 +868,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                     block.y = (baseY + dy / d).coerceAtLeast(0f)
                     // hacia arriba más allá de su lugar: se ve que se va a subir
                     box.translationY = if (baseY + dy / d < 0) dy + baseY * d else 0f
-                    flow.requestLayout()
+                    flow.requestLayout(); placeGlow()
                     val sideTxt = when (want) { "l" -> "  ·  " + L.t("textRight"); "r" -> "  ·  " + L.t("textLeft"); else -> "" }
                     guides("${if (left - baseLeft >= 0) "+" else ""}${((left - baseLeft) / d).toInt()} px  ↕ ${(dy / d).toInt()} px$sideTxt")
                 }
@@ -880,7 +891,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         private fun finishDrag() {
             val W = flow.width.toFloat()
             val up = box.translationY < -dp(40)
-            box.animate().translationY(0f).setDuration(150).start()
+            box.animate().translationY(0f).setDuration(150).setUpdateListener { placeGlow() }.start()
             val want = liveSide ?: block.side
             val left = dragLeft
             dragLeft = -1f; liveSide = null
