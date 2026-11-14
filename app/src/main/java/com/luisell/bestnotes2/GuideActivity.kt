@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     private class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-14" to ("Parte 4c-2: barra de arriba como en Best Notes (historial, ortografía, fondo de la nota y calculadora), historial y versiones de cada nota, revisar ortografía una por una, panel de la foto como antes y paneles nuevos de vidrio con animaciones" to
+            "Part 4c-2: top bar like Best Notes (history, spelling, note background and calculator), history and versions of each note, spell check one by one, photo panel like before and new animated glass panels"),
         "2026-11-14" to ("Parte 4c-1: calculadora (gráficas, tabla, divisas y horas de trabajo), bóveda cifrada, fondos de pantalla, la misma fila de botones de Best Notes, brillo azul fino con dos líneas blancas que trazan la orilla de la foto seleccionada y animaciones más lentas" to
             "Part 4c-1: calculator (graphs, table, currency and work hours), encrypted vault, wallpapers, the same button row as Best Notes, thin blue glow with two white lines tracing the edge of the selected photo and slower animations"),
         "2026-11-14" to ("Parte 4b: el diseño de vidrio de Best Notes con sus animaciones (estrellitas, círculo al abrir), fotos que acomodan el texto en vivo, IA (asistente, reescribir, palabras y frases profesionales, ortografía), reporte del día, lista de materiales y pasar audios a texto" to
@@ -271,12 +273,38 @@ class GuideActivity : Activity() {
                 "☀️ button at the top: pick the Best Notes background, a gradient or your own photo.",
                 "Your photo can be blurred so the text is easier to read.",
             )),
-        Sec(MoreIcons.INFO,
-            "Lo que viene (parte 4c-2)" to listOf(
-                "Respaldo, historial y versiones de cada nota, plantillas, modo claro y más idiomas.",
+        Sec(MoreIcons.HISTORY,
+            "Historial y versiones" to listOf(
+                "En la nota, arriba: el reloj con flecha 🕘 (entre deshacer y rehacer).",
+                "«Guardar versión ahora» guarda cómo está la nota. Esas no se borran nunca.",
+                "Al salir de una nota que cambiaste, se guarda sola la versión de ANTES (las 40 últimas).",
+                "Toca una versión para verla, restaurarla o borrarla. Lo de ahora también se guarda antes de restaurar.",
+                "Puedes proteger el historial con tu PIN.",
             ),
-            "Coming next (part 4c-2)" to listOf(
-                "Backup, history and versions of each note, templates, light mode and more languages.",
+            "History and versions" to listOf(
+                "In the note, at the top: the clock with an arrow 🕘 (between undo and redo).",
+                "“Save version now” keeps how the note is. Those are never deleted.",
+                "When you leave a note you changed, the version from BEFORE is saved by itself (the last 40).",
+                "Tap a version to see it, restore it or delete it. What you have now is saved too before restoring.",
+                "You can protect the history with your PIN.",
+            )),
+        Sec(Icons.SPELL,
+            "Ortografía y fondo de la nota" to listOf(
+                "El botón de ortografía (arriba, al lado de rehacer) revisa toda la nota con internet. Las palabras con error se marcan en rojo.",
+                "Abajo ves la palabra, por qué está mal y sugerencias: tócala para cambiarla, o «Ignorar». ‹ › para moverte.",
+                "El botón del cuadrito con montañas pone una foto o un degradado detrás del texto de la nota.",
+            ),
+            "Spelling and note background" to listOf(
+                "The spelling button (top, next to redo) checks the whole note using the internet. Words with mistakes turn red.",
+                "Below you see the word, why it's wrong and suggestions: tap one to change it, or “Ignore”. ‹ › to move.",
+                "The frame-with-mountains button puts a photo or a gradient behind the note's text.",
+            )),
+        Sec(MoreIcons.INFO,
+            "Lo que viene" to listOf(
+                "Respaldo, plantillas, modo claro y más idiomas.",
+            ),
+            "Coming next" to listOf(
+                "Backup, templates, light mode and more languages.",
             )),
     )
 

@@ -255,9 +255,12 @@ class MainActivity : Activity() {
     private fun pickSort() {
         val keys = arrayOf("updated", "created", "alpha")
         val cur = keys.indexOf(prefs.getString("sort", "updated"))
-        dialog().setTitle(L.t("sortBy")).setSingleChoiceItems(arrayOf(L.t("sortUpdated"), L.t("sortCreated"), L.t("sortAlpha")), cur) { d, i ->
-            prefs.edit().putString("sort", keys[i]).apply(); d.dismiss(); refresh()
-        }.show()
+        val sh = Sheet(this, L.t("sortBy"))
+        val icons = intArrayOf(Icons.CLOCK, Icons.CALENDAR, MoreIcons.TEXT_T)
+        val cols = intArrayOf(Sheet.SKY, Sheet.ORANGE, Sheet.VIOLET)
+        val labels = arrayOf(L.t("sortUpdated"), L.t("sortCreated"), L.t("sortAlpha"))
+        for (i in 0..2) sh.quick(icons[i], labels[i], cols[i], i == cur) { prefs.edit().putString("sort", keys[i]).apply(); refresh() }
+        sh.show()
     }
 
     /* ---------- abrir y crear ---------- */
@@ -534,12 +537,13 @@ class MainActivity : Activity() {
     }
 
     private fun folderMenu(f: Folder) {
-        dialog().setTitle(f.name).setItems(arrayOf(L.t("editFolder"), L.t("deleteFolder"))) { _, i ->
-            if (i == 0) folderDialog(f)
-            else confirm(L.t("deleteFolder"), L.t("deleteFolderMsg", "n" to f.name), L.t("del"), true) {
-                Store.deleteFolder(f); if (view == "f:" + f.id) view = "all"; Store.changed()
-            }
-        }.show()
+        Sheet(this, "📁 " + f.name)
+            .item(MoreIcons.PEN, L.t("editFolder"), Sheet.ORANGE) { folderDialog(f) }
+            .item(Icons.TRASH, L.t("deleteFolder"), danger = true) {
+                confirm(L.t("deleteFolder"), L.t("deleteFolderMsg", "n" to f.name), L.t("del"), true) {
+                    Store.deleteFolder(f); if (view == "f:" + f.id) view = "all"; Store.changed()
+                }
+            }.show()
     }
 
     /** Crear o editar una carpeta (nombre + color). */
@@ -569,9 +573,10 @@ class MainActivity : Activity() {
 
     private fun pickHourFmt() {
         val keys = arrayOf("auto", "12", "24")
-        dialog().setTitle(L.t("hourFmt")).setSingleChoiceItems(arrayOf(L.t("hourAuto"), "12 h (3:00 PM)", "24 h (15:00)"), keys.indexOf(L.hourFmt)) { d, i ->
-            d.dismiss(); L.setHourFmt(this, keys[i]); refresh()
-        }.show()
+        val sh = Sheet(this, "🕒 " + L.t("hourFmt"))
+        val labels = arrayOf(L.t("hourAuto"), "3:00 PM", "15:00")
+        for (i in 0..2) sh.quick(if (i == 0) Icons.SETTINGS else Icons.CLOCK, labels[i], if (i == 0) Sheet.GRAY else if (i == 1) Sheet.SKY else Sheet.GREEN, keys[i] == L.hourFmt) { L.setHourFmt(this, keys[i]); refresh() }
+        sh.show()
     }
 
     private fun toggleAppLock() {
@@ -582,9 +587,10 @@ class MainActivity : Activity() {
 
     private fun pickLang() {
         val keys = arrayOf("auto", "es", "en")
-        dialog().setTitle(L.t("language")).setSingleChoiceItems(arrayOf(L.t("langAuto"), "Español", "English"), keys.indexOf(L.choice)) { d, i ->
-            d.dismiss(); L.set(this, keys[i]); recreate()
-        }.show()
+        val sh = Sheet(this, "🌐 " + L.t("language"))
+        val labels = arrayOf(L.t("langAuto"), "Español", "English")
+        for (i in 0..2) sh.quick(Icons.GLOBE, labels[i], intArrayOf(Sheet.GRAY, Sheet.ORANGE, Sheet.BLUE)[i], keys[i] == L.choice) { L.set(this, keys[i]); recreate() }
+        sh.show()
     }
 
     /* ---------- importar de Best Notes ---------- */
@@ -649,6 +655,7 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         when {
+            Sheet.closeTop(this) -> {}
             drawer != null -> closeDrawer()
             selected.isNotEmpty() -> { selected.clear(); refresh() }
             query.isNotEmpty() -> search.setText("")

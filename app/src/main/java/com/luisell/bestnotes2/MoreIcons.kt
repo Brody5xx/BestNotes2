@@ -50,6 +50,10 @@ object MoreIcons {
     const val SUN = 236
     const val MOON = 237
     const val COPY = 238
+    const val SCISSORS = 239
+    const val HISTORY = 240
+    const val WALLPAPER = 241
+    const val ROTATE = 242
 
     private val path = Path()
     private val r = RectF()
@@ -294,6 +298,49 @@ object MoreIcons {
                 path.lineTo(cx - s * 0.75f, cy - s * 0.85f)
                 path.lineTo(cx + s * 0.35f, cy - s * 0.85f)
                 path.lineTo(cx + s * 0.35f, cy - s * 0.7f)
+                c.drawPath(path, st)
+            }
+            SCISSORS -> {
+                c.drawCircle(cx - s * 0.5f, cy + s * 0.55f, s * 0.28f, st)
+                c.drawCircle(cx + s * 0.5f, cy + s * 0.55f, s * 0.28f, st)
+                c.drawLine(cx - s * 0.32f, cy + s * 0.33f, cx + s * 0.55f, cy - s * 0.9f, st)
+                c.drawLine(cx + s * 0.32f, cy + s * 0.33f, cx - s * 0.55f, cy - s * 0.9f, st)
+            }
+            HISTORY -> {
+                // reloj con flecha que da la vuelta
+                r.set(cx - s * 0.85f, cy - s * 0.85f, cx + s * 0.85f, cy + s * 0.85f)
+                c.drawArc(r, 200f, 290f, false, st)
+                path.reset()
+                path.moveTo(cx - s * 1.0f, cy - s * 0.55f)
+                path.lineTo(cx - s * 0.8f, cy - s * 0.25f)
+                path.lineTo(cx - s * 0.48f, cy - s * 0.45f)
+                c.drawPath(path, st)
+                c.drawLine(cx, cy - s * 0.45f, cx, cy, st)
+                c.drawLine(cx, cy, cx + s * 0.32f, cy + s * 0.22f, st)
+            }
+            WALLPAPER -> {
+                // marco con montañitas y esquinas abiertas
+                val k = s * 0.9f
+                for ((sx, sy) in listOf(-1f to -1f, 1f to -1f, -1f to 1f, 1f to 1f)) {
+                    c.drawLine(cx + sx * k, cy + sy * k, cx + sx * k * 0.45f, cy + sy * k, st)
+                    c.drawLine(cx + sx * k, cy + sy * k, cx + sx * k, cy + sy * k * 0.45f, st)
+                }
+                path.reset()
+                path.moveTo(cx - s * 0.55f, cy + s * 0.45f)
+                path.lineTo(cx - s * 0.15f, cy - s * 0.05f)
+                path.lineTo(cx + s * 0.1f, cy + s * 0.2f)
+                path.lineTo(cx + s * 0.3f, cy)
+                path.lineTo(cx + s * 0.55f, cy + s * 0.45f)
+                c.drawPath(path, st)
+                c.drawCircle(cx + s * 0.28f, cy - s * 0.38f, s * 0.11f, fl)
+            }
+            ROTATE -> {
+                r.set(cx - s * 0.75f, cy - s * 0.75f, cx + s * 0.75f, cy + s * 0.75f)
+                c.drawArc(r, 300f, 300f, false, st)
+                path.reset()
+                path.moveTo(cx + s * 0.2f, cy - s * 0.95f)
+                path.lineTo(cx + s * 0.45f, cy - s * 0.62f)
+                path.lineTo(cx + s * 0.05f, cy - s * 0.48f)
                 c.drawPath(path, st)
             }
             ATTACH -> {

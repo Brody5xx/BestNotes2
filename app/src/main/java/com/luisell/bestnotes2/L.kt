@@ -188,6 +188,20 @@ object L {
         // ☀️ apariencia
         "appearance" to "Apariencia", "wallPhoto" to "Tu foto", "wallBlur" to "Difuminar mi foto",
         "lightSoon" to "El modo claro llega en una próxima versión.",
+        // ⋮ panel, historial, ortografía, fondo de la nota
+        "favShort" to "Favorito", "pinShort" to "Fijar", "colorShort" to "Color", "pinnedOk" to "Fijada arriba 📌", "unpinnedOk" to "Ya no está fijada",
+        "favAdded" to "Añadida a favoritos ⭐", "favRemoved" to "Quitada de favoritos",
+        "history" to "Historial", "historySub" to "Versiones guardadas de esta nota", "spellCheck" to "Revisar ortografía", "spellCheckSub" to "Una por una, con sugerencias",
+        "noteWall" to "Fondo de la nota", "noteWallSub" to "Una foto o un degradado detrás del texto", "aiFree" to "Gratis, sin cuenta",
+        "recordShort" to "Grabar", "dictShort" to "Dictar", "fileShort" to "Archivo", "editShort" to "Editar", "wallNone" to "Quitar",
+        "saveVersionNow" to "Guardar versión ahora", "versionSaved" to "Versión guardada 🕘", "versionExists" to "Esa versión ya está guardada",
+        "noVersions" to "Todavía no hay versiones. Al salir de la nota después de cambiarla, se guarda sola la versión de antes.",
+        "latest" to "la más nueva", "versionAuto" to "Automática", "versionMine" to "Guardada por ti", "emptyNote" to "(nota vacía)",
+        "protectHist" to "Proteger el historial con PIN", "histWithPin" to "El historial pide PIN 🔒", "histNoPin" to "El historial ya no pide PIN",
+        "restore" to "Restaurar", "versionRestoreTitle" to "¿Volver a esta versión?", "versionRestoreMsg" to "Lo que tienes ahora también se guarda como versión, por si acaso.",
+        "versionDelTitle" to "¿Borrar esta versión?", "versionDeleted" to "Versión borrada", "versionRestored" to "Listo, volviste a esa versión ✨",
+        "spellChecking" to "Revisando la ortografía…", "spellFail" to "No se pudo revisar. Revisa el internet.", "spellNone" to "¡Todo bien escrito!",
+        "spellDone" to "¡Listo! Ya revisaste todo", "spellTitle" to "ORTOGRAFÍA", "spellNoSug" to "Sin sugerencias", "spellIgnore" to "Ignorar",
     )
 
     private val EN = mapOf(
@@ -313,5 +327,18 @@ object L {
         "vImported" to "The vault came too (open it with the same password).", "vImportExists" to "The vault wasn't moved because you already have another vault here.",
         "appearance" to "Appearance", "wallPhoto" to "Your photo", "wallBlur" to "Blur my photo",
         "lightSoon" to "Light mode comes in a next version.",
+        "favShort" to "Favorite", "pinShort" to "Pin", "colorShort" to "Color", "pinnedOk" to "Pinned on top 📌", "unpinnedOk" to "Not pinned anymore",
+        "favAdded" to "Added to favorites ⭐", "favRemoved" to "Removed from favorites",
+        "history" to "History", "historySub" to "Saved versions of this note", "spellCheck" to "Check spelling", "spellCheckSub" to "One by one, with suggestions",
+        "noteWall" to "Note background", "noteWallSub" to "A photo or a gradient behind the text", "aiFree" to "Free, no account",
+        "recordShort" to "Record", "dictShort" to "Dictate", "fileShort" to "File", "editShort" to "Edit", "wallNone" to "Remove",
+        "saveVersionNow" to "Save version now", "versionSaved" to "Version saved 🕘", "versionExists" to "That version is already saved",
+        "noVersions" to "No versions yet. When you leave the note after changing it, the version from before is saved by itself.",
+        "latest" to "newest", "versionAuto" to "Automatic", "versionMine" to "Saved by you", "emptyNote" to "(empty note)",
+        "protectHist" to "Protect history with PIN", "histWithPin" to "History asks for the PIN 🔒", "histNoPin" to "History doesn't ask for the PIN anymore",
+        "restore" to "Restore", "versionRestoreTitle" to "Go back to this version?", "versionRestoreMsg" to "What you have now is also saved as a version, just in case.",
+        "versionDelTitle" to "Delete this version?", "versionDeleted" to "Version deleted", "versionRestored" to "Done, you went back to that version ✨",
+        "spellChecking" to "Checking spelling…", "spellFail" to "Couldn't check. Check your internet.", "spellNone" to "Everything is spelled right!",
+        "spellDone" to "Done! You checked everything", "spellTitle" to "SPELLING", "spellNoSug" to "No suggestions", "spellIgnore" to "Ignore",
     )
 }

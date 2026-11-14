@@ -57,7 +57,18 @@ class CapturasTest {
         shot(act.window.decorView, "4_foto")
         val gf = FotoView::class.java.getDeclaredField("glow").apply { isAccessible = true }
         val g = gf.get(foto) as android.graphics.drawable.Drawable?
-        println("GLOW " + g + " " + g?.bounds)
+        ed.selectImage(null); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        NoteActivity::class.java.getDeclaredMethod("options").apply { isAccessible = true }.invoke(act)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
+        shot(act.window.decorView, "10_menu")
+        Sheet.closeTop(act); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        NoteActivity::class.java.getDeclaredMethod("showHistory").apply { isAccessible = true }.invoke(act)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
+        shot(act.window.decorView, "11_historial")
+        Sheet.closeTop(act); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        NoteActivity::class.java.getDeclaredMethod("wallMenu").apply { isAccessible = true }.invoke(act)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
+        shot(act.window.decorView, "12_fondo")
     }
 
     @Test fun cierreDelMenu() {

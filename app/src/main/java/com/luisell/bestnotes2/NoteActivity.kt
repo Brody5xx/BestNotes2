@@ -13,6 +13,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -47,6 +48,7 @@ class NoteActivity : Activity(), EditorView.Host {
         const val REQ_PHOTO_DRAW = 58
         const val REQ_DICT = 59
         const val REQ_CALC = 60
+        const val REQ_WALL = 61
     }
 
     private lateinit var meta: NoteMeta
@@ -58,6 +60,15 @@ class NoteActivity : Activity(), EditorView.Host {
     private lateinit var editor: EditorView
     private lateinit var bar: LinearLayout
     private lateinit var star: IconView
+    private lateinit var histBtn: IconView
+    private lateinit var spellBtn: IconView
+
+    /** Rebotito al tocar un botón. */
+    private fun pop(v: View) {
+        v.animate().scaleX(0.82f).scaleY(0.82f).setDuration(70).withEndAction {
+            v.animate().scaleX(1f).scaleY(1f).setDuration(260).setInterpolator(android.view.animation.OvershootInterpolator(3f)).start()
+        }.start()
+    }
     private lateinit var undoBtn: IconView
     private lateinit var redoBtn: IconView
     private val toolBtns = HashMap<String, View>()
@@ -120,6 +131,8 @@ class NoteActivity : Activity(), EditorView.Host {
         loaded = true
         snapshot()
         showBanners()
+        // lo que había al abrir (para guardar la versión de antes si cambias algo)
+        openTitle = meta.title; openBody = blocksJson(editor.blocks); openInk = extraObj.opt("ink"); openAt = meta.updated; wasNew = isNew
         val q = intent.getStringExtra(EXTRA_Q)
         if (!q.isNullOrBlank()) {
             Rich.highlight(title.text, q)
@@ -134,18 +147,23 @@ class NoteActivity : Activity(), EditorView.Host {
         edgeToEdge(root, windowBg = false)
         tint()
 
-        // Arriba: botones de vidrio como en Best Notes (← · deshacer/rehacer en una pastilla · ⭐ · ⋮)
-        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(6), dp(8), dp(6)) }
-        top.addView(glassBtn(Icons.BACK) { finish() })
+        // Arriba, como en Best Notes: ← · [deshacer · historial · rehacer · ortografía] · fondo · calculadora · ⋮
+        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(6), dp(6), dp(6)) }
+        fun small(v: View) = v.apply { layoutParams = lp(dp(42), dp(42)).apply { marginStart = dp(2); marginEnd = dp(2) } }
+        top.addView(small(glassBtn(Icons.BACK) { finish() }))
         top.addView(View(this), lp(0, 1, 1f))
         val pill = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; background = Glass.make(this@NoteActivity, 22f); setPadding(dp(2), 0, dp(2), 0) }
-        undoBtn = iconBtn(Icons.UNDO) { undo() }
-        redoBtn = iconBtn(MoreIcons.REDO) { redo() }
-        pill.addView(undoBtn); pill.addView(redoBtn)
-        top.addView(pill, lp(WRAP, dp(44)).apply { marginEnd = dp(3) })
-        star = glassBtn(MoreIcons.STAR5) { meta.fav = !meta.fav; paintStar(); Store.saveMeta(meta); Store.changed() }
-        top.addView(star)
-        top.addView(glassBtn(MoreIcons.DOTS_V) { options() })
+        fun pillBtn(icon: Int, size: Float, a: () -> Unit) = iconBtn(icon, size) { v -> pop(v); a() }.apply { layoutParams = lp(dp(38), dp(42)) }
+        undoBtn = pillBtn(Icons.UNDO, 10.5f) { undo() }
+        histBtn = pillBtn(MoreIcons.HISTORY, 10f) { openHistory() }
+        redoBtn = pillBtn(MoreIcons.REDO, 10.5f) { redo() }
+        spellBtn = pillBtn(Icons.SPELL, 10.5f) { if (spell != null) closeSpell() else startSpell() }
+        pill.addView(undoBtn); pill.addView(histBtn); pill.addView(redoBtn); pill.addView(spellBtn)
+        top.addView(pill, lp(WRAP, dp(42)).apply { marginEnd = dp(2) })
+        top.addView(small(glassBtn(MoreIcons.WALLPAPER) { wallMenu() }))
+        top.addView(small(glassBtn(Icons.CALC) { openCalc() }))
+        top.addView(small(glassBtn(MoreIcons.DOTS_V) { v -> v.animate().rotationBy(90f).setDuration(300).setInterpolator(android.view.animation.OvershootInterpolator(2f)).start(); options() }))
+        star = IconView(this, MoreIcons.STAR5)
         root.addView(top, lp(MATCH, WRAP))
         paintStar(); paintUndo()
 
@@ -457,15 +475,13 @@ class NoteActivity : Activity(), EditorView.Host {
         val selA = e?.let { minOf(it.selectionStart, it.selectionEnd) } ?: -1
         val selB = e?.let { maxOf(it.selectionStart, it.selectionEnd) } ?: -1
         val sel = if (e != null && selA in 0 until selB) e.text.substring(selA, selB) else ""
-        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), dp(10), dp(6), dp(10)) }
-        val d = dialog().setTitle("✨ " + L.t("ai")).setView(ScrollView(this).apply { addView(list) }).create()
-        fun add(icon: Int, label: String, sub: String?, act: () -> Unit) { list.addView(menuRow(this, icon, label, sub) { d.dismiss(); act() }) }
-        add(Icons.BRIEFCASE, L.t("aiAssistant"), L.t("aiAssistantSub")) { aiAssistant() }
-        add(Icons.FORMAL, L.t("aiRewrite"), if (sel.isNotEmpty()) "«" + sel.take(40) + "»" else L.t("aiRewriteSub")) { aiRewrite(e, selA, selB) }
-        add(Icons.BOOK, L.t("aiWord"), L.t("aiWordSub")) { aiWord(e, selA, selB, "syn") }
-        add(Icons.BUBBLE, L.t("aiPhrase"), L.t("aiPhraseSub")) { aiWord(e, selA, selB, "phrase") }
-        add(Icons.SPELL, L.t("aiSpell"), L.t("aiSpellSub")) { aiSpell() }
-        d.show()
+        Sheet(this, "✨ " + L.t("ai"), L.t("aiFree"))
+            .item(Icons.BRIEFCASE, L.t("aiAssistant"), Sheet.VIOLET, L.t("aiAssistantSub")) { aiAssistant() }
+            .item(Icons.FORMAL, L.t("aiRewrite"), Sheet.BLUE, if (sel.isNotEmpty()) "«" + sel.take(40) + "»" else L.t("aiRewriteSub")) { aiRewrite(e, selA, selB) }
+            .item(Icons.BOOK, L.t("aiWord"), Sheet.TEAL, L.t("aiWordSub")) { aiWord(e, selA, selB, "syn") }
+            .item(Icons.BUBBLE, L.t("aiPhrase"), Sheet.GREEN, L.t("aiPhraseSub")) { aiWord(e, selA, selB, "phrase") }
+            .item(Icons.SPELL, L.t("aiSpell"), Sheet.PINK, L.t("aiSpellSub")) { aiSpell() }
+            .show()
     }
 
     /** 👔 Asistente de trabajo: trabaja con TODA la nota. */
@@ -594,13 +610,12 @@ class NoteActivity : Activity(), EditorView.Host {
     private lateinit var page: android.widget.FrameLayout
 
     private fun shareMenu() {
-        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), dp(10), dp(6), dp(10)) }
-        val d = dialog().setTitle(L.t("share")).setView(list).create()
-        list.addView(menuRow(this, Icons.IMAGE, L.t("shareImg"), "WhatsApp, Gmail…") { d.dismiss(); shareAs("img") })
-        list.addView(menuRow(this, Icons.BOOK, L.t("sharePdf"), "Gmail, Outlook…") { d.dismiss(); shareAs("pdf") })
-        list.addView(menuRow(this, MoreIcons.TEXT_T, L.t("shareText")) { d.dismiss(); editor.flushAll(); Share.sendText(this, title.text.toString(), Share.text(title.text.toString(), editor.blocks)) })
-        list.addView(menuRow(this, Icons.BUBBLE, L.t("shareSms")) { d.dismiss(); editor.flushAll(); Share.sms(this, Share.text(title.text.toString(), editor.blocks)) })
-        d.show()
+        Sheet(this, L.t("share"), L.t("shareHint"))
+            .item(Icons.IMAGE, L.t("shareImg"), Sheet.PINK, "WhatsApp, Gmail…") { shareAs("img") }
+            .item(Icons.BOOK, L.t("sharePdf"), Sheet.RED, "Gmail, Outlook…") { shareAs("pdf") }
+            .item(MoreIcons.TEXT_T, L.t("shareText"), Sheet.BLUE) { editor.flushAll(); Share.sendText(this, title.text.toString(), Share.text(title.text.toString(), editor.blocks)) }
+            .item(Icons.BUBBLE, L.t("shareSms"), Sheet.GREEN) { editor.flushAll(); Share.sms(this, Share.text(title.text.toString(), editor.blocks)) }
+            .show()
     }
 
     /** Foto o PDF de la nota tal como se ve (sin cursor ni iluminado de búsqueda). */
@@ -699,8 +714,12 @@ class NoteActivity : Activity(), EditorView.Host {
         val p = buildImagePanel(f)
         imgPanel = p
         bottom.addView(p, android.widget.FrameLayout.LayoutParams(MATCH, WRAP))
-        p.translationY = dp(40).toFloat(); p.alpha = 0f
-        p.animate().translationY(0f).alpha(1f).setDuration(180).start()
+        p.translationY = dp(60).toFloat(); p.alpha = 0f
+        p.animate().translationY(0f).alpha(1f).setDuration(380).setInterpolator(android.view.animation.OvershootInterpolator(1.1f)).start()
+        (p as? LinearLayout)?.let { c ->
+            for (i in 0 until c.childCount) { val ch = c.getChildAt(i); ch.alpha = 0f; ch.translationY = dp(14).toFloat()
+                ch.animate().alpha(1f).translationY(0f).setStartDelay(90L + i * 70).setDuration(300).setInterpolator(android.view.animation.DecelerateInterpolator()).start() }
+        }
     }
 
     override fun onImageChanged(f: FotoView) {
@@ -710,62 +729,69 @@ class NoteActivity : Activity(), EditorView.Host {
         bottom.addView(p, android.widget.FrameLayout.LayoutParams(MATCH, WRAP))
     }
 
+    /** El panel de la foto, igual que en Best Notes: ✂ · Editar · Sello · ⟲ · 🗑 · ✕ / ángulos / tamaño. */
     private fun buildImagePanel(f: FotoView): View {
         val b = f.block
-        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), dp(6), dp(6), dp(6)) }
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), dp(8), dp(6), dp(6)) }
         fun row(): LinearLayout = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        fun scrollRow(r: LinearLayout) = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(r) }
-        // 1) acciones
+        // 1) acciones (repartidas a lo ancho)
         val r1 = row()
-        fun act(icon: Int, label: String, color: Int = T.text, a: () -> Unit) {
+        fun act(icon: Int, label: String, color: Int = T.text, a: (View) -> Unit) {
             val v = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(10), dp(6), dp(12), dp(6))
-                pressBg(0, 16f); setOnClickListener { a() }
+                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(dp(4), dp(8), dp(4), dp(8))
+                pressBg(0, 18f); setOnClickListener { pop(it); a(it) }
             }
-            v.addView(IconView(this, icon, 7.5f).apply { this.color = color; isClickable = false }, lp(dp(22), dp(22)))
-            v.addView(tv(label, 13.5f, color, true).apply { setPadding(dp(4), 0, 0, 0) })
-            r1.addView(v)
+            v.addView(IconView(this, icon, 9f).apply { this.color = color; isClickable = false }, lp(dp(26), dp(26)))
+            if (label.isNotEmpty()) v.addView(tv(label, 14f, color, true).apply { setPadding(dp(5), 0, 0, 0); maxLines = 1 })
+            r1.addView(v, lp(0, WRAP, if (label.isEmpty()) 0.7f else 1.6f))
         }
-        act(Icons.CLOSE, "") { editor.selectImage(null) }
-        act(Icons.SCAN, L.t("crop")) { cropImage(f) }
-        act(MoreIcons.PEN, L.t("drawOn")) { drawOnImage(f) }
+        act(MoreIcons.SCISSORS, "") { cropImage(f) }
+        act(MoreIcons.PEN, L.t("editShort")) { drawOnImage(f) }
         act(Icons.CLOCK, L.t("stamp"), if (b.stamp.isNotEmpty()) T.accent else T.text) { f.toggleStamp() }
-        act(Icons.UNDO, "90°") { rotateImage(f) }
-        act(Icons.EYE, L.t("view")) { openMedia(b.file, "image/jpeg") }
-        act(MoreIcons.SORT, L.t("moveUp")) { editor.moveBlock(f, -1) }
-        act(MoreIcons.SORT, L.t("moveDown")) { editor.moveBlock(f, 1) }
-        act(Icons.TRASH, L.t("remove"), T.danger) { editor.removeImage(f) }
-        col.addView(scrollRow(r1))
-        // 2) a un lado + giro
-        val r2 = row().apply { setPadding(0, dp(4), 0, dp(2)) }
-        fun chip(label: String, on: Boolean, a: () -> Unit) {
-            r2.addView(tv(label, 13.5f, if (on) 0xFFFFFFFF.toInt() else T.text, true).apply {
-                setPadding(dp(13), dp(7), dp(13), dp(7)); pressBg(if (on) 0xFFFF3B30.toInt() else T.cardStrong, 16f, T.border); setOnClickListener { a() }
-            }, lp(WRAP, WRAP).apply { marginEnd = dp(6) })
+        act(MoreIcons.ROTATE, "") { v -> v.getChildAt0()?.animate()?.rotationBy(-90f)?.setDuration(300)?.start(); rotateImage(f) }
+        act(Icons.TRASH, "", T.danger) { editor.removeImage(f) }
+        act(Icons.CLOSE, "") { editor.selectImage(null) }
+        col.addView(r1)
+        // 2) ángulos
+        val r2 = row().apply { setPadding(dp(2), dp(6), dp(2), dp(4)) }
+        val angles = ArrayList<TextView>()
+        fun paintAngles() { for (t in angles) { val on = Math.round(b.rot) == t.tag as Int; t.setTextColor(0xFFFFFFFF.toInt()); t.pressBg(if (on) 0xFFFF3B30.toInt() else 0, 20f, if (on) 0 else 0x40FFFFFF) } }
+        for (deg in intArrayOf(0, 15, 30, 45, 60, 75, 90, -15, -30, -45, -60, -75, -90)) {
+            val t = tv("$deg°", 15f, T.text, true).apply {
+                tag = deg; gravity = Gravity.CENTER; setPadding(dp(14), dp(9), dp(14), dp(9))
+                setOnClickListener { pop(it); f.setRot(deg.toFloat()); paintAngles() }
+            }
+            angles.add(t)
+            r2.addView(t, lp(dp(66), WRAP).apply { marginEnd = dp(8) })
         }
-        chip(L.t("imgLeft"), b.side == "l") { f.setSide("l") }
-        chip(L.t("imgAlone"), b.side.isEmpty()) { f.setSide("") }
-        chip(L.t("imgRight"), b.side == "r") { f.setSide("r") }
-        r2.addView(View(this).apply { setBackgroundColor(T.border) }, lp(dp(1), dp(22)).apply { marginEnd = dp(8); marginStart = dp(2) })
-        for (deg in intArrayOf(0, 15, 30, 45, 60, 75, 90, -15, -30, -45)) chip("$deg°", Math.round(b.rot) == deg) { f.setRot(deg.toFloat()) }
-        col.addView(scrollRow(r2))
+        paintAngles()
+        col.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(r2) })
         // 3) tamaño
-        val r3 = row().apply { setPadding(dp(6), 0, dp(6), 0) }
-        r3.addView(tv("↻ ${Math.round(b.rot)}°", 13f, T.muted).apply { minWidth = dp(44) })
-        r3.addView(tv("−", 22f, T.text).apply { setPadding(dp(10), 0, dp(6), 0); setOnClickListener { f.setPct(b.pct - 5) } })
-        val pctTv = tv("${b.pct.toInt()}%", 13.5f, T.text, true).apply { minWidth = dp(44); gravity = Gravity.END }
-        val sb = android.widget.SeekBar(this).apply { max = 90; progress = (b.pct - 10).toInt() }
+        val r3 = row().apply { setPadding(dp(8), dp(2), dp(8), 0) }
+        r3.addView(tv("↻ ${Math.round(b.rot)}°", 14f, T.muted, true).apply { minWidth = dp(50) })
+        fun round(t: String, a: () -> Unit) = tv(t, 22f, T.text).apply {
+            gravity = Gravity.CENTER; background = roundBg(0, dp(22).toFloat(), 0x40FFFFFF, dp(1)); setOnClickListener { pop(it); a() }
+        }
+        r3.addView(round("−") { f.setPct(b.pct - 5) }, lp(dp(44), dp(44)))
+        val pctTv = tv("${b.pct.toInt()}%", 15f, T.text, true).apply { minWidth = dp(52); gravity = Gravity.END }
+        val sb = android.widget.SeekBar(this).apply {
+            max = 90; progress = (b.pct - 10).toInt()
+            progressTintList = android.content.res.ColorStateList.valueOf(0xFFE0E0E0.toInt())
+            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(0x66FFFFFF)
+            thumbTintList = android.content.res.ColorStateList.valueOf(0xFFFF3B30.toInt())
+        }
         sb.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: android.widget.SeekBar?, p: Int, fromUser: Boolean) { if (fromUser) { b.pct = (p + 10f).coerceAtMost(if (b.side.isEmpty()) 100f else 75f); b.x = b.x.coerceIn(0f, 100f - b.pct); f.relayout(); pctTv.text = "${b.pct.toInt()}%" } }
             override fun onStartTrackingTouch(s: android.widget.SeekBar?) {}
             override fun onStopTrackingTouch(s: android.widget.SeekBar?) { onDirty() }
         })
         r3.addView(sb, lp(0, WRAP, 1f))
-        r3.addView(tv("+", 22f, T.text).apply { setPadding(dp(6), 0, dp(10), 0); setOnClickListener { f.setPct(b.pct + 5) } })
+        r3.addView(round("+") { f.setPct(b.pct + 5) }, lp(dp(44), dp(44)))
         r3.addView(pctTv)
         col.addView(r3)
         return col
     }
+    private fun View.getChildAt0(): View? = (this as? android.view.ViewGroup)?.getChildAt(0)
 
     /* ---------- ✏️ dibujar ---------- */
     private lateinit var ink: InkView
@@ -781,6 +807,11 @@ class NoteActivity : Activity(), EditorView.Host {
         val w = extraObj.optString("wall", "")
         if (w.isEmpty()) { wallImg.visibility = View.GONE; return }
         wallImg.visibility = View.VISIBLE
+        if (w.startsWith("g:")) {
+            wallImg.clearColorFilter()
+            wallImg.setImageDrawable(Wall.GRADS.firstOrNull { it[0] == w.substring(2) }?.let { android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, it[3] as IntArray) })
+            return
+        }
         wallImg.setColorFilter(0x59000000, android.graphics.PorterDuff.Mode.SRC_ATOP)
         Thumbs.load(w, resources.displayMetrics.widthPixels) { bm -> if (bm != null) wallImg.setImageBitmap(bm) else wallImg.visibility = View.GONE }
     }
@@ -868,12 +899,14 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     private fun audioMenu() {
-        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), dp(10), dp(6), dp(10)) }
-        val d = dialog().setTitle(L.t("audio")).setView(list).create()
-        list.addView(menuRow(this, MoreIcons.TEXT_T, L.t("dictate"), L.t("dictateSub")) { d.dismiss(); startDictation() })
-        list.addView(menuRow(this, MoreIcons.MIC, L.t("recordNow")) { d.dismiss(); startRecording() })
-        list.addView(menuRow(this, MoreIcons.ATTACH, L.t("audioFile"), L.t("audioFileSub")) { d.dismiss(); pickMedia(false) })
-        d.show()
+        Sheet(this, "🎙️ " + L.t("audio"))
+            .quick(MoreIcons.MIC, L.t("recordShort"), Sheet.RED) { startRecording() }
+            .quick(MoreIcons.TEXT_T, L.t("dictShort"), Sheet.GREEN) { startDictation() }
+            .quick(MoreIcons.ATTACH, L.t("fileShort"), Sheet.BLUE) { pickMedia(false) }
+            .item(MoreIcons.TEXT_T, L.t("dictate"), Sheet.GREEN, L.t("dictateSub")) { startDictation() }
+            .item(MoreIcons.MIC, L.t("recordNow"), Sheet.RED) { startRecording() }
+            .item(MoreIcons.ATTACH, L.t("audioFile"), Sheet.BLUE, L.t("audioFileSub")) { pickMedia(false) }
+            .show()
     }
 
     private fun startRecording() {
@@ -931,11 +964,10 @@ class NoteActivity : Activity(), EditorView.Host {
     private var vidFile: File? = null
 
     private fun videoMenu() {
-        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), dp(10), dp(6), dp(10)) }
-        val d = dialog().setTitle(L.t("video")).setView(list).create()
-        list.addView(menuRow(this, MoreIcons.VIDEO, L.t("recordVideo")) { d.dismiss(); recordVideo() })
-        list.addView(menuRow(this, Icons.IMAGE, L.t("gallery")) { d.dismiss(); pickMedia(true) })
-        d.show()
+        Sheet(this, "🎬 " + L.t("video"))
+            .quick(MoreIcons.VIDEO, L.t("recordShort"), Sheet.RED) { recordVideo() }
+            .quick(Icons.IMAGE, L.t("gallery"), Sheet.BLUE) { pickMedia(true) }
+            .show()
     }
 
     private fun recordVideo() {
@@ -982,11 +1014,10 @@ class NoteActivity : Activity(), EditorView.Host {
     private var cropTarget: Block.Img? = null
 
     private fun addPhoto() {
-        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), dp(10), dp(6), dp(10)) }
-        val d = dialog().setTitle(L.t("addPhoto")).setView(list).create()
-        list.addView(menuRow(this, Icons.SCAN, L.t("camera")) { d.dismiss(); openCamera() })
-        list.addView(menuRow(this, Icons.IMAGE, L.t("gallery")) { d.dismiss(); openGallery() })
-        d.show()
+        Sheet(this, "📷 " + L.t("addPhoto"))
+            .quick(Icons.SCAN, L.t("camera"), Sheet.PINK) { openCamera() }
+            .quick(Icons.IMAGE, L.t("gallery"), Sheet.BLUE) { openGallery() }
+            .show()
     }
 
     private fun openCamera() {
@@ -1031,6 +1062,7 @@ class NoteActivity : Activity(), EditorView.Host {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_WALL) { if (resultCode == RESULT_OK) data?.data?.let { setWallPhoto(it) }; return }
         if (requestCode == REQ_CALC) { if (resultCode == RESULT_OK) data?.getStringExtra(CalcActivity.RESULT_TEXT)?.let { putCalc(it) }; return }
         if (resultCode != RESULT_OK) { if (requestCode == REQ_CAMERA) camFile?.delete(); if (requestCode == REQ_VIDEO_CAM) vidFile?.delete(); return }
         when (requestCode) {
@@ -1103,38 +1135,56 @@ class NoteActivity : Activity(), EditorView.Host {
         }
     }
 
-    /* ---------- ⋮ opciones ---------- */
+    /* ---------- ⋮ opciones (el panel bonito) ---------- */
     private fun options() {
         save()
-        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), dp(10), dp(6), dp(10)) }
-        val d = dialog().setView(ScrollView(this).apply { addView(list) }).create()
-        fun add(icon: Int, label: String, color: Int = T.text, sub: String? = null, act: () -> Unit) { list.addView(menuRow(this, icon, label, sub, color) { d.dismiss(); act() }) }
+        val sub = L.t("modified") + " · " + L.when_(meta.updated.takeIf { it > 0 } ?: System.currentTimeMillis())
+        val sh = Sheet(this, meta.title.ifEmpty { title.text.toString().ifEmpty { L.t("noteOptions") } }, sub)
         if (meta.deleted) {
-            add(MoreIcons.RESTORE, L.t("recover")) { recover() }
-            add(Icons.TRASH, L.t("delForever"), T.danger) {
-                confirm(L.t("delForever"), L.t("delForeverMsg"), L.t("del"), true) { Store.deleteForever(listOf(meta.id)); Store.changed(); loaded = false; finish() }
+            sh.item(MoreIcons.RESTORE, L.t("recover"), Sheet.GREEN) { recover() }
+            sh.item(Icons.TRASH, L.t("delForever"), danger = true) {
+                confirm(L.t("delForever"), L.t("delForeverMsg"), L.t("del"), true) { Versions.deleteAll(this, meta.id); Store.deleteForever(listOf(meta.id)); Store.changed(); loaded = false; finish() }
             }
-        } else {
-            add(Icons.STAR, L.t("aiAssistant"), sub = L.t("aiAssistantSub")) { aiAssistant() }
-            add(MoreIcons.IMPORT, L.t("share"), sub = L.t("shareHint")) { shareMenu() }
-            add(Icons.CLOCK, L.t("reminder") + (Reminders.forNote(this, meta.id).firstOrNull()?.let { "  ·  " + L.when_(it.at) } ?: "")) {
-                save(); remind(this, meta.id, (meta.title.ifEmpty { blocksPlain(editor.blocks).lineSequence().firstOrNull { it.isNotBlank() } ?: L.t("untitled") }).take(120)) { Store.changed() }
-            }
-            add(MoreIcons.MIC, L.t("dictate")) { startDictation() }
-            add(Icons.CALC, L.t("calc"), sub = L.t("calcSub")) { openCalc() }
-            add(MoreIcons.PALETTE, L.t("noteColor")) { noteColor() }
-            add(MoreIcons.PALETTE, L.t("titleColor")) { title.requestFocus(); pickColor("color") }
-            add(MoreIcons.FOLDER, L.t("moveToFolder")) { moveFolder() }
-            add(Icons.PIN, L.t(if (meta.pinned) "unpin" else "pinTop")) { meta.pinned = !meta.pinned; Store.saveMeta(meta); Store.changed() }
-            add(Icons.LOCK, L.t(if (meta.locked) "unlock" else "lockPin")) { toggleLock() }
-            add(MoreIcons.INFO, L.t("info")) { info() }
-            add(Icons.TRASH, L.t("moveTrash"), T.danger) {
-                if (isNew && isEmptyNote()) { finish(); return@add }
-                meta.deleted = true; meta.deletedAt = System.currentTimeMillis(); Store.saveMeta(meta); Store.changed()
-                toast(L.t("movedTrash")); finish()
-            }
+            sh.show(); return
         }
-        d.show()
+        sh.quick(if (meta.fav) MoreIcons.STAR5_ON else MoreIcons.STAR5, L.t("favShort"), Sheet.AMBER, meta.fav) {
+            meta.fav = !meta.fav; paintStar(); Store.saveMeta(meta); Store.changed(); hint(L.t(if (meta.fav) "favAdded" else "favRemoved"))
+        }
+        sh.quick(Icons.PIN, L.t("pinShort"), Sheet.SKY, meta.pinned) {
+            meta.pinned = !meta.pinned; Store.saveMeta(meta); Store.changed(); hint(L.t(if (meta.pinned) "pinnedOk" else "unpinnedOk"))
+        }
+        sh.quick(MoreIcons.PALETTE, L.t("colorShort"), Sheet.PINK, meta.color != 0) { noteColor() }
+        sh.quick(MoreIcons.IMPORT, L.t("share"), Sheet.BLUE) { shareMenu() }
+        sh.item(Icons.STAR, L.t("aiAssistant"), Sheet.VIOLET, L.t("aiAssistantSub")) { aiAssistant() }
+        sh.item(Icons.CLOCK, L.t("reminder"), Sheet.AMBER, Reminders.forNote(this, meta.id).firstOrNull()?.let { L.when_(it.at) }) {
+            save(); remind(this, meta.id, (meta.title.ifEmpty { blocksPlain(editor.blocks).lineSequence().firstOrNull { it.isNotBlank() } ?: L.t("untitled") }).take(120)) { Store.changed() }
+        }
+        sh.item(MoreIcons.MIC, L.t("dictate"), Sheet.GREEN, L.t("dictateSub")) { startDictation() }
+        sh.item(MoreIcons.HISTORY, L.t("history"), Sheet.TEAL, L.t("historySub")) { openHistory() }
+        sh.item(Icons.SPELL, L.t("spellCheck"), Sheet.SKY, L.t("spellCheckSub")) { startSpell() }
+        sh.divider()
+        sh.item(MoreIcons.PALETTE, L.t("titleColor"), Sheet.PINK) { title.requestFocus(); pickColor("color") }
+        sh.item(MoreIcons.WALLPAPER, L.t("noteWall"), Sheet.ORANGE, L.t("noteWallSub")) { wallMenu() }
+        sh.item(MoreIcons.FOLDER, L.t("moveToFolder"), Sheet.ORANGE, Store.folders.firstOrNull { it.id == meta.folder }?.name) { moveFolder() }
+        sh.item(Icons.LOCK, L.t(if (meta.locked) "unlock" else "lockPin"), Sheet.GRAY) { toggleLock() }
+        sh.item(MoreIcons.INFO, L.t("info"), Sheet.GRAY) { info() }
+        sh.divider()
+        sh.item(Icons.TRASH, L.t("moveTrash"), danger = true) {
+            if (isNew && isEmptyNote()) { finish(); return@item }
+            meta.deleted = true; meta.deletedAt = System.currentTimeMillis(); Store.saveMeta(meta); Store.changed()
+            toast(L.t("movedTrash")); finish()
+        }
+        sh.show()
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        when {
+            Sheet.closeTop(this) -> {}
+            spell != null -> closeSpell()
+            editor.selected != null -> editor.selectImage(null)
+            else -> @Suppress("DEPRECATION") super.onBackPressed()
+        }
     }
 
     private fun recover() {
@@ -1175,10 +1225,304 @@ class NoteActivity : Activity(), EditorView.Host {
         ).setPositiveButton(L.t("ok"), null).show()
     }
 
+    /* ---------- 🖼️ fondo de la nota ---------- */
+    private fun wallMenu() {
+        val cur = extraObj.optString("wall", "")
+        val sh = Sheet(this, "🖼️ " + L.t("noteWall"), L.t("noteWallSub"))
+        sh.quick(Icons.IMAGE, L.t("wallPhoto"), Sheet.BLUE, cur.isNotEmpty() && !cur.startsWith("g:")) {
+            try { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*"), REQ_WALL) } catch (_: Exception) { toast(L.t("cantOpen")) }
+        }
+        if (cur.isNotEmpty()) sh.quick(Icons.CLOSE, L.t("wallNone"), Sheet.RED) { extraObj.remove("wall"); showWall(); dirty = true; save() }
+        // degradados para tocar
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(10), dp(6), dp(10), dp(8)) }
+        for (g in Wall.GRADS) {
+            val id = "g:" + g[0]
+            val cell = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
+            val th = View(this).apply {
+                background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, g[3] as IntArray).apply {
+                    cornerRadius = dp(14).toFloat(); if (id == cur) setStroke(dp(3), 0xFF4FC3F7.toInt()) else setStroke(dp(1), 0x33FFFFFF)
+                }
+            }
+            cell.addView(th, lp(dp(62), dp(90)))
+            cell.addView(tv((if (L.lang == "es") g[1] else g[2]) as String, 11.5f, if (id == cur) 0xFF4FC3F7.toInt() else T.muted).apply { setPadding(0, dp(4), 0, 0) })
+            cell.setOnClickListener { pop(th); extraObj.put("wall", id); showWall(); dirty = true; save(); Sheet.closeTop(this) }
+            row.addView(cell, lp(WRAP, WRAP).apply { marginEnd = dp(10) })
+        }
+        sh.custom(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(row) })
+        sh.show()
+    }
+
+    private fun setWallPhoto(uri: android.net.Uri) {
+        Thread {
+            val r = try { Photos.import(this, uri) } catch (_: Exception) { null }
+            runOnUiThread {
+                if (r == null) { toast(L.t("cantOpen")); return@runOnUiThread }
+                extraObj.put("wall", r.file); showWall(); dirty = true; save()
+                wallImg.alpha = 0f; wallImg.animate().alpha(1f).setDuration(600).start()
+            }
+        }.start()
+    }
+
+    /* ---------- 🕘 historial y versiones ---------- */
+    private var openTitle = ""
+    private var openBody = ""
+    private var openInk: Any? = null
+    private var openAt = 0L
+    private var wasNew = false
+
+    /** Al salir: si cambiaste algo, se guarda sola la versión de ANTES. */
+    private fun autoVersion() {
+        if (!loaded || wasNew || meta.deleted) return
+        val now = blocksJson(editor.blocks)
+        if (now == openBody && meta.title == openTitle && extraObj.opt("ink")?.toString() == openInk?.toString()) return
+        val v = Versions.make(openTitle, openBody, openInk, auto = true, at = openAt.takeIf { it > 0 } ?: System.currentTimeMillis())
+        val id = meta.id; val app = applicationContext
+        Store.io.execute { try { Versions.add(app, id, v) } catch (_: Exception) {} }
+    }
+
+    private fun histLocked() = extraObj.optBoolean("histLocked")
+
+    private fun openHistory() {
+        save()
+        if (histLocked()) Pin.check(this) { showHistory() } else showHistory()
+    }
+
+    private fun showHistory() {
+        editor.flushAll()
+        val list = Versions.load(this, meta.id)
+        val sh = Sheet(this, "🕘 " + L.t("history"), L.t("historySub"))
+        // guardar ahora
+        val saveBtn = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(dp(14), dp(13), dp(14), dp(13))
+            pressBg(0xFFFFFFFF.toInt(), 22f)
+        }
+        saveBtn.addView(IconView(this, Icons.CHECK, 8.5f).apply { color = 0xFF161618.toInt(); isClickable = false }, lp(dp(22), dp(22)))
+        saveBtn.addView(tv(L.t("saveVersionNow"), 15.5f, 0xFF161618.toInt(), true).apply { setPadding(dp(8), 0, 0, 0) })
+        saveBtn.setOnClickListener {
+            pop(it)
+            val v = Versions.make(title.text.toString(), blocksJson(editor.blocks), extraObj.opt("ink"), auto = false)
+            if (Versions.add(this, meta.id, v)) { toast(L.t("versionSaved")); Sheet.closeTop(this); Store.main.postDelayed({ showHistory() }, 320) }
+            else toast(L.t("versionExists"))
+        }
+        sh.custom(LinearLayout(this).apply { setPadding(dp(8), dp(4), dp(8), dp(10)); addView(saveBtn, lp(MATCH, WRAP)) })
+        if (list.isEmpty()) sh.custom(tv(L.t("noVersions"), 14f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(20), dp(14), dp(20), dp(18)) })
+        val df = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, L.locale)
+        for ((i, v) in list.withIndex()) {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(11), dp(10), dp(11))
+                background = Glass.make(this@NoteActivity, 18f)
+            }
+            val auto = v.optBoolean("auto")
+            val dot = View(this).apply { background = roundBg(if (auto) 0xFF4DD0E1.toInt() else 0xFFFFD54F.toInt(), dp(5).toFloat()) }
+            card.addView(dot, lp(dp(10), dp(10)))
+            val txt = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, dp(6), 0) }
+            txt.addView(tv(df.format(Date(v.optLong("at"))) + (if (i == 0) "  ·  " + L.t("latest") else ""), 14f, T.text, true))
+            txt.addView(tv((if (auto) L.t("versionAuto") else L.t("versionMine")) + " · " + Versions.preview(v).ifEmpty { L.t("emptyNote") }, 12.5f, T.muted).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END })
+            card.addView(txt, lp(0, WRAP, 1f))
+            card.addView(IconView(this, Icons.CHEVRON, 6f).apply { color = 0x55FFFFFF; isClickable = false }, lp(dp(18), dp(18)))
+            card.setOnClickListener { pop(it); Sheet.closeTop(this); Store.main.postDelayed({ viewVersion(v) }, 300) }
+            sh.custom(FrameLayout(this).apply { setPadding(dp(6), 0, dp(6), dp(8)); addView(card) })
+        }
+        // proteger con PIN
+        val sw = android.widget.Switch(this).apply {
+            text = L.t("protectHist"); setTextColor(T.text); textSize = 15f; isChecked = histLocked(); setPadding(dp(14), dp(12), dp(14), dp(8))
+            setOnCheckedChangeListener { b, on ->
+                if (on) {
+                    val go = { extraObj.put("histLocked", true); dirty = true; save(); hint(L.t("histWithPin")) }
+                    if (Pin.saved(this@NoteActivity) == null) Pin.create(this@NoteActivity) { go() } else go()
+                } else Pin.check(this@NoteActivity) { extraObj.remove("histLocked"); dirty = true; save(); hint(L.t("histNoPin")) }
+                b.postDelayed({ b.isChecked = histLocked() }, 400)
+            }
+        }
+        sh.custom(sw)
+        sh.show()
+    }
+
+    private fun viewVersion(v: JSONObject) {
+        val df = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, L.locale)
+        val blocks = blocksFromJson(v.optString("b"))
+        val photos = blocks.count { it is Block.Img }
+        val sh = Sheet(this, df.format(Date(v.optLong("at"))), L.t(if (v.optBoolean("auto")) "versionAuto" else "versionMine"))
+        sh.quick(MoreIcons.RESTORE, L.t("restore"), Sheet.GREEN) {
+            confirm(L.t("versionRestoreTitle"), L.t("versionRestoreMsg"), L.t("restore")) { restoreVersion(v) }
+        }
+        sh.quick(Icons.TRASH, L.t("del"), Sheet.RED) {
+            confirm(L.t("versionDelTitle"), null, L.t("del"), true) { Versions.remove(this, meta.id, v.optLong("at")); toast(L.t("versionDeleted")) }
+        }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(10), dp(16), dp(12)); background = Glass.make(this@NoteActivity, 18f) }
+        if (v.optString("t").isNotEmpty()) box.addView(tv(v.optString("t"), 19f, T.text, true).apply { setPadding(0, 0, 0, dp(6)) })
+        box.addView(tv(blocksPlain(blocks).trim().ifEmpty { L.t("emptyNote") }, 15.5f, T.text))
+        if (photos > 0) box.addView(tv("📷 × $photos", 14f, T.muted).apply { setPadding(0, dp(8), 0, 0) })
+        sh.custom(FrameLayout(this).apply { setPadding(dp(6), dp(4), dp(6), dp(4)); addView(box) })
+        sh.show()
+    }
+
+    private fun restoreVersion(v: JSONObject) {
+        // lo de ahora se guarda como versión, por si acaso
+        val now = Versions.make(title.text.toString(), blocksJson(editor.blocks), extraObj.opt("ink"), auto = true)
+        Versions.add(this, meta.id, now)
+        if (snapPending) snapshot()
+        muting = true
+        title.setText(v.optString("t"))
+        editor.setBlocks(blocksFromJson(v.optString("b")))
+        val inkJ = v.opt("ink")
+        if (inkJ is org.json.JSONArray) { extraObj.put("ink", inkJ); ink.set(Stroke.listFrom(inkJ)) } else { extraObj.remove("ink"); ink.set(emptyList()) }
+        fitInk()
+        muting = false
+        dirty = true; save(); snapshot()
+        root.alpha = 0.3f; root.animate().alpha(1f).setDuration(450).start()
+        toast(L.t("versionRestored"))
+    }
+
+    /* ---------- 🔤 revisar ortografía (como en Best Notes, con LanguageTool gratis) ---------- */
+    private class SpErr(val edit: EditText, var start: Int, val len: Int, val word: String, val msg: String, val sugs: List<String>)
+    class SpellS : android.text.style.BackgroundColorSpan(0x4DFF5252)
+    private var spell: LinearLayout? = null
+    private val spErrs = ArrayList<SpErr>()
+    private var spI = 0
+
+    private fun allEdits(): List<EditText> {
+        val out = arrayListOf<EditText>(title)
+        fun walk(v: View) { if (v is EditText) { if (v.visibility == View.VISIBLE) out.add(v); return }; if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i)) }
+        walk(editor)
+        return out
+    }
+
+    private fun startSpell() {
+        if (spell != null) return
+        editor.selectImage(null)
+        editor.flushAll()
+        spellBtn.color = 0xFF161618.toInt(); spellBtn.background = roundBg(0xFFFFFFFF.toInt(), dp(20).toFloat())
+        val p = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(12), dp(12), dp(12)) }
+        spell = p
+        formatBar.visibility = View.GONE
+        bottom.addView(p, android.widget.FrameLayout.LayoutParams(MATCH, WRAP))
+        p.addView(tv("🔤 " + L.t("spellChecking"), 15f, T.muted))
+        p.translationY = dp(50).toFloat(); p.alpha = 0f
+        p.animate().translationY(0f).alpha(1f).setDuration(360).setInterpolator(android.view.animation.OvershootInterpolator(1.1f)).start()
+        val edits = allEdits()
+        val starts = ArrayList<Int>(); val sb = StringBuilder()
+        for (e in edits) { starts.add(sb.length); sb.append(e.text.toString()).append("\n\n") }
+        val text = sb.toString()
+        val lang = if (L.lang == "es") "es" else "en-US"
+        Thread {
+            val res = try {
+                val c = java.net.URL("https://api.languagetool.org/v2/check").openConnection() as java.net.HttpURLConnection
+                c.requestMethod = "POST"; c.doOutput = true; c.connectTimeout = 15000; c.readTimeout = 20000
+                c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded"); c.setRequestProperty("Accept", "application/json")
+                val body = "language=" + java.net.URLEncoder.encode(lang, "UTF-8") + "&text=" + java.net.URLEncoder.encode(text.take(19000), "UTF-8")
+                c.outputStream.use { it.write(body.toByteArray()) }
+                JSONObject(c.inputStream.bufferedReader().readText()).optJSONArray("matches")
+            } catch (_: Exception) { null }
+            runOnUiThread {
+                if (spell !== p) return@runOnUiThread
+                if (res == null) { spellMsg(L.t("spellFail")); return@runOnUiThread }
+                spErrs.clear()
+                for (k in 0 until res.length()) {
+                    val m = res.getJSONObject(k)
+                    val off = m.optInt("offset"); val len = m.optInt("length")
+                    val ei = starts.indexOfLast { it <= off }; if (ei < 0) continue
+                    val e = edits[ei]; val st = off - starts[ei]
+                    if (st + len > e.text.length || len <= 0) continue
+                    val rep = m.optJSONArray("replacements")
+                    val sugs = (0 until minOf(5, rep?.length() ?: 0)).map { rep!!.getJSONObject(it).optString("value") }.filter { it.isNotEmpty() }
+                    spErrs.add(SpErr(e, st, len, e.text.substring(st, st + len), m.optString("shortMessage").ifEmpty { m.optString("message") }, sugs))
+                }
+                for (er in spErrs) er.edit.text.setSpan(SpellS(), er.start, er.start + er.len, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                spI = 0
+                if (spErrs.isEmpty()) spellMsg("✅ " + L.t("spellNone")) else showSpErr()
+            }
+        }.start()
+    }
+
+    private fun spellMsg(msg: String) {
+        val p = spell ?: return
+        p.removeAllViews()
+        val r = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        r.addView(tv(msg, 16f, T.text, true), lp(0, WRAP, 1f))
+        r.addView(iconBtn(Icons.CLOSE, 9f) { closeSpell() })
+        p.addView(r)
+    }
+
+    private fun showSpErr() {
+        val p = spell ?: return
+        if (spErrs.isEmpty()) { spellMsg("✅ " + L.t("spellDone")); return }
+        spI = spI.coerceIn(0, spErrs.size - 1)
+        val er = spErrs[spI]
+        p.removeAllViews()
+        val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        head.addView(tv(L.t("spellTitle") + "  ${spI + 1}/${spErrs.size}", 12f, T.muted, true).apply { letterSpacing = 0.06f }, lp(0, WRAP, 1f))
+        head.addView(iconBtn(Icons.CLOSE, 8.5f) { closeSpell() }.apply { layoutParams = lp(dp(36), dp(36)) })
+        p.addView(head)
+        p.addView(tv(er.word, 20f, 0xFFFF6B6B.toInt(), true).apply { paintFlags = paintFlags or android.graphics.Paint.STRIKE_THRU_TEXT_FLAG })
+        if (er.msg.isNotEmpty()) p.addView(tv(er.msg, 13.5f, T.muted).apply { maxLines = 2; setPadding(0, dp(2), 0, 0) })
+        val sugRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, 0) }
+        if (er.sugs.isEmpty()) sugRow.addView(tv(L.t("spellNoSug"), 14f, T.muted))
+        for ((i, sug) in er.sugs.withIndex()) {
+            val chip = tv(sug, 16f, 0xFF161618.toInt(), true).apply {
+                setPadding(dp(16), dp(9), dp(16), dp(9)); pressBg(0xFFFFFFFF.toInt(), 20f)
+                setOnClickListener { pop(it); fixSpErr(er, sug) }
+                scaleX = 0.6f; scaleY = 0.6f; alpha = 0f
+                animate().scaleX(1f).scaleY(1f).alpha(1f).setStartDelay(i * 50L).setDuration(300).setInterpolator(android.view.animation.OvershootInterpolator(2.5f)).start()
+            }
+            sugRow.addView(chip, lp(WRAP, WRAP).apply { marginEnd = dp(8) })
+        }
+        p.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(sugRow) })
+        val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(10), 0, 0) }
+        nav.addView(tv(L.t("spellIgnore"), 14f, T.text).apply { setPadding(dp(14), dp(8), dp(14), dp(8)); pressBg(0, 18f, T.border); setOnClickListener { pop(it); dropSpErr(er) } })
+        nav.addView(View(this), lp(0, 1, 1f))
+        nav.addView(tv("‹", 22f, T.text, true).apply { gravity = Gravity.CENTER; pressBg(0, 18f, T.border); setOnClickListener { spI = (spI - 1 + spErrs.size) % spErrs.size; showSpErr() } }, lp(dp(44), dp(40)))
+        nav.addView(tv("›", 22f, T.text, true).apply { gravity = Gravity.CENTER; pressBg(0, 18f, T.border); setOnClickListener { spI = (spI + 1) % spErrs.size; showSpErr() } }, lp(dp(44), dp(40)).apply { marginStart = dp(8) })
+        p.addView(nav)
+        // se ve dónde está la palabra
+        val e = er.edit
+        if (er.start + er.len <= e.text.length) {
+            e.requestFocus(); e.setSelection(er.start, er.start + er.len)
+            e.post {
+                val lay = e.layout ?: return@post
+                val y = lay.getLineTop(lay.getLineForOffset(er.start))
+                val loc = IntArray(2); e.getLocationInWindow(loc); val sl = IntArray(2); scroll.getLocationInWindow(sl)
+                scroll.smoothScrollTo(0, maxOf(0, scroll.scrollY + loc[1] - sl[1] + y - dp(120)))
+            }
+        }
+    }
+
+    private fun fixSpErr(er: SpErr, sug: String) {
+        val e = er.edit
+        if (er.start + er.len <= e.text.length && e.text.substring(er.start, er.start + er.len) == er.word) {
+            e.text.getSpans(er.start, er.start + er.len, SpellS::class.java).forEach { e.text.removeSpan(it) }
+            e.text.replace(er.start, er.start + er.len, sug)
+            val delta = sug.length - er.len
+            for (o in spErrs) if (o !== er && o.edit === e && o.start > er.start) o.start += delta
+            onDirty()
+        }
+        dropSpErr(er)
+    }
+
+    private fun dropSpErr(er: SpErr) {
+        val e = er.edit
+        e.text.getSpans(er.start, minOf(e.text.length, er.start + er.len), SpellS::class.java).forEach { e.text.removeSpan(it) }
+        val i = spErrs.indexOf(er); spErrs.remove(er)
+        if (i >= 0 && i < spI) spI--
+        showSpErr()
+    }
+
+    private fun closeSpell() {
+        val p = spell ?: return
+        spell = null
+        for (e in allEdits()) e.text.getSpans(0, e.text.length, SpellS::class.java).forEach { e.text.removeSpan(it) }
+        spErrs.clear()
+        spellBtn.color = T.text; spellBtn.background = null
+        p.animate().translationY(dp(40).toFloat()).alpha(0f).setDuration(200).withEndAction {
+            bottom.removeView(p); if (imgPanel == null && !ink.drawing && rec == null) formatBar.visibility = View.VISIBLE
+        }.start()
+    }
+
     override fun finish() {
         if (closing) return
         if (rec != null) stopRecording(true)
         save()
+        autoVersion()
         if (!::root.isInitialized || !root.isAttachedToWindow) { super.finish(); return }
         closing = true
         currentFocus?.let { v -> (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).hideSoftInputFromWindow(v.windowToken, 0) }

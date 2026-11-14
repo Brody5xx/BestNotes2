@@ -35,7 +35,9 @@ object Store {
         if (::db.isInitialized) return
         db = Helper(ctx.applicationContext).writableDatabase
         mediaDir = File(ctx.filesDir, "media").apply { mkdirs() }
+        appCtx = ctx.applicationContext
     }
+    private var appCtx: Context? = null
 
     /** Carga la lista de notas (en segundo plano) y avisa cuando está lista. */
     private val waiting = ArrayList<() -> Unit>()
@@ -158,12 +160,15 @@ object Store {
     /** Borra fotos/audios/videos que ya no usa ninguna nota. */
     fun cleanMedia() {
         val used = HashSet<String>()
+        val re2 = Regex("\\\\?\"(?:f|wall)\\\\?\":\\\\?\"([^\"\\\\]+)")
         db.rawQuery("SELECT body,extra FROM notes", null).use { c ->
             val re = Regex("\"(?:f|wall)\":\"([^\"]+)\"")
             while (c.moveToNext()) {
                 for (col in 0..1) c.getString(col)?.let { s -> re.findAll(s).forEach { used.add(it.groupValues[1]) } }
             }
         }
+        // las fotos de las versiones viejas (🕘 historial) también se guardan
+        appCtx?.let { ctx -> try { Versions.allText(ctx).forEach { s -> re2.findAll(s).forEach { used.add(it.groupValues[1]) } } } catch (_: Exception) {} }
         mediaDir.listFiles()?.forEach {
             val keep = it.name in used || (it.name.endsWith(".thumb.jpg") && it.name.removeSuffix(".thumb.jpg") in used)
             if (!keep && System.currentTimeMillis() - it.lastModified() > 60_000) it.delete()
