@@ -26,8 +26,7 @@ class CapturasTest {
 
     private fun shot(v: View, name: String) {
         val w = 1080; val h = 2340
-        v.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
-        v.layout(0, 0, w, h)
+        if (v.width != w) { v.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY)); v.layout(0, 0, w, h) }
         val bm = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val c = Canvas(bm)
         // la ventana pinta el fondo
@@ -56,5 +55,28 @@ class CapturasTest {
         val foto = ed.views.first { it is FotoView } as FotoView
         ed.selectImage(foto); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
         shot(act.window.decorView, "4_foto")
+    }
+
+    @Test fun cierreDelMenu() {
+        if (System.getenv("CAPTURAS") == null) return
+        var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
+        val main = Robolectric.buildActivity(MainActivity::class.java).setup().visible().get()
+        waitIo(); idle()
+        val v = main.window.decorView
+        v.measure(View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(2340, View.MeasureSpec.EXACTLY)); v.layout(0, 0, 1080, 2340)
+        MainActivity::class.java.getDeclaredMethod("openDrawer").apply { isAccessible = true }.invoke(main)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        v.measure(View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(2340, View.MeasureSpec.EXACTLY)); v.layout(0, 0, 1080, 2340)
+        // se arma la animación a mano, cuadro por cuadro
+        val box = (main.window.decorView.findViewById<android.view.ViewGroup>(android.R.id.content).getChildAt(0) as android.view.ViewGroup).let { it.getChildAt(it.childCount - 1) as android.view.ViewGroup }
+        val holder = box.getChildAt(1) as android.view.ViewGroup
+        holder.pivotX = 0f; holder.pivotY = holder.height / 2f
+        val line = box.getChildAt(2); line.pivotY = line.height / 2f
+        val flash = box.getChildAt(3)
+        flash.translationX = 30f - 180f + 8f; flash.translationY = 30f + holder.height / 2f - 180f
+        val parts = MainActivity.CloseParts(holder, holder.getChildAt(1), line, flash, holder.width.toFloat(), 30f)
+        for ((i, t) in listOf(0.2f, 0.4f, 0.55f, 0.72f, 0.84f, 0.9f).withIndex()) {
+            main.closeFrame(parts, t); shot(v, "cierre_$i")
+        }
     }
 }

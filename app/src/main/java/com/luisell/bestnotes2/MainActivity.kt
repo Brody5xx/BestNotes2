@@ -384,49 +384,106 @@ class MainActivity : Activity() {
 
         val box = FrameLayout(this)
         box.addView(scrim, FrameLayout.LayoutParams(MATCH, MATCH))
-        box.addView(sv, FrameLayout.LayoutParams(panelW, MATCH).apply { setMargins(dp(10), dp(10), 0, dp(10)) })
+        // el panel va dentro de una "caja" con una capa blanca encima (para el destello al cerrar)
+        val holder = FrameLayout(this).apply { clipToOutline = true; background = roundBg(0, dp(28).toFloat()) }
+        holder.addView(sv, FrameLayout.LayoutParams(MATCH, MATCH))
+        val wash = View(this).apply { background = roundBg(0xFFFFFFFF.toInt(), dp(28).toFloat()); alpha = 0f; isClickable = false }
+        holder.addView(wash, FrameLayout.LayoutParams(MATCH, MATCH))
+        box.addView(holder, FrameLayout.LayoutParams(panelW, MATCH).apply { setMargins(dp(10), dp(10), 0, dp(10)) })
         // la línea de luz que va con el borde del panel
         val line = View(this).apply { background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(0x00FFFFFF, 0xEEFFFFFF.toInt(), 0x00FFFFFF)); alpha = 0f }
-        box.addView(line, FrameLayout.LayoutParams(dp(10), MATCH).apply { setMargins(0, dp(14), 0, dp(14)) })
+        box.addView(line, FrameLayout.LayoutParams(dp(14), MATCH).apply { setMargins(0, dp(14), 0, dp(14)) })
+        // el destello: una luz redonda que brilla al final, en el centro de la izquierda
+        val flash = View(this).apply {
+            background = android.graphics.drawable.GradientDrawable().apply {
+                gradientType = android.graphics.drawable.GradientDrawable.RADIAL_GRADIENT
+                colors = intArrayOf(0xFFFFFFFF.toInt(), 0xFFFFFFFF.toInt(), 0x80FFFFFF.toInt(), 0x00FFFFFF); gradientRadius = dp(46).toFloat()
+            }
+            alpha = 0f
+        }
+        box.addView(flash, FrameLayout.LayoutParams(dp(120), dp(120)))
         root.addView(box, FrameLayout.LayoutParams(MATCH, MATCH))
         drawer = box
-        // Se abre creciendo desde la izquierda, con la línea de luz en el borde
-        sv.pivotX = 0f; sv.scaleX = 0.02f; sv.alpha = 0.4f
+        // Se abre creciendo desde la izquierda (blanco al principio, como en Best Notes), con la línea de luz en el borde
+        holder.pivotX = 0f; holder.scaleX = 0.02f; wash.alpha = 0.85f
         scrim.animate().alpha(1f).setDuration(220).start()
-        val va = android.animation.ValueAnimator.ofFloat(0f, 1f).setDuration(300)
+        val va = android.animation.ValueAnimator.ofFloat(0f, 1f).setDuration(340)
         va.interpolator = android.view.animation.DecelerateInterpolator(1.6f)
         va.addUpdateListener {
             val k = it.animatedValue as Float
-            sv.scaleX = 0.02f + 0.98f * k; sv.alpha = 0.4f + 0.6f * k
-            line.translationX = dp(10) + panelW * sv.scaleX - dp(5); line.alpha = if (k < 0.85f) 1f else (1 - k) / 0.15f
+            holder.scaleX = 0.02f + 0.98f * k
+            wash.alpha = 0.85f * (1 - k) * (1 - k)
+            line.translationX = dp(10) + panelW * holder.scaleX - dp(7); line.alpha = if (k < 0.85f) 1f else (1 - k) / 0.15f
         }
         va.start()
     }
 
     private fun sep() = View(this).apply { setBackgroundColor(T.border) }.also { it.layoutParams = lp(MATCH, dp(1)).apply { setMargins(dp(14), dp(8), dp(14), dp(8)) } }
 
-    /** Al cerrar, el panel se encoge hacia la izquierda dejando un rastro de estrellitas ✨ (como en Best Notes). */
+    /**
+     * Al cerrar (como en Best Notes): el panel se pone blanco y se aplasta hacia la izquierda,
+     * queda una barra de luz, la barra se achica hacia el CENTRO de la izquierda y termina
+     * en un destello ✦ — mientras quedan estrellitas que titilan.
+     */
     private fun closeDrawer() {
         val d = drawer ?: return
         drawer = null
         val box = d as FrameLayout
-        val scrim = box.getChildAt(0); val sv = box.getChildAt(1); val line = box.getChildAt(2)
-        scrim.animate().alpha(0f).setDuration(320).start()
-        val loc = IntArray(2); sv.getLocationInWindow(loc)
-        val sp = SparkleView(this, Fx.menuTrail(this, loc[0].toFloat(), loc[1].toFloat(), sv.width.toFloat(), sv.height.toFloat(), root.width.toFloat()))
+        val scrim = box.getChildAt(0); val holder = box.getChildAt(1) as FrameLayout; val wash = holder.getChildAt(1)
+        val line = box.getChildAt(2); val flash = box.getChildAt(3)
+        val loc = IntArray(2); holder.getLocationInWindow(loc)
+        val rl = IntArray(2); root.getLocationInWindow(rl)
+        val w = holder.width.toFloat(); val h = holder.height.toFloat()
+        val left = (loc[0] - rl[0]).toFloat(); val top = (loc[1] - rl[1]).toFloat()
+        val sp = SparkleView(this, Fx.menuTrail(this, left, top, w, h, root.width.toFloat()))
         root.addView(sp, FrameLayout.LayoutParams(MATCH, MATCH))
-        sp.play(820)
-        val w = sv.width.toFloat()
-        val va = android.animation.ValueAnimator.ofFloat(1f, 0f).setDuration(340)
-        va.interpolator = android.view.animation.AccelerateDecelerateInterpolator()
-        va.addUpdateListener {
-            val k = it.animatedValue as Float
-            sv.pivotX = 0f; sv.scaleX = maxOf(0.001f, k); sv.alpha = 0.3f + 0.7f * k
-            line.alpha = if (k > 0.05f) 1f else k / 0.05f
-            line.translationX = dp(10) + w * k - dp(5)
-        }
+        sp.play(900)
+        // el destello va en el centro de la izquierda
+        flash.translationX = left - dp(60) + dp(3); flash.translationY = top + h / 2 - dp(60)
+        holder.pivotX = 0f; holder.pivotY = h / 2
+        line.pivotY = (line.height / 2).toFloat()
+        scrim.animate().alpha(0f).setDuration(520).start()
+        val parts = CloseParts(holder, wash, line, flash, w, left)
+        val va = android.animation.ValueAnimator.ofFloat(0f, 1f).setDuration(720)
+        va.interpolator = android.view.animation.LinearInterpolator()
+        va.addUpdateListener { closeFrame(parts, it.animatedValue as Float) }
         va.addListener(object : android.animation.AnimatorListenerAdapter() { override fun onAnimationEnd(a: android.animation.Animator) { root.removeView(box) } })
         va.start()
+    }
+
+    class CloseParts(val holder: View, val wash: View, val line: View, val flash: View, val w: Float, val left: Float)
+
+    /** Un cuadro de la animación de cierre ([t] de 0 a 1). */
+    fun closeFrame(p: CloseParts, t: Float) {
+        val holder = p.holder; val wash = p.wash; val line = p.line; val flash = p.flash; val w = p.w; val left = p.left
+        val bar = dp(5).toFloat()                                       // grueso de la barra de luz
+        when {
+            t < 0.42f -> {                                          // 1) se aplasta y se pone blanco
+                val k = t / 0.42f; val e = k * k * (3 - 2 * k)
+                holder.scaleX = maxOf(bar / w, 1f - e * (1f - bar / w))
+                wash.alpha = minOf(1f, e * 1.3f)
+                holder.scaleY = 1f
+                line.alpha = 1f; line.translationX = left + w * holder.scaleX - dp(7)
+            }
+            t < 0.62f -> {                                          // 2) queda una barra de luz brillando
+                holder.scaleX = bar / w; wash.alpha = 1f; holder.scaleY = 1f
+                line.alpha = 1f; line.translationX = left - dp(5)
+            }
+            else -> {                                               // 3) la barra se achica hacia el centro
+                val k = ((t - 0.62f) / 0.26f).coerceIn(0f, 1f); val e = k * k
+                holder.scaleX = bar / w; holder.scaleY = maxOf(0.001f, 1f - e)
+                line.scaleY = maxOf(0.001f, 1f - e); line.translationX = left - dp(5)
+                line.alpha = 1f - maxOf(0f, (k - 0.7f) / 0.3f)
+                holder.alpha = if (k < 0.9f) 1f else (1 - k) / 0.1f
+            }
+        }
+        // 4) el destello: se prende cuando la barra llega al centro y se apaga creciendo un poquito
+        if (t > 0.78f) {
+            val k = ((t - 0.78f) / 0.22f).coerceIn(0f, 1f)
+            flash.alpha = if (k < 0.3f) k / 0.3f else (1 - k) / 0.7f
+            val sc = 0.35f + 1.1f * k
+            flash.scaleX = sc; flash.scaleY = sc
+        }
     }
 
     private fun folderMenu(f: Folder) {
