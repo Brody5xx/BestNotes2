@@ -1,0 +1,176 @@
+package com.luisell.bestnotes2
+
+import android.content.Intent
+import android.net.Uri
+import android.os.Looper
+import android.view.View
+import android.view.ViewGroup
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.Robolectric
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+import java.io.File
+
+/** Pruebas de pantalla: importar, abrir notas y escribir (sin teléfono). */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class PantallaTest {
+    private val ctx get() = org.robolectric.RuntimeEnvironment.getApplication()
+
+    private fun idle() { shadowOf(Looper.getMainLooper()).idle() }
+    private fun waitIo() {
+        val done = java.util.concurrent.CountDownLatch(1)
+        Store.io.execute { done.countDown() }
+        done.await(); idle()
+    }
+    private fun reload() {
+        var ok = false
+        Store.reload { ok = true }
+        var n = 0
+        while (!ok && n++ < 500) { Thread.sleep(10); idle() }
+        assertTrue("la lista se cargó", ok)
+    }
+
+    private fun importar(): Backup.Summary {
+        val f = File(ctx.cacheDir, "r.json")
+        f.writeText(javaClass.classLoader!!.getResource("respaldo.json")!!.readText())
+        try { Backup.importFile(ctx, Uri.fromFile(f), "mala") {}; fail("debía fallar") } catch (_: Backup.WrongPassword) {}
+        val s = Backup.importFile(ctx, Uri.fromFile(f), "prueba") {}
+        reload()
+        return s
+    }
+
+    private fun <T : View> find(v: View, cls: Class<T>, out: MutableList<T> = ArrayList()): MutableList<T> {
+        if (cls.isInstance(v)) out.add(cls.cast(v)!!)
+        if (v is ViewGroup) for (i in 0 until v.childCount) find(v.getChildAt(i), cls, out)
+        return out
+    }
+
+    @Test fun importaTodo() {
+        reload(); Store.deleteForever(Store.notes.map { it.id }); waitIo()
+        val s = importar()
+        assertEquals(6, s.total); assertEquals(6, s.written); assertEquals(0, s.missing)
+        val n1 = Store.meta("n1")!!
+        assertEquals("Ticket de prueba", n1.title)
+        assertEquals(0xFFFF453A.toInt(), n1.titleColor)
+        assertTrue(n1.fav && n1.pinned); assertEquals("f1", n1.folder)
+        assertEquals(0xFF43A047.toInt(), n1.color)
+        assertNotNull(n1.thumb); assertTrue(File(Store.mediaDir, n1.thumb!!).length() > 50)
+        assertEquals(1, n1.checkDone); assertEquals(2, n1.checkTotal)
+        assertTrue(n1.plain.contains("cámara"))
+        val (body, _) = Store.readBody("n1")
+        val blocks = blocksFromJson(body)
+        val img = blocks.first { it is Block.Img } as Block.Img
+        assertEquals("l", img.side); assertEquals(40f, img.pct); assertEquals("14 nov 2026 · Sitio A", img.stamp)
+        assertTrue(Store.meta("n2")!!.hasMedia)
+        assertTrue(Store.meta("n3")!!.deleted)
+        assertTrue(Store.meta("n4")!!.locked)
+        assertEquals("linea uno\nlinea dos", Store.meta("n6")!!.plain)
+        assertTrue(Store.readBody("n5").second!!.contains("ink"))
+        assertEquals("Trabajo", Store.folders.first { it.id == "f1" }.name)
+        assertEquals("co7naf", Pin.saved(ctx))
+        // importar otra vez no duplica nada
+        val again = importar()
+        assertEquals(0, again.written)
+        assertEquals(6, Store.notes.size)
+    }
+
+    @Test fun pantallaPrincipalYNota() {
+        importar()
+        val main = Robolectric.buildActivity(MainActivity::class.java).setup().get()
+        idle()
+        val rv = find(main.window.decorView, androidx.recyclerview.widget.RecyclerView::class.java).first()
+        assertEquals(5, rv.adapter!!.itemCount)           // todas menos la de la papelera
+
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n1").putExtra(NoteActivity.EXTRA_Q, "camara")).setup().get()
+        waitIo(); idle()
+        val ed = find(act.window.decorView, EditorView::class.java).first()
+        assertTrue(ed.views.size >= 4)
+        val first = ed.views[0] as TextoView
+        assertTrue("búsqueda iluminada", first.edit.text.getSpans(0, first.edit.length(), SearchS::class.java).isNotEmpty())
+        // escribir y poner en negrita
+        first.edit.requestFocus(); first.edit.setSelection(0)
+        first.edit.text.insert(0, "Hola ")
+        first.edit.setSelection(0, 4)
+        first.edit.applyStyle { it.copy(b = true) }
+        assertTrue(Rich.runs(first.edit.text)[0].st.b)
+        // convertir el renglón en checklist
+        first.edit.setSelection(2)
+        ed.toggleList("check")
+        idle()
+        assertTrue(ed.blocks[0] is Block.ListB)
+        // Enter en la lista crea otro renglón
+        val lv = ed.views[0] as ListaView
+        val e0 = lv.edits()[0]
+        e0.setSelection(4); e0.text.insert(4, "\n")
+        idle()
+        assertEquals(2, (ed.blocks[0] as Block.ListB).items.size)
+        // guardar
+        act.finish(); waitIo()
+        val saved = blocksFromJson(Store.readBody("n1").first)
+        assertTrue(saved[0] is Block.ListB)
+        assertEquals("Hola", runsPlain((saved[0] as Block.ListB).items[0].runs))
+        assertTrue((saved[0] as Block.ListB).items[0].runs[0].st.b)
+    }
+
+    @Test fun notaNuevaChecklist() {
+        reload()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_NEW, "check")).setup().get()
+        idle()
+        val ed = find(act.window.decorView, EditorView::class.java).first()
+        val lv = ed.views[0] as ListaView
+        val e = lv.edits()[0]
+        e.text.insert(0, "Comprar cable")
+        e.setSelection(e.length()); e.text.insert(e.length(), "\n"); idle()
+        val e2 = lv.edits().last(); e2.text.insert(0, "Switch"); idle()
+        // Enter en renglón vacío termina la lista
+        e2.setSelection(e2.length()); e2.text.insert(e2.length(), "\n"); idle()
+        val e3 = lv.edits().last(); e3.setSelection(0); e3.text.insert(0, "\n"); idle()
+        act.finish(); waitIo()
+        val n = Store.notes.maxByOrNull { it.created }!!
+        assertEquals("Comprar cable\nSwitch", n.plain.trim())
+        assertEquals(2, n.checkTotal)
+    }
+
+    @Test fun buscarYDeshacer() {
+        reload(); Store.deleteForever(Store.notes.map { it.id }); waitIo()
+        importar()
+        val main = Robolectric.buildActivity(MainActivity::class.java).setup().get()
+        idle()
+        val search = find(main.window.decorView, android.widget.EditText::class.java).first()
+        search.setText("CAMARA"); idle()
+        val rv = find(main.window.decorView, androidx.recyclerview.widget.RecyclerView::class.java).first()
+        assertEquals(1, rv.adapter!!.itemCount)
+        search.setText("wifi"); idle()
+        assertEquals("la nota bloqueada no se busca por dentro", 0, rv.adapter!!.itemCount)
+        search.setText("#trabajo"); idle()
+        assertEquals(1, rv.adapter!!.itemCount)
+
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n6")).setup().get()
+        waitIo(); idle()
+        val ed = find(act.window.decorView, EditorView::class.java).first()
+        val t = ed.views[0] as TextoView
+        t.edit.requestFocus(); t.edit.setSelection(t.edit.length())
+        t.edit.text.insert(t.edit.length(), " extra")
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(2))
+        assertEquals("linea uno\nlinea dos extra", t.edit.text.toString())
+        val undo = act.javaClass.getDeclaredMethod("undo").apply { isAccessible = true }
+        undo.invoke(act); idle()
+        val t2 = ed.views[0] as TextoView
+        assertEquals("linea uno\nlinea dos", t2.edit.text.toString())
+        // borrar al principio de un renglón de checklist lo vuelve texto
+        ed.views[0].focusAt(0, 0); idle()
+        ed.toggleList("check"); idle()
+        val lv = ed.views.first { it is ListaView } as ListaView
+        val e = lv.edits()[0]; e.requestFocus(); e.setSelection(0)
+        e.onBackAtStart!!.invoke(e); idle()
+        assertTrue(ed.blocks.none { it is Block.ListB })
+        act.finish(); waitIo()
+    }
+}
