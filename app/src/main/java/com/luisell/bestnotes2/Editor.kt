@@ -81,6 +81,7 @@ class EditorView(ctx: Context, val host: Host) : LinearLayout(ctx) {
         fun noteTitle(): String
         fun cropImage(f: FotoView)
         fun rotateImage(f: FotoView)
+        fun drawOnImage(f: FotoView)
     }
 
     var blocks: MutableList<Block> = ArrayList()
@@ -113,7 +114,7 @@ class EditorView(ctx: Context, val host: Host) : LinearLayout(ctx) {
                 is Block.Text -> TextoView(this, b)
                 is Block.ListB -> ListaView(this, b)
                 is Block.Img -> FotoView(this, b)
-                is Block.Media -> MediaView(this, b)
+                is Block.Media -> if (b.kind == "video") VideoCard(this, b) else MediaView(this, b)
             }
             views.add(v); addView(v.view)
         }
@@ -274,6 +275,14 @@ class EditorView(ctx: Context, val host: Host) : LinearLayout(ctx) {
         host.onDirty()
     }
 
+    fun removeBlock(v: BlockView) {
+        val i = views.indexOf(v); if (i < 0) return
+        flushAll()
+        blocks.removeAt(i)
+        blocks = normalize(blocks)
+        rebuild(null); host.onDirty()
+    }
+
     fun removeImage(f: FotoView) {
         val i = views.indexOf(f); if (i < 0) return
         flushAll()
@@ -294,7 +303,7 @@ class EditorView(ctx: Context, val host: Host) : LinearLayout(ctx) {
     }
 
     /** Pone fotos donde está el cursor (parte el texto o la lista en dos). */
-    fun insertImages(imgs: List<Block.Img>) {
+    fun insertImages(imgs: List<Block>) {
         if (imgs.isEmpty()) return
         flushAll()
         val e = focused
@@ -707,6 +716,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         b(L.t("imgRight"), block.side == "r") { setSide("r") }
         b(L.t("imgRotate")) { ed.host.rotateImage(this) }
         b(L.t("crop")) { ed.host.cropImage(this) }
+        b(L.t("drawOn")) { ed.host.drawOnImage(this) }
         b(L.t("stamp"), block.stamp.isNotEmpty()) { toggleStamp() }
         b(L.t(if (block.pin) "imgUnpin" else "imgPin"), block.pin) { block.pin = !block.pin; ed.host.onDirty(); showBar() }
         b(L.t("moveUp")) { ed.moveBlock(this, -1) }
@@ -831,28 +841,207 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
 }
 
 /* ---------- Audio / video ---------- */
+/** Botones de abajo de un audio o video: subir, bajar, abrir con…, quitar (y en video: sin sonido, achicar). */
+internal fun mediaOptions(ed: EditorView, v: BlockView, block: Block.Media, extra: List<Pair<String, () -> Unit>>) {
+    val items = ArrayList<Pair<String, () -> Unit>>()
+    items.addAll(extra)
+    items.add(L.t("moveUp") to { ed.moveBlock(v, -1) })
+    items.add(L.t("moveDown") to { ed.moveBlock(v, 1) })
+    items.add(L.t("openWith") to {
+        val ext = block.file.substringAfterLast('.')
+        val isV = block.kind == "video"
+        ed.host.openMedia(block.file, when (ext) { "mp4", "mov" -> "video/mp4"; "webm" -> "video/webm"; "weba" -> "audio/webm"; "mp3" -> "audio/mpeg"; "ogg" -> "audio/ogg"; "wav" -> "audio/wav"; "3gp" -> if (isV) "video/3gpp" else "audio/3gpp"; else -> if (isV) "video/*" else "audio/mp4" })
+    })
+    items.add(L.t("remove") to { ed.context.confirm(L.t("remove"), null, L.t("remove"), true) { ed.removeBlock(v) } })
+    ed.context.dialog().setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }.show()
+}
+
+/** 🎙️ Nota de voz: ▶ escuchar aquí mismo, barra para adelantar, velocidad 1x / 1.5x / 2x. */
 @SuppressLint("ViewConstructor")
 class MediaView(val ed: EditorView, override val block: Block.Media) : BlockView {
-    private val row = LinearLayout(ed.context)
+    private val ctx = ed.context
+    private val row = LinearLayout(ctx)
     override val view: View get() = row
+    private val play = IconView(ctx, MoreIcons.PLAY, 8.5f)
+    private val seek = android.widget.SeekBar(ctx)
+    private val time = ctx.tv("", 12.5f, T.muted)
+    private val speedTv = ctx.tv("", 12.5f, T.text, true)
+    private val tick = object : Runnable { override fun run() { paint(); if (AudioPlayer.isPlaying(block.file)) row.postDelayed(this, 250) } }
+    private val listener: () -> Unit = { paint(); if (AudioPlayer.isPlaying(block.file)) { row.removeCallbacks(tick); row.post(tick) } }
 
     init {
-        val ctx = ed.context
         row.orientation = LinearLayout.HORIZONTAL; row.gravity = Gravity.CENTER_VERTICAL
-        row.setPadding(ctx.dp(14), ctx.dp(12), ctx.dp(14), ctx.dp(12))
-        row.pressBg(T.card, 16f, T.border)
-        row.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = ctx.dp(8); bottomMargin = ctx.dp(8) }
-        val isV = block.kind == "video"
-        row.addView(IconView(ctx, if (isV) Icons.IMAGE else Icons.MIC, 10f).apply { color = T.text; isClickable = false }, lp(ctx.dp(36), ctx.dp(36)))
-        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(ctx.dp(12), 0, 0, 0) }
-        val d = block.dur.toInt()
-        col.addView(ctx.tv(L.t(if (isV) "video" else "audio") + if (d > 0) "  ·  %d:%02d".format(d / 60, d % 60) else "", 15f, T.text, true))
-        col.addView(ctx.tv(L.t("mediaSoon"), 12.5f, T.muted))
+        row.setPadding(ctx.dp(8), ctx.dp(6), ctx.dp(6), ctx.dp(6))
+        row.background = roundBg(T.card, ctx.dp(18).toFloat(), T.border, ctx.dp(1))
+        row.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = ctx.dp(6); bottomMargin = ctx.dp(6) }
+        play.color = 0xFF16161A.toInt(); play.pressBg(T.text, 20f)
+        play.setOnClickListener { AudioPlayer.toggle(block.file) }
+        row.addView(play, lp(ctx.dp(40), ctx.dp(40)))
+        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        seek.max = 1000
+        seek.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: android.widget.SeekBar?, p: Int, fromUser: Boolean) {
+                if (fromUser && block.dur > 0) { if (AudioPlayer.file != block.file) AudioPlayer.toggle(block.file); AudioPlayer.seek(block.file, (p / 1000.0 * block.dur * 1000).toInt()); paint() }
+            }
+            override fun onStartTrackingTouch(sb: android.widget.SeekBar?) {}
+            override fun onStopTrackingTouch(sb: android.widget.SeekBar?) {}
+        })
+        col.addView(seek, lp(ViewGroup.LayoutParams.MATCH_PARENT, ctx.dp(30)))
+        val info = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(ctx.dp(14), 0, ctx.dp(8), 0) }
+        info.addView(IconView(ctx, MoreIcons.MIC, 6f).apply { color = T.muted; isClickable = false }, lp(ctx.dp(16), ctx.dp(16)))
+        info.addView(time.apply { setPadding(ctx.dp(4), 0, 0, 0) }, lp(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        col.addView(info)
         row.addView(col, lp(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        row.setOnClickListener {
-            val ext = block.file.substringAfterLast('.')
-            val mime = when (ext) { "mp4" -> "video/mp4"; "webm" -> if (isV) "video/webm" else "audio/webm"; "mp3" -> "audio/mpeg"; "ogg" -> "audio/ogg"; "wav" -> "audio/wav"; else -> if (isV) "video/*" else "audio/*" }
-            ed.host.openMedia(block.file, mime)
+        speedTv.setPadding(ctx.dp(8), ctx.dp(6), ctx.dp(8), ctx.dp(6))
+        speedTv.setOnClickListener { AudioPlayer.setSpeedNow(when (AudioPlayer.speed) { 1f -> 1.5f; 1.5f -> 2f; else -> 1f }) }
+        row.addView(speedTv)
+        row.addView(ctx.iconBtn(MoreIcons.DOTS_V, 8f, T.muted) { mediaOptions(ed, this, block, emptyList()) }.apply { layoutParams = lp(ctx.dp(36), ctx.dp(40)) })
+        row.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) { AudioPlayer.addListener(listener); paint() }
+            override fun onViewDetachedFromWindow(v: View) { AudioPlayer.removeListener(listener); row.removeCallbacks(tick) }
+        })
+        if (block.dur <= 0) Loader.pool.execute { val i = MediaFiles.info(block.file); Store.main.post { if (i.dur > 0) { block.dur = i.dur; block.size = i.size; paint() } } }
+        paint()
+    }
+
+    private fun paint() {
+        val playing = AudioPlayer.isPlaying(block.file)
+        play.kind = if (playing) MoreIcons.PAUSE else MoreIcons.PLAY; play.invalidate()
+        val pos = AudioPlayer.position(block.file) / 1000.0
+        if (block.dur > 0) seek.progress = (pos / block.dur * 1000).toInt().coerceIn(0, 1000)
+        time.text = (if (pos > 0 || playing) MediaFiles.timeText(pos) + " / " else "") + MediaFiles.timeText(block.dur) +
+            if (!File(Store.mediaDir, block.file).exists()) "  ·  " + L.t("fileMissing") else ""
+        speedTv.text = (if (AudioPlayer.speed == 1f) "1" else AudioPlayer.speed.toString()) + "x"
+    }
+}
+
+/** 🎬 Video dentro de la nota: portada, ▶ aquí mismo, pantalla completa, 🔇 sin sonido y Achicar. */
+@SuppressLint("ViewConstructor")
+class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView {
+    private val ctx = ed.context
+    private val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+    override val view: View get() = col
+    private val frame = object : FrameLayout(ctx) {
+        override fun onMeasure(w: Int, h: Int) {
+            val width = MeasureSpec.getSize(w)
+            val r = if (vw > 0 && vh > 0) vh.toFloat() / vw else 9f / 16f
+            val hh = minOf((width * r).toInt(), (resources.displayMetrics.heightPixels * 0.7f).toInt())
+            super.onMeasure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(hh, MeasureSpec.EXACTLY))
+        }
+    }
+    private val thumb = ImageView(ctx).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
+    private val playBig = IconView(ctx, MoreIcons.PLAY, 12f)
+    private var vv: android.widget.VideoView? = null
+    private val label = ctx.tv("", 12.5f, T.muted)
+    private var vw = 0; private var vh = 0
+    private var busy = false
+
+    init {
+        col.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = ctx.dp(6); bottomMargin = ctx.dp(6) }
+        frame.background = roundBg(0xFF000000.toInt(), ctx.dp(16).toFloat(), T.border, ctx.dp(1))
+        frame.clipToOutline = true
+        frame.addView(thumb, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        playBig.color = 0xFF16161A.toInt(); playBig.background = roundBg(0xE6FFFFFF.toInt(), ctx.dp(30).toFloat()); playBig.isClickable = false
+        frame.addView(playBig, FrameLayout.LayoutParams(ctx.dp(60), ctx.dp(60), Gravity.CENTER))
+        frame.setOnClickListener { toggle() }
+        col.addView(frame, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        val bar = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(ctx.dp(4), ctx.dp(2), 0, 0) }
+        bar.addView(IconView(ctx, MoreIcons.VIDEO, 6.5f).apply { color = T.muted; isClickable = false }, lp(ctx.dp(18), ctx.dp(18)))
+        bar.addView(label.apply { setPadding(ctx.dp(6), 0, 0, 0) }, lp(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        bar.addView(ctx.iconBtn(MoreIcons.FULL, 7.5f, T.muted) { full() }.apply { layoutParams = lp(ctx.dp(38), ctx.dp(38)) })
+        bar.addView(ctx.iconBtn(MoreIcons.DOTS_V, 8f, T.muted) { options() }.apply { layoutParams = lp(ctx.dp(36), ctx.dp(38)) })
+        col.addView(bar)
+        load()
+    }
+
+    private fun load() {
+        Loader.pool.execute {
+            val i = MediaFiles.info(block.file)
+            val ok = MediaFiles.makeThumb(block.file)
+            Store.main.post {
+                vw = i.w; vh = i.h
+                if (i.dur > 0) block.dur = i.dur
+                block.size = i.size
+                paintLabel(); frame.requestLayout()
+                if (ok) Thumbs.load(MediaFiles.thumbName(block.file), ctx.dp(360)) { bm -> thumb.setImageBitmap(bm) }
+            }
+        }
+    }
+
+    private fun paintLabel(extra: String? = null) {
+        val parts = ArrayList<String>()
+        if (block.dur > 0) parts.add(MediaFiles.timeText(block.dur))
+        if (block.size > 0) parts.add(MediaFiles.sizeText(block.size))
+        if (block.muted) parts.add(L.t("muted"))
+        if (!File(Store.mediaDir, block.file).exists()) parts.add(L.t("fileMissing"))
+        if (extra != null) parts.add(extra)
+        label.text = parts.joinToString("  ·  ")
+    }
+
+    private fun toggle() {
+        val v = vv
+        if (v == null) {
+            AudioPlayer.stop()
+            val n = android.widget.VideoView(ctx)
+            vv = n
+            frame.addView(n, 0, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER))
+            n.setVideoPath(File(Store.mediaDir, block.file).path)
+            n.setOnPreparedListener { mp -> thumb.visibility = View.GONE; playBig.visibility = View.GONE; mp.start() }
+            n.setOnCompletionListener { playBig.visibility = View.VISIBLE; playBig.kind = MoreIcons.PLAY; playBig.invalidate() }
+            n.setOnErrorListener { _, _, _ -> stopVideo(); ctx.toast(L.t("cantOpen")); true }
+            n.setOnClickListener { toggle() }
+            return
+        }
+        if (v.isPlaying) { v.pause(); playBig.kind = MoreIcons.PLAY; playBig.visibility = View.VISIBLE }
+        else { v.start(); playBig.visibility = View.GONE }
+        playBig.invalidate()
+    }
+
+    private fun stopVideo() {
+        vv?.let { it.stopPlayback(); frame.removeView(it) }
+        vv = null; thumb.visibility = View.VISIBLE; playBig.visibility = View.VISIBLE; playBig.kind = MoreIcons.PLAY; playBig.invalidate()
+    }
+
+    private fun full() {
+        stopVideo()
+        ed.host.openMedia(block.file, if (block.file.endsWith(".webm")) "video/webm" else "video/mp4")
+    }
+
+    private fun options() {
+        if (busy) return
+        val extra = ArrayList<Pair<String, () -> Unit>>()
+        if (!block.muted) extra.add(L.t("mute") to { mute() })
+        extra.add(L.t("shrink") to { shrink() })
+        mediaOptions(ed, this, block, extra)
+    }
+
+    private fun replaceFile(name: String) {
+        block.file = name
+        val i = MediaFiles.info(name); block.size = i.size; if (i.dur > 0) block.dur = i.dur
+        stopVideo(); load(); ed.host.onDirty()
+    }
+
+    private fun mute() {
+        busy = true; paintLabel(L.t("working"))
+        Loader.pool.execute {
+            val n = MediaFiles.removeAudio(block.file)
+            Store.main.post {
+                busy = false
+                if (n == null) { ctx.toast(L.t("videoFail")); paintLabel() } else { block.muted = true; replaceFile(n); ctx.toast(L.t("mutedOk")) }
+            }
+        }
+    }
+
+    private fun shrink() {
+        busy = true; paintLabel(L.t("shrinking", "n" to 0))
+        val before = block.size
+        Shrink.run(ctx, block.file, vw, vh, { p -> paintLabel(L.t("shrinking", "n" to p)) }) { n ->
+            busy = false
+            if (n == null) { ctx.toast(L.t("videoFail")); paintLabel(); return@run }
+            val after = File(Store.mediaDir, n).length()
+            if (after <= 0 || (before > 0 && after >= before)) { File(Store.mediaDir, n).delete(); ctx.toast(L.t("shrinkNoGain")); paintLabel(); return@run }
+            replaceFile(n)
+            ctx.toast(L.t("shrinkOk", "a" to MediaFiles.sizeText(before), "b" to MediaFiles.sizeText(after)))
         }
     }
 }

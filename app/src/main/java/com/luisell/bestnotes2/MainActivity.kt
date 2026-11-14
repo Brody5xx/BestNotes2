@@ -121,6 +121,12 @@ class MainActivity : Activity() {
             setOnClickListener { newNote("check") }
             contentDescription = L.t("newCheck")
         }
+        val pen = IconView(this, MoreIcons.PEN, 10f).apply {
+            color = T.text; pressBg(T.cardStrong, 26f, T.border); elevation = dp(4).toFloat()
+            setOnClickListener { newNote("draw") }
+            contentDescription = L.t("newDraw")
+        }
+        fabs.addView(pen, lp(dp(52), dp(52)).apply { marginEnd = dp(12) })
         fabs.addView(ck, lp(dp(52), dp(52)).apply { marginEnd = dp(12) })
         val fab = IconView(this, MoreIcons.PLUS, 12f).apply {
             color = 0xFF16161A.toInt(); pressBg(T.text, 30f); elevation = dp(6).toFloat()
@@ -147,7 +153,7 @@ class MainActivity : Activity() {
                 header.addView(iconBtn(Icons.TRASH, 11f, T.danger) { selDeleteForever() })
             } else {
                 header.addView(iconBtn(Icons.PIN) { selPin() })
-                header.addView(iconBtn(Icons.STAR) { selFav() })
+                header.addView(iconBtn(MoreIcons.STAR5) { selFav() })
                 header.addView(iconBtn(MoreIcons.FOLDER) { selFolder() })
                 header.addView(iconBtn(MoreIcons.PALETTE) { selColor() })
                 header.addView(iconBtn(Icons.TRASH) { selTrash() })
@@ -302,7 +308,7 @@ class MainActivity : Activity() {
             p.addView(r)
         }
         nav(Icons.NOTEBOOK, L.t("all"), "all", count { !it.deleted })
-        nav(Icons.STAR, L.t("fav"), "fav", count { !it.deleted && it.fav })
+        nav(MoreIcons.STAR5, L.t("fav"), "fav", count { !it.deleted && it.fav })
         p.addView(sep())
         p.addView(tv(L.t("folders"), 13f, T.muted, true).apply { setPadding(dp(14), dp(6), 0, dp(4)) })
         for (f in Store.folders) {
@@ -556,7 +562,7 @@ class MainActivity : Activity() {
             fun ic(k: Int, c: Int = T.faint) = h.icons.addView(IconView(this@MainActivity, k, 6.5f).apply { color = c; isClickable = false }, lp(dp(18), dp(18)))
             if (n.hasMedia) ic(Icons.MIC)
             if (n.locked) ic(Icons.LOCK)
-            if (n.fav) ic(Icons.STAR, 0xFFFFD60A.toInt())
+            if (n.fav) ic(MoreIcons.STAR5_ON, 0xFFFFD60A.toInt())
             if (n.pinned && view != "trash") ic(Icons.PIN)
             h.card.setOnClickListener {
                 if (selected.isNotEmpty()) { if (!selected.remove(n.id)) selected.add(n.id); notifyItemChanged(h.bindingAdapterPosition); paintHeader() }

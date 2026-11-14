@@ -63,6 +63,10 @@ dependencies {
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     // Abrir fotos, audios y videos con otras apps
     implementation("androidx.core:core:1.13.1")
+    // 🎬 "Achicar" videos (para que pesen menos al mandarlos)
+    implementation("androidx.media3:media3-transformer:1.4.1")
+    implementation("androidx.media3:media3-effect:1.4.1")
+    implementation("androidx.media3:media3-common:1.4.1")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
     testImplementation("org.robolectric:robolectric:4.13")

@@ -33,6 +33,19 @@ object MoreIcons {
     const val DOTS_V = 219
     const val UNPIN = 220
     const val OUTLINE = 221
+    const val STAR5 = 222
+    const val STAR5_ON = 223
+    const val PEN = 224
+    const val MIC = 225
+    const val VIDEO = 226
+    const val PLAY = 227
+    const val PAUSE = 228
+    const val ERASER = 229
+    const val MARKER = 230
+    const val TEXT_T = 231
+    const val FULL = 232
+    const val MUTE = 233
+    const val ATTACH = 234
 
     private val path = Path()
     private val r = RectF()
@@ -78,13 +91,38 @@ object MoreIcons {
                 c.drawLine(cx - s * 0.9f, cy, cx + s * 0.4f, cy, st)
                 c.drawLine(cx - s * 0.9f, cy + s * 0.6f, cx - s * 0.1f, cy + s * 0.6f, st)
             }
-            REDO, RESTORE -> {
-                // flecha curva hacia la derecha (REDO) o reloj con flecha (RESTORE)
-                r.set(cx - s * 0.75f, cy - s * 0.6f, cx + s * 0.75f, cy + s * 0.8f)
-                c.drawArc(r, 200f, 250f, false, st)
-                val ex = cx + s * 0.62f; val ey = cy - s * 0.32f
-                c.drawLine(ex, ey, ex + s * 0.05f, ey - s * 0.45f, st)
-                c.drawLine(ex, ey, ex - s * 0.42f, ey - s * 0.12f, st)
+            REDO -> {
+                // la misma flecha de Deshacer, pero al revés (como un espejo)
+                c.save(); c.scale(-1f, 1f, cx, cy)
+                Icons.draw(c, Icons.UNDO, cx, cy, s, fl.color, 0, android.content.res.Resources.getSystem().displayMetrics.density)
+                c.restore()
+            }
+            RESTORE -> {
+                // flecha que da la vuelta hacia atrás (recuperar)
+                Icons.draw(c, Icons.UNDO, cx, cy, s, fl.color, 0, android.content.res.Resources.getSystem().displayMetrics.density)
+            }
+            STAR5 -> {
+                // estrella de 5 puntas (favorito); [FILLED] la rellena
+                path.reset()
+                for (k in 0 until 10) {
+                    val rad = if (k % 2 == 0) s * 0.95f else s * 0.42f
+                    val a = Math.toRadians((-90 + k * 36).toDouble())
+                    val x = cx + (rad * Math.cos(a)).toFloat(); val y = cy + s * 0.08f + (rad * Math.sin(a)).toFloat()
+                    if (k == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                path.close()
+                c.drawPath(path, st)
+            }
+            STAR5_ON -> {
+                path.reset()
+                for (k in 0 until 10) {
+                    val rad = if (k % 2 == 0) s * 0.95f else s * 0.42f
+                    val a = Math.toRadians((-90 + k * 36).toDouble())
+                    val x = cx + (rad * Math.cos(a)).toFloat(); val y = cy + s * 0.08f + (rad * Math.sin(a)).toFloat()
+                    if (k == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                path.close()
+                c.drawPath(path, fl); c.drawPath(path, st)
             }
             BULLETS, NUMBERS -> {
                 for (k in -1..1) {
@@ -165,6 +203,66 @@ object MoreIcons {
                 c.drawText("A", cx, y, tp)
                 tp.style = Paint.Style.FILL; tp.color = fl.color
                 c.drawText("A", cx, y, tp)
+            }
+            PEN -> Icons.draw(c, Icons.PENCIL, cx, cy, s, fl.color, 0, android.content.res.Resources.getSystem().displayMetrics.density)
+            MIC -> Icons.draw(c, Icons.MIC, cx, cy, s, fl.color, 0, android.content.res.Resources.getSystem().displayMetrics.density)
+            VIDEO -> {
+                r.set(cx - s * 0.95f, cy - s * 0.55f, cx + s * 0.35f, cy + s * 0.55f)
+                c.drawRoundRect(r, s * 0.18f, s * 0.18f, st)
+                path.reset()
+                path.moveTo(cx + s * 0.35f, cy - s * 0.12f); path.lineTo(cx + s * 0.95f, cy - s * 0.45f)
+                path.lineTo(cx + s * 0.95f, cy + s * 0.45f); path.lineTo(cx + s * 0.35f, cy + s * 0.12f)
+                c.drawPath(path, st)
+            }
+            PLAY -> {
+                path.reset()
+                path.moveTo(cx - s * 0.5f, cy - s * 0.8f); path.lineTo(cx + s * 0.8f, cy); path.lineTo(cx - s * 0.5f, cy + s * 0.8f); path.close()
+                c.drawPath(path, fl)
+            }
+            PAUSE -> {
+                r.set(cx - s * 0.6f, cy - s * 0.75f, cx - s * 0.15f, cy + s * 0.75f); c.drawRoundRect(r, s * 0.1f, s * 0.1f, fl)
+                r.set(cx + s * 0.15f, cy - s * 0.75f, cx + s * 0.6f, cy + s * 0.75f); c.drawRoundRect(r, s * 0.1f, s * 0.1f, fl)
+            }
+            ERASER -> {
+                path.reset()
+                path.moveTo(cx - s * 0.9f, cy + s * 0.25f); path.lineTo(cx - s * 0.1f, cy - s * 0.55f)
+                path.lineTo(cx + s * 0.6f, cy + s * 0.15f); path.lineTo(cx + s * 0.05f, cy + s * 0.7f)
+                path.lineTo(cx - s * 0.45f, cy + s * 0.7f); path.close()
+                c.drawPath(path, st)
+                c.drawLine(cx - s * 0.5f, cy - s * 0.15f, cx + s * 0.2f, cy + s * 0.55f, st)
+                c.drawLine(cx + s * 0.05f, cy + s * 0.7f, cx + s * 0.95f, cy + s * 0.7f, st)
+            }
+            TEXT_T -> {
+                c.drawLine(cx - s * 0.75f, cy - s * 0.7f, cx + s * 0.75f, cy - s * 0.7f, st)
+                c.drawLine(cx, cy - s * 0.7f, cx, cy + s * 0.8f, st)
+            }
+            FULL -> {
+                val a = s * 0.8f; val b = s * 0.35f
+                for ((x, y) in listOf(-1f to -1f, 1f to -1f, -1f to 1f, 1f to 1f)) {
+                    c.drawLine(cx + x * a, cy + y * a, cx + x * a, cy + y * (a - b), st)
+                    c.drawLine(cx + x * a, cy + y * a, cx + x * (a - b), cy + y * a, st)
+                }
+            }
+            MUTE -> {
+                path.reset()
+                path.moveTo(cx - s * 0.9f, cy - s * 0.3f); path.lineTo(cx - s * 0.5f, cy - s * 0.3f); path.lineTo(cx - s * 0.05f, cy - s * 0.75f)
+                path.lineTo(cx - s * 0.05f, cy + s * 0.75f); path.lineTo(cx - s * 0.5f, cy + s * 0.3f); path.lineTo(cx - s * 0.9f, cy + s * 0.3f); path.close()
+                c.drawPath(path, st)
+                c.drawLine(cx + s * 0.3f, cy - s * 0.3f, cx + s * 0.9f, cy + s * 0.3f, st)
+                c.drawLine(cx + s * 0.9f, cy - s * 0.3f, cx + s * 0.3f, cy + s * 0.3f, st)
+            }
+            ATTACH -> {
+                // clip
+                path.reset()
+                path.moveTo(cx + s * 0.45f, cy - s * 0.25f)
+                path.lineTo(cx - s * 0.2f, cy + s * 0.45f)
+                r.set(cx - s * 0.62f, cy + s * 0.02f, cx - s * 0.02f, cy + s * 0.62f)
+                path.arcTo(r, 45f, 180f, false)
+                path.lineTo(cx + s * 0.35f, cy - s * 0.75f)
+                r.set(cx + s * 0.15f, cy - s * 0.95f, cx + s * 0.75f, cy - s * 0.35f)
+                path.arcTo(r, 225f, 180f, false)
+                path.lineTo(cx - s * 0.15f, cy + s * 0.2f)
+                c.drawPath(path, st)
             }
             UNPIN -> {
                 c.drawLine(cx - s * 0.8f, cy - s * 0.8f, cx + s * 0.8f, cy + s * 0.8f, st)

@@ -40,6 +40,11 @@ class NoteActivity : Activity(), EditorView.Host {
         const val REQ_CAMERA = 51
         const val REQ_GALLERY = 52
         const val REQ_CROP = 53
+        const val REQ_MIC = 54
+        const val REQ_VIDEO_CAM = 55
+        const val REQ_VIDEO_PICK = 56
+        const val REQ_AUDIO_PICK = 57
+        const val REQ_PHOTO_DRAW = 58
     }
 
     private lateinit var meta: NoteMeta
@@ -86,8 +91,13 @@ class NoteActivity : Activity(), EditorView.Host {
         if (isNew) {
             val kind = intent.getStringExtra(EXTRA_NEW) ?: "text"
             val b: MutableList<Block> = if (kind == "check") mutableListOf(Block.ListB("check", mutableListOf(Item(ArrayList())))) else mutableListOf(Block.Text())
+            if (kind == "draw") meta.kind = "draw"
             start(b)
-            if (kind == "check") editor.post { editor.views.firstOrNull()?.focusAt(0, 0) } else { title.requestFocus(); showKeyboard(title) }
+            when (kind) {
+                "check" -> editor.post { editor.views.firstOrNull()?.focusAt(0, 0) }
+                "draw" -> setDrawMode(true)
+                else -> { title.requestFocus(); showKeyboard(title) }
+            }
         } else {
             Store.io.execute {
                 val (body, ex) = Store.readBody(meta.id)
@@ -97,6 +107,10 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     private fun start(blocks: MutableList<Block>) {
+        extraObj = try { JSONObject(extra ?: "{}") } catch (_: Exception) { JSONObject() }
+        ink.set(Stroke.listFrom(extraObj.optJSONArray("ink")))
+        fitInk()
+        showWall()
         muting = true
         editor.readOnly = meta.deleted
         editor.setBlocks(blocks)
@@ -124,7 +138,7 @@ class NoteActivity : Activity(), EditorView.Host {
         undoBtn = iconBtn(Icons.UNDO) { undo() }
         redoBtn = iconBtn(MoreIcons.REDO) { redo() }
         top.addView(undoBtn); top.addView(redoBtn)
-        star = iconBtn(Icons.STAR) { meta.fav = !meta.fav; paintStar(); Store.saveMeta(meta); Store.changed() }
+        star = iconBtn(MoreIcons.STAR5) { meta.fav = !meta.fav; paintStar(); Store.saveMeta(meta); Store.changed() }
         top.addView(star)
         top.addView(iconBtn(MoreIcons.DOTS_V) { options() })
         root.addView(top, lp(MATCH, WRAP))
@@ -164,8 +178,20 @@ class NoteActivity : Activity(), EditorView.Host {
         val filler = View(this).apply { setOnClickListener { editor.focusLastText() } }
         col.addView(filler, lp(MATCH, 0, 1f).apply { height = 0 })
         col.minimumHeight = resources.displayMetrics.heightPixels
-        scroll.addView(col, android.widget.FrameLayout.LayoutParams(MATCH, WRAP))
-        root.addView(scroll, lp(MATCH, 0, 1f))
+        this.col = col
+        // La hoja de dibujo va encima de toda la nota (título incluido), como en Best Notes
+        val page = android.widget.FrameLayout(this)
+        page.addView(col, android.widget.FrameLayout.LayoutParams(MATCH, WRAP))
+        ink = InkView(this)
+        ink.onPan = { dy -> scroll.scrollBy(0, dy.toInt()) }
+        ink.onChange = { inkChanged() }
+        page.addView(ink, android.widget.FrameLayout.LayoutParams(MATCH, MATCH))
+        scroll.addView(page, android.widget.FrameLayout.LayoutParams(MATCH, WRAP))
+        val holder = android.widget.FrameLayout(this)
+        wallImg = android.widget.ImageView(this).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP; visibility = View.GONE }
+        holder.addView(wallImg, android.widget.FrameLayout.LayoutParams(MATCH, MATCH))
+        holder.addView(scroll, android.widget.FrameLayout.LayoutParams(MATCH, MATCH))
+        root.addView(holder, lp(MATCH, 0, 1f))
 
         // Barra de herramientas
         val hs = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; setBackgroundColor(0xF01C1C1F.toInt()) }
@@ -175,6 +201,9 @@ class NoteActivity : Activity(), EditorView.Host {
             toolBtns[key] = b; bar.addView(b)
         }
         tool("photo", Icons.IMAGE) { addPhoto() }
+        tool("mic", MoreIcons.MIC) { audioMenu() }
+        tool("video", MoreIcons.VIDEO) { videoMenu() }
+        tool("draw", MoreIcons.PEN) { setDrawMode(true) }
         tool("check", MoreIcons.CHECKBOX) { editor.toggleList("check") }
         tool("ul", MoreIcons.BULLETS) { editor.toggleList("ul") }
         tool("ol", MoreIcons.NUMBERS) { editor.toggleList("ol") }
@@ -188,8 +217,11 @@ class NoteActivity : Activity(), EditorView.Host {
         tool("hi", MoreIcons.HILITE) { pickColor("hi") }
         tool("out", MoreIcons.OUTLINE) { pickColor("ol") }
         hs.addView(bar)
+        formatBar = hs
         root.addView(View(this).apply { setBackgroundColor(T.border) }, lp(MATCH, dp(1)))
-        root.addView(hs, lp(MATCH, WRAP))
+        bottom = android.widget.FrameLayout(this).apply { setBackgroundColor(0xF01C1C1F.toInt()) }
+        bottom.addView(hs, android.widget.FrameLayout.LayoutParams(MATCH, WRAP))
+        root.addView(bottom, lp(MATCH, WRAP))
         setContentView(root)
     }
 
@@ -203,12 +235,6 @@ class NoteActivity : Activity(), EditorView.Host {
             r.addView(tv(L.t("recover"), 14f, T.accent, true).apply { setPadding(dp(10), dp(6), dp(10), dp(6)); setOnClickListener { recover() } })
             bannerBox.addView(r, lp(MATCH, WRAP).apply { bottomMargin = dp(8) })
         }
-        val hasInk = try { (JSONObject(extra ?: "{}").optJSONArray("ink")?.length() ?: 0) > 0 } catch (_: Exception) { false }
-        if (hasInk || meta.kind == "draw") {
-            bannerBox.addView(tv(L.t("drawSoon"), 13.5f, T.muted).apply {
-                setPadding(dp(14), dp(10), dp(14), dp(10)); background = roundBg(T.card, dp(14).toFloat(), T.border, dp(1))
-            }, lp(MATCH, WRAP).apply { bottomMargin = dp(8) })
-        }
     }
 
     private fun tint() {
@@ -221,7 +247,7 @@ class NoteActivity : Activity(), EditorView.Host {
         (Color.red(a) * (1 - t) + Color.red(b) * t).toInt(), (Color.green(a) * (1 - t) + Color.green(b) * t).toInt(), (Color.blue(a) * (1 - t) + Color.blue(b) * t).toInt(),
     )
 
-    private fun paintStar() { star.color = if (meta.fav) 0xFFFFD60A.toInt() else T.text }
+    private fun paintStar() { star.kind = if (meta.fav) MoreIcons.STAR5_ON else MoreIcons.STAR5; star.color = if (meta.fav) 0xFFFFD60A.toInt() else T.text; star.invalidate() }
     private fun paintUndo() {
         undoBtn.alpha = if (hIdx > 0) 1f else 0.35f
         redoBtn.alpha = if (hIdx < history.size - 1) 1f else 0.35f
@@ -291,7 +317,7 @@ class NoteActivity : Activity(), EditorView.Host {
         Store.main.removeCallbacks(snapRun); Store.main.postDelayed(snapRun, 700); snapPending = true
     }
 
-    private fun isEmptyNote(): Boolean = title.text.isBlank() && editor.blocks.all {
+    private fun isEmptyNote(): Boolean = title.text.isBlank() && ink.strokes.isEmpty() && editor.blocks.all {
         when (it) { is Block.Text -> runsPlain(it.runs).isBlank(); is Block.ListB -> it.items.all { x -> runsPlain(x.runs).isBlank() }; else -> false }
     }
 
@@ -304,13 +330,15 @@ class NoteActivity : Activity(), EditorView.Host {
         meta.title = title.text.toString().trim()
         meta.updated = System.currentTimeMillis()
         Store.fillMeta(meta, editor.blocks)
-        Store.saveNote(meta, blocksJson(editor.blocks), extra)
+        extra = if (extraObj.length() > 0) extraObj.toString() else null
+        Store.saveNote(meta, blocksJson(editor.blocks), extra, keepExtra = false)
         isNew = false
         Store.changed()
     }
 
     override fun onPause() {
         super.onPause()
+        AudioPlayer.stop()
         save()
     }
 
@@ -346,12 +374,14 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     private fun undo() {
+        if (ink.drawing) { ink.undo(); paintDrawBar(); return }
         if (snapPending) snapshot()
         if (hIdx <= 0) return
         hIdx--; restore(history[hIdx])
     }
 
     private fun redo() {
+        if (ink.drawing) { ink.redoOne(); paintDrawBar(); return }
         if (hIdx >= history.size - 1) return
         hIdx++; restore(history[hIdx])
     }
@@ -368,6 +398,211 @@ class NoteActivity : Activity(), EditorView.Host {
         try {
             startActivity(Intent.createChooser(Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), L.t("openWith")))
         } catch (_: Exception) { toast(L.t("cantOpen")) }
+    }
+
+    /* ---------- ✏️ dibujar ---------- */
+    private lateinit var ink: InkView
+    private lateinit var col: LinearLayout
+    private lateinit var wallImg: android.widget.ImageView
+    private lateinit var bottom: android.widget.FrameLayout
+    private lateinit var formatBar: View
+    private var drawBar: LinearLayout? = null
+    private var extraObj = JSONObject()
+
+    /** Fondo propio de la nota (los que vienen de Best Notes). */
+    private fun showWall() {
+        val w = extraObj.optString("wall", "")
+        if (w.isEmpty()) { wallImg.visibility = View.GONE; return }
+        wallImg.visibility = View.VISIBLE
+        wallImg.setColorFilter(0x59000000, android.graphics.PorterDuff.Mode.SRC_ATOP)
+        Thumbs.load(w, resources.displayMetrics.widthPixels) { bm -> if (bm != null) wallImg.setImageBitmap(bm) else wallImg.visibility = View.GONE }
+        root.setBackgroundColor(T.bg)
+    }
+
+    /** La hoja crece para que quepa todo el dibujo (y en modo dibujo, un poco más para seguir). */
+    private fun fitInk() {
+        ink.post {
+            val need = (Stroke.bottom(ink.strokes, ink.width.toFloat().takeIf { it > 0 } ?: resources.displayMetrics.widthPixels.toFloat()) +
+                dp(if (ink.drawing) 500 else 40)).toInt()
+            val min = maxOf(resources.displayMetrics.heightPixels, need)
+            if (col.minimumHeight != min) { col.minimumHeight = min; col.requestLayout() }
+        }
+    }
+
+    private fun inkChanged() {
+        if (ink.strokes.isEmpty()) extraObj.remove("ink") else extraObj.put("ink", Stroke.listJson(ink.strokes))
+        fitInk(); paintDrawBar(); onDirty()
+    }
+
+    fun setDrawMode(on: Boolean) {
+        ink.drawing = on
+        if (on) {
+            editor.selectImage(null)
+            currentFocus?.let { v -> (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).hideSoftInputFromWindow(v.windowToken, 0); v.clearFocus() }
+            if (drawBar == null) drawBar = buildDrawBar()
+            formatBar.visibility = View.GONE
+            if (drawBar!!.parent == null) bottom.addView(drawBar, android.widget.FrameLayout.LayoutParams(MATCH, WRAP))
+            drawBar!!.visibility = View.VISIBLE
+            paintDrawBar()
+            toast(L.t("drawHint"))
+        } else {
+            drawBar?.visibility = View.GONE
+            formatBar.visibility = View.VISIBLE
+            paintUndo()
+        }
+        fitInk()
+    }
+
+    private val drawBtns = HashMap<String, View>()
+    private fun buildDrawBar(): LinearLayout {
+        val hs = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(4), dp(6), dp(4)) }
+        row.addView(tv("✓ " + L.t("done"), 15f, 0xFF16161A.toInt(), true).apply {
+            setPadding(dp(14), dp(8), dp(14), dp(8)); pressBg(T.text, 18f); setOnClickListener { setDrawMode(false) }
+        }, lp(WRAP, WRAP).apply { marginEnd = dp(6) })
+        fun b(k: String, icon: Int, act: () -> Unit) { val v = iconBtn(icon, 10.5f) { act() }; drawBtns[k] = v; row.addView(v) }
+        b("pen", MoreIcons.PEN) { ink.tool = "pen"; paintDrawBar() }
+        b("hl", MoreIcons.HILITE) { ink.tool = "hl"; paintDrawBar() }
+        b("eraser", MoreIcons.ERASER) { ink.tool = "eraser"; paintDrawBar() }
+        val dot = object : View(this) {
+            val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+            override fun onDraw(c: android.graphics.Canvas) { p.color = ink.color; c.drawCircle(width / 2f, height / 2f, dp(11).toFloat(), p); p.style = android.graphics.Paint.Style.STROKE; p.strokeWidth = dp(2).toFloat(); p.color = T.text; c.drawCircle(width / 2f, height / 2f, dp(12).toFloat(), p); p.style = android.graphics.Paint.Style.FILL }
+        }
+        dot.setOnClickListener { pickColor(L.t("penColor"), ink.color, T.textColors) { c -> if (c != 0) { ink.color = c; if (ink.tool == "eraser") ink.tool = "pen"; paintDrawBar() } } }
+        drawBtns["color"] = dot; row.addView(dot, lp(dp(44), dp(44)))
+        val sz = object : View(this) {
+            val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = T.text }
+            override fun onDraw(c: android.graphics.Canvas) { c.drawCircle(width / 2f, height / 2f, dp(floatArrayOf(2.5f, 4.5f, 7f)[ink.size]).toFloat(), p) }
+        }
+        sz.setOnClickListener { ink.size = (ink.size + 1) % 3; sz.invalidate() }
+        drawBtns["size"] = sz; row.addView(sz, lp(dp(44), dp(44)))
+        b("undo", Icons.UNDO) { ink.undo(); paintDrawBar() }
+        b("redo", MoreIcons.REDO) { ink.redoOne(); paintDrawBar() }
+        b("clear", Icons.TRASH) { confirm(L.t("clearDrawing"), L.t("clearDrawingMsg"), L.t("del"), true) { ink.clearAll(); paintDrawBar() } }
+        hs.addView(row)
+        return LinearLayout(this).apply { addView(hs, lp(MATCH, WRAP)) }
+    }
+
+    private fun paintDrawBar() {
+        if (drawBar == null) return
+        for (k in listOf("pen", "hl", "eraser")) drawBtns[k]?.background = if (ink.tool == k) roundBg(0x33FFFFFF, dp(22).toFloat()) else null
+        drawBtns["color"]?.invalidate()
+        drawBtns["undo"]?.alpha = if (ink.canUndo()) 1f else 0.35f
+        drawBtns["redo"]?.alpha = if (ink.canRedo()) 1f else 0.35f
+        undoBtn.alpha = if (ink.canUndo()) 1f else 0.35f
+        redoBtn.alpha = if (ink.canRedo()) 1f else 0.35f
+    }
+
+    /* ---------- 🎙️ audio ---------- */
+    private var rec: Recorder? = null
+    private var recBar: View? = null
+    private var recTime: TextView? = null
+    private val recTick = object : Runnable {
+        override fun run() { val r = rec ?: return; recTime?.text = MediaFiles.timeText(r.elapsed() / 1000.0); Store.main.postDelayed(this, 500) }
+    }
+
+    private fun audioMenu() {
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), dp(10), dp(6), dp(10)) }
+        val d = dialog().setTitle(L.t("audio")).setView(list).create()
+        list.addView(menuRow(this, MoreIcons.MIC, L.t("recordNow")) { d.dismiss(); startRecording() })
+        list.addView(menuRow(this, MoreIcons.ATTACH, L.t("audioFile"), L.t("audioFileSub")) { d.dismiss(); pickMedia(false) })
+        d.show()
+    }
+
+    private fun startRecording() {
+        if (rec != null) return
+        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQ_MIC); return
+        }
+        AudioPlayer.stop()
+        val r = Recorder(this)
+        if (!r.start()) { toast(L.t("recFail")); return }
+        rec = r
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(8), dp(8), dp(8)) }
+        bar.addView(View(this).apply { background = roundBg(0xFFFF3B30.toInt(), dp(6).toFloat()) }, lp(dp(12), dp(12)))
+        val t = tv("0:00", 18f, T.text, true).apply { setPadding(dp(10), 0, 0, 0) }
+        recTime = t
+        bar.addView(t, lp(0, WRAP, 1f))
+        val pause = tv(L.t("pause"), 14f, T.text, true).apply { setPadding(dp(12), dp(8), dp(12), dp(8)); pressBg(T.cardStrong, 16f, T.border) }
+        pause.setOnClickListener { rec?.let { it.togglePause(); pause.text = L.t(if (it.paused) "resume" else "pause") } }
+        bar.addView(pause, lp(WRAP, WRAP).apply { marginEnd = dp(6) })
+        bar.addView(tv(L.t("cancel"), 14f, T.danger, true).apply { setPadding(dp(12), dp(8), dp(12), dp(8)); setOnClickListener { stopRecording(false) } }, lp(WRAP, WRAP).apply { marginEnd = dp(6) })
+        bar.addView(tv("✓ " + L.t("done"), 14f, 0xFF16161A.toInt(), true).apply { setPadding(dp(14), dp(8), dp(14), dp(8)); pressBg(T.text, 16f); setOnClickListener { stopRecording(true) } })
+        recBar = bar
+        formatBar.visibility = View.GONE
+        bottom.addView(bar, android.widget.FrameLayout.LayoutParams(MATCH, WRAP))
+        Store.main.post(recTick)
+    }
+
+    private fun stopRecording(keep: Boolean) {
+        val r = rec ?: return
+        rec = null
+        Store.main.removeCallbacks(recTick)
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        recBar?.let { bottom.removeView(it) }; recBar = null
+        if (!ink.drawing) formatBar.visibility = View.VISIBLE
+        if (!keep) { r.cancel(); return }
+        val f = r.stop() ?: run { toast(L.t("recFail")); return }
+        val i = MediaFiles.info(f)
+        editor.insertImages(listOf(Block.Media("audio", f, i.dur, i.size)))
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_MIC) {
+            if (grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) startRecording()
+            else toast(L.t("micPerm"))
+        }
+    }
+
+    /* ---------- 🎬 video ---------- */
+    private var vidFile: File? = null
+
+    private fun videoMenu() {
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), dp(10), dp(6), dp(10)) }
+        val d = dialog().setTitle(L.t("video")).setView(list).create()
+        list.addView(menuRow(this, MoreIcons.VIDEO, L.t("recordVideo")) { d.dismiss(); recordVideo() })
+        list.addView(menuRow(this, Icons.IMAGE, L.t("gallery")) { d.dismiss(); pickMedia(true) })
+        d.show()
+    }
+
+    private fun recordVideo() {
+        val f = File(cacheDir, "video_" + System.currentTimeMillis() + ".mp4")
+        vidFile = f
+        val uri = FileProvider.getUriForFile(this, "$packageName.archivos", f)
+        val i = Intent(android.provider.MediaStore.ACTION_VIDEO_CAPTURE).putExtra(android.provider.MediaStore.EXTRA_OUTPUT, uri)
+            .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        try { startActivityForResult(i, REQ_VIDEO_CAM) } catch (_: Exception) { toast(L.t("cantOpen")) }
+    }
+
+    private fun pickMedia(video: Boolean) {
+        val i = if (video && android.os.Build.VERSION.SDK_INT >= 33)
+            Intent(android.provider.MediaStore.ACTION_PICK_IMAGES).setType("video/*")
+        else Intent(Intent.ACTION_GET_CONTENT).setType(if (video) "video/*" else "audio/*").addCategory(Intent.CATEGORY_OPENABLE)
+        try { startActivityForResult(i, if (video) REQ_VIDEO_PICK else REQ_AUDIO_PICK) } catch (_: Exception) {
+            try { startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).setType(if (video) "video/*" else "audio/*"), if (video) REQ_VIDEO_PICK else REQ_AUDIO_PICK) } catch (_: Exception) { toast(L.t("cantOpen")) }
+        }
+    }
+
+    /** Copia el audio o video a la nota (en segundo plano) y lo pone donde está el cursor. */
+    private fun addMedia(uri: android.net.Uri, video: Boolean, after: () -> Unit = {}) {
+        toast(L.t(if (video) "addingVideo" else "addingAudio"))
+        Loader.pool.execute {
+            val i = try { MediaFiles.copyIn(this, uri, video) } catch (_: Throwable) { null }
+            if (i != null && video) MediaFiles.makeThumb(i.file)
+            runOnUiThread {
+                after()
+                if (i == null) toast(L.t("videoFail"))
+                else editor.insertImages(listOf(Block.Media(if (video) "video" else "audio", i.file, i.dur, i.size)))
+            }
+        }
+    }
+
+    override fun drawOnImage(f: FotoView) {
+        cropTarget = f.block
+        startActivityForResult(Intent(this, PhotoDrawActivity::class.java).putExtra(PhotoDrawActivity.FILE, f.block.file), REQ_PHOTO_DRAW)
     }
 
     /* ---------- fotos ---------- */
@@ -405,8 +640,22 @@ class NoteActivity : Activity(), EditorView.Host {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (resultCode != RESULT_OK) { if (requestCode == REQ_CAMERA) camFile?.delete(); return }
+        if (resultCode != RESULT_OK) { if (requestCode == REQ_CAMERA) camFile?.delete(); if (requestCode == REQ_VIDEO_CAM) vidFile?.delete(); return }
         when (requestCode) {
+            REQ_VIDEO_CAM -> {
+                val f = vidFile
+                if (f != null && f.length() > 0) addMedia(android.net.Uri.fromFile(f), true) { f.delete() }
+                else data?.data?.let { addMedia(it, true) }        // algunas cámaras no usan el archivo que se les da
+            }
+            REQ_VIDEO_PICK -> data?.data?.let { addMedia(it, true) }
+            REQ_AUDIO_PICK -> data?.data?.let { addMedia(it, false) }
+            REQ_PHOTO_DRAW -> {
+                val t = cropTarget ?: return
+                val nf = data?.getStringExtra(CropActivity.OUT) ?: return
+                editor.flushAll()
+                t.file = nf; t.w = data.getIntExtra(CropActivity.OUT_W, 0); t.h = data.getIntExtra(CropActivity.OUT_H, 0)
+                editor.rebuild(null, t); onDirty()
+            }
             REQ_CAMERA -> camFile?.let { f -> if (f.length() > 0) addUris(listOf(android.net.Uri.fromFile(f)), fromCamera = true) { f.delete() } }
             REQ_GALLERY -> {
                 val uris = ArrayList<android.net.Uri>()
@@ -528,6 +777,7 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     override fun finish() {
+        if (rec != null) stopRecording(true)
         save()
         super.finish()
     }

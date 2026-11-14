@@ -91,6 +91,15 @@ object L {
         "titleColor" to "Color del título", "outline" to "Contorno de letras", "apply" to "Aplicar", "sizeNormal" to "Normal",
         "colorsBasic" to "Colores", "colorsRecent" to "Recientes", "colorsFav" to "Favoritos", "colorsFavAdd" to "Guardar este",
         "colorsFavHint" to "Mantén presionado un favorito para quitarlo",
+        "drawHint" to "Un dedo dibuja · dos dedos mueven la nota", "penColor" to "Color del lápiz", "clearDrawing" to "Borrar todo el dibujo",
+        "clearDrawingMsg" to "Se borra todo el dibujo de esta nota. Con Deshacer lo recuperas.",
+        "recordNow" to "Grabar ahora", "audioFile" to "Subir un audio", "audioFileSub" to "Nota de voz de WhatsApp, grabadora…",
+        "recFail" to "No se pudo grabar", "pause" to "Pausa", "resume" to "Seguir", "micPerm" to "Para grabar, permite usar el micrófono",
+        "recordVideo" to "Grabar video", "addingVideo" to "Poniendo el video…", "addingAudio" to "Poniendo el audio…", "videoFail" to "No se pudo",
+        "drawOn" to "Dibujar encima", "writeOnPhoto" to "Escribe en la foto", "tapToWrite" to "Toca donde quieres escribir",
+        "fileMissing" to "no vino en el archivo", "muted" to "sin sonido", "mute" to "Quitar el sonido", "shrink" to "Achicar (pesa menos)",
+        "working" to "Trabajando…", "shrinking" to "Achicando… {n}%", "mutedOk" to "Listo: el video ya no tiene sonido",
+        "shrinkNoGain" to "Este video ya es pequeño", "shrinkOk" to "Listo: de {a} a {b}", "newDraw" to "Dibujo",
     )
 
     private val EN = mapOf(
@@ -146,5 +155,14 @@ object L {
         "titleColor" to "Title color", "outline" to "Letter outline", "apply" to "Apply", "sizeNormal" to "Normal",
         "colorsBasic" to "Colors", "colorsRecent" to "Recent", "colorsFav" to "Favorites", "colorsFavAdd" to "Save this one",
         "colorsFavHint" to "Long-press a favorite to remove it",
+        "drawHint" to "One finger draws · two fingers move the note", "penColor" to "Pen color", "clearDrawing" to "Clear the whole drawing",
+        "clearDrawingMsg" to "The whole drawing of this note is deleted. Undo brings it back.",
+        "recordNow" to "Record now", "audioFile" to "Upload an audio", "audioFileSub" to "WhatsApp voice note, recorder…",
+        "recFail" to "Couldn't record", "pause" to "Pause", "resume" to "Resume", "micPerm" to "To record, allow the microphone",
+        "recordVideo" to "Record video", "addingVideo" to "Adding the video…", "addingAudio" to "Adding the audio…", "videoFail" to "Couldn't do it",
+        "drawOn" to "Draw on top", "writeOnPhoto" to "Write on the photo", "tapToWrite" to "Tap where you want to write",
+        "fileMissing" to "was not in the file", "muted" to "no sound", "mute" to "Remove the sound", "shrink" to "Shrink (smaller file)",
+        "working" to "Working…", "shrinking" to "Shrinking… {n}%", "mutedOk" to "Done: the video has no sound now",
+        "shrinkNoGain" to "This video is already small", "shrinkOk" to "Done: from {a} to {b}", "newDraw" to "Drawing",
     )
 }

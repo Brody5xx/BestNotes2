@@ -106,6 +106,7 @@ object Store {
     fun fillMeta(m: NoteMeta, blocks: List<Block>) {
         m.plain = blocksPlain(blocks)
         m.thumb = blocks.firstOrNull { it is Block.Img }?.let { (it as Block.Img).file }
+            ?: blocks.firstOrNull { it is Block.Media && it.kind == "video" }?.let { MediaFiles.thumbName((it as Block.Media).file) }
         var t = 0; var d = 0
         blocks.forEach { b -> if (b is Block.ListB && b.kind == "check") b.items.forEach { if (runsPlain(it.runs).isNotBlank()) { t++; if (it.done) d++ } } }
         m.checkTotal = t; m.checkDone = d
@@ -153,7 +154,10 @@ object Store {
                 for (col in 0..1) c.getString(col)?.let { s -> re.findAll(s).forEach { used.add(it.groupValues[1]) } }
             }
         }
-        mediaDir.listFiles()?.forEach { if (it.name !in used && System.currentTimeMillis() - it.lastModified() > 60_000) it.delete() }
+        mediaDir.listFiles()?.forEach {
+            val keep = it.name in used || (it.name.endsWith(".thumb.jpg") && it.name.removeSuffix(".thumb.jpg") in used)
+            if (!keep && System.currentTimeMillis() - it.lastModified() > 60_000) it.delete()
+        }
     }
 
     fun saveFolder(f: Folder) {

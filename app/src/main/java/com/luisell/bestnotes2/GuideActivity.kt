@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     private class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-14" to ("Parte 3: grabar y escuchar audios, videos dentro de la nota (sin sonido y achicar), dibujar en la nota y encima de las fotos" to
+            "Part 3: record and play audio, videos inside the note (mute and shrink), draw on the note and on top of photos"),
         "2026-11-14" to ("Parte 2: fotos (mover, a un lado con texto, tamaño, girar, recortar, sello, anclar), rueda de colores, tamaños de 5 a 100 y contorno de letras" to
             "Part 2: photos (move, beside text, size, rotate, crop, stamp, pin), color wheel, sizes 5 to 100 and letter outline"),
         "2026-11-14" to ("Parte 1: pantalla principal, texto, checklist, búsqueda iluminada e importar de Best Notes" to
@@ -87,6 +89,43 @@ class GuideActivity : Activity() {
                 "Stamp: each photo gets a strip at the bottom with the date and time it was taken and the site (the note title). If you remove it, next photos come without a stamp.",
                 "Photos are resized automatically: the note weighs less and opens faster.",
             )),
+        Sec(MoreIcons.MIC,
+            "Notas de voz" to listOf(
+                "Botón del micrófono en la barra de abajo → Grabar ahora. Sale una barra con el tiempo: Pausa, Cancelar o ✓ Listo.",
+                "El audio queda dentro de la nota: ▶ para escucharlo, la barra para adelantar y 1x / 1.5x / 2x para la velocidad.",
+                "«Subir un audio»: pon una nota de voz de WhatsApp o de la grabadora.",
+                "Pasar la voz a texto llega en la parte 4 (con el dictado y la IA).",
+            ),
+            "Voice notes" to listOf(
+                "Microphone button in the bottom bar → Record now. A bar with the time shows: Pause, Cancel or ✓ Done.",
+                "The audio stays inside the note: ▶ to play it, the bar to skip ahead and 1x / 1.5x / 2x for speed.",
+                "“Upload an audio”: add a WhatsApp or recorder voice note.",
+                "Turning voice into text comes in part 4 (with dictation and AI).",
+            )),
+        Sec(MoreIcons.VIDEO,
+            "Videos" to listOf(
+                "Botón del video → Grabar video o Galería. Se ve dentro de la nota con su portada: tócalo para verlo ahí mismo.",
+                "El botón de las esquinas lo abre en pantalla completa.",
+                "⋮ del video: Quitar el sonido (por ejemplo, antes de enviarlo) y Achicar (pesa menos y se manda más rápido).",
+            ),
+            "Videos" to listOf(
+                "Video button → Record video or Gallery. It shows inside the note with its cover: tap it to watch it right there.",
+                "The corners button opens it full screen.",
+                "Video ⋮: Remove the sound (for example, before sending it) and Shrink (smaller and faster to send).",
+            )),
+        Sec(MoreIcons.PEN,
+            "Dibujar" to listOf(
+                "Botón del lápiz en la barra de abajo (o el lápiz en la pantalla principal para una nota de dibujo nueva).",
+                "Un dedo dibuja; dos dedos mueven la nota. Lápiz, marcador, borrador, color, grosor, deshacer, rehacer y borrar todo.",
+                "✓ Listo vuelve a escribir. El dibujo se queda encima de la nota.",
+                "En una foto: tócala → Dibujar encima. Puedes dibujar, marcar y escribir texto encima; se guarda una foto nueva.",
+            ),
+            "Drawing" to listOf(
+                "Pencil button in the bottom bar (or the pencil on the home screen for a new drawing note).",
+                "One finger draws; two fingers move the note. Pen, marker, eraser, color, thickness, undo, redo and clear all.",
+                "✓ Done goes back to writing. The drawing stays on top of the note.",
+                "On a photo: tap it → Draw on top. You can draw, mark and write text on it; a new photo is saved.",
+            )),
         Sec(MoreIcons.PALETTE,
             "Colores y tamaños" to listOf(
                 "Color de letra, resaltar y contorno de letras: rueda de colores, colores básicos, Recientes y Favoritos (Guardar este).",
@@ -122,11 +161,9 @@ class GuideActivity : Activity() {
             )),
         Sec(MoreIcons.INFO,
             "Lo que viene" to listOf(
-                "Parte 3: audios, videos y dibujar dentro de la nota (también escribir y dibujar encima de una foto).",
                 "Parte 4: dictado, IA, compartir como imagen o PDF, respaldo, bóveda, recordatorios, calculadora, reporte del día, pendientes, materiales, bloqueo de la app y más idiomas.",
             ),
             "Coming next" to listOf(
-                "Part 3: audio, videos and drawing inside the note (also writing and drawing on top of a photo).",
                 "Part 4: dictation, AI, share as image or PDF, backup, vault, reminders, calculator, daily report, to-dos, materials, app lock and more languages.",
             )),
     )

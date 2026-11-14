@@ -38,8 +38,9 @@ object Photos {
             }
         } catch (_: Exception) {}
         val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        cr.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, o) } ?: return null
-        if (o.outWidth <= 0) return null
+        // (con inJustDecodeBounds la respuesta es null a propósito: solo se leen las medidas)
+        cr.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, o) }
+        if (o.outWidth <= 0 || o.outHeight <= 0) return null
         var s = 1
         while (maxOf(o.outWidth, o.outHeight) / (s * 2) >= MAX_SIDE) s *= 2
         var bm = cr.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = s }) } ?: return null

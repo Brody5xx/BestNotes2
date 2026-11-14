@@ -15,6 +15,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import java.io.File
 
 /** Pruebas de pantalla: importar, abrir notas y escribir (sin teléfono). */
@@ -212,5 +213,43 @@ class PantallaTest {
         val saved = blocksFromJson(Store.readBody("n6").first)
         val r0 = (saved[0] as Block.Text).runs[0]
         assertEquals(0xFFFF7A2A.toInt(), r0.st.o); assertEquals(64, r0.st.size)
+    }
+
+    @Test @GraphicsMode(GraphicsMode.Mode.NATIVE) fun fotoDeVerdad() {
+        reload()
+        val png = File(ctx.cacheDir, "p.png")
+        val bm = android.graphics.Bitmap.createBitmap(300, 200, android.graphics.Bitmap.Config.ARGB_8888)
+        png.outputStream().use { bm.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        val r = Photos.import(ctx, Uri.fromFile(png))
+        assertNotNull("la foto se pudo poner", r)
+        assertEquals(300, r!!.w); assertEquals(200, r.h)
+        assertTrue(File(Store.mediaDir, r.file).length() > 0)
+        val rot = Photos.rotate90(r.file)!!
+        assertEquals(200, rot.w); assertEquals(300, rot.h)
+        val c = Photos.crop(r.file, 0f, 0f, 0.5f, 0.5f)!!
+        assertEquals(150, c.w)
+    }
+
+    @Test fun dibujoAudioYVideo() {
+        reload()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_NEW, "draw")).setup().get()
+        idle()
+        val ink = find(act.window.decorView, InkView::class.java).first()
+        assertTrue("empieza en modo dibujo", ink.drawing)
+        ink.layout(0, 0, 1000, 2000)
+        fun ev(a: Int, x: Float, y: Float) = android.view.MotionEvent.obtain(0, 0, a, x, y, 0).also { ink.dispatchTouchEvent(it); it.recycle() }
+        ev(android.view.MotionEvent.ACTION_DOWN, 100f, 100f); ev(android.view.MotionEvent.ACTION_MOVE, 200f, 150f); ev(android.view.MotionEvent.ACTION_MOVE, 300f, 220f); ev(android.view.MotionEvent.ACTION_UP, 300f, 220f)
+        assertEquals(1, ink.strokes.size)
+        val ed = find(act.window.decorView, EditorView::class.java).first()
+        ed.insertImages(listOf(Block.Media("audio", "noexiste.m4a", 12.0, 1000), Block.Media("video", "noexiste.mp4", 3.0, 5000)))
+        idle()
+        assertTrue(ed.views.any { it is MediaView }); assertTrue(ed.views.any { it is VideoCard })
+        act.finish(); waitIo()
+        val n = Store.notes.maxByOrNull { it.created }!!
+        val ex = org.json.JSONObject(Store.readBody(n.id).second!!)
+        assertEquals(1, ex.getJSONArray("ink").length())
+        val back = Stroke.listFrom(ex.getJSONArray("ink"))
+        assertEquals(3, back[0].p.size)
+        assertTrue(n.hasMedia)
     }
 }
