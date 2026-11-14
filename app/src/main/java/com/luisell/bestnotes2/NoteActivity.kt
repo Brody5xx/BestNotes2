@@ -59,6 +59,8 @@ class NoteActivity : Activity(), EditorView.Host {
     private lateinit var title: EditText
     private lateinit var editor: EditorView
     private lateinit var bar: LinearLayout
+    private lateinit var sizeTv: TextView
+    private lateinit var colorDot: View
     private lateinit var star: IconView
     private lateinit var histBtn: IconView
     private lateinit var spellBtn: IconView
@@ -223,31 +225,54 @@ class NoteActivity : Activity(), EditorView.Host {
         holder.addView(hintTv, android.widget.FrameLayout.LayoutParams(WRAP, WRAP, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(8) })
         root.addView(holder, lp(MATCH, 0, 1f))
 
-        // Barra de herramientas
-        val hs = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
-        bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(4), dp(6), dp(4)) }
-        fun tool(key: String, icon: Int, size: Float = 10.5f, act: () -> Unit) {
-            val b = iconBtn(icon, size) { act() }
-            toolBtns[key] = b; bar.addView(b)
+        // Barra de herramientas: dos filas, igual que en Best Notes
+        //   ✏️ 🖼️ | B  I  U  🖍️
+        //   •  1. ☑ | Aa 17 ▾   ⚪ ▾
+        val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), dp(4), dp(6), dp(4)) }
+        bar = grid
+        fun rowL() = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        fun sep(r: LinearLayout) = r.addView(View(this).apply { setBackgroundColor(0x33FFFFFF) }, lp(dp(1), dp(30)).apply { marginStart = dp(2); marginEnd = dp(2) })
+        fun tool(r: LinearLayout, key: String, icon: Int, size: Float = 10.5f, act: () -> Unit) {
+            val b = iconBtn(icon, size) { v -> pop(v); act() }
+            toolBtns[key] = b; r.addView(b, lp(0, dp(48), 1f))
         }
-        tool("ai", Icons.STAR, 10f) { aiMenu() }
-        tool("photo", Icons.IMAGE) { addPhoto() }
-        tool("mic", MoreIcons.MIC) { audioMenu() }
-        tool("video", MoreIcons.VIDEO) { videoMenu() }
-        tool("draw", MoreIcons.PEN) { setDrawMode(true) }
-        tool("check", MoreIcons.CHECKBOX) { editor.toggleList("check") }
-        tool("ul", MoreIcons.BULLETS) { editor.toggleList("ul") }
-        tool("ol", MoreIcons.NUMBERS) { editor.toggleList("ol") }
-        bar.addView(View(this).apply { setBackgroundColor(T.border) }, lp(dp(1), dp(24)).apply { marginStart = dp(4); marginEnd = dp(4) })
-        tool("b", MoreIcons.BOLD) { style { s -> s.copy(b = !cur().b) } }
-        tool("i", MoreIcons.ITALIC) { style { s -> s.copy(i = !cur().i) } }
-        tool("u", MoreIcons.UNDERLINE) { style { s -> s.copy(u = !cur().u) } }
-        tool("s", MoreIcons.STRIKE) { style { s -> s.copy(s = !cur().s) } }
-        tool("size", MoreIcons.SIZE, 11f) { pickSize() }
-        tool("color", MoreIcons.PALETTE) { pickColor("color") }
-        tool("hi", MoreIcons.HILITE) { pickColor("hi") }
-        tool("out", MoreIcons.OUTLINE) { pickColor("ol") }
-        hs.addView(bar)
+        val r1 = rowL(); val r2 = rowL()
+        tool(r1, "draw", MoreIcons.PEN) { setDrawMode(true) }
+        tool(r1, "photo", Icons.IMAGE) { insertMenu() }
+        sep(r1)
+        tool(r1, "b", MoreIcons.BOLD) { style { s -> s.copy(b = !cur().b) } }
+        tool(r1, "i", MoreIcons.ITALIC) { style { s -> s.copy(i = !cur().i) } }
+        tool(r1, "u", MoreIcons.UNDERLINE) { style { s -> s.copy(u = !cur().u) } }
+        tool(r1, "hi", MoreIcons.HILITE) { pickColor("hi") }
+        tool(r2, "ul", MoreIcons.BULLETS) { editor.toggleList("ul") }
+        tool(r2, "ol", MoreIcons.NUMBERS) { editor.toggleList("ol") }
+        tool(r2, "check", MoreIcons.CHECKBOX) { editor.toggleList("check") }
+        sep(r2)
+        // Aa 17 ▾
+        val sizeCell = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
+            background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x33FFFFFF), null, roundBg(Color.WHITE, dp(22).toFloat()))
+            setOnClickListener { pop(it); pickSize() }
+        }
+        sizeCell.addView(tv("Aa", 17f, T.muted))
+        sizeTv = tv("${T.baseSize}", 21f, T.text, true).apply { setPadding(dp(8), 0, dp(6), 0) }
+        sizeCell.addView(sizeTv)
+        sizeCell.addView(tv("▾", 13f, T.muted))
+        toolBtns["size"] = sizeCell
+        r2.addView(sizeCell, lp(0, dp(48), 2.2f))
+        // ⚪ ▾ (el color de la letra)
+        val colorCell = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
+            background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x33FFFFFF), null, roundBg(Color.WHITE, dp(22).toFloat()))
+            setOnClickListener { pop(colorDot); colorMenu() }
+        }
+        colorDot = View(this).apply { background = roundBg(T.text, dp(14).toFloat(), 0x55000000, dp(1)) }
+        colorCell.addView(colorDot, lp(dp(28), dp(28)))
+        colorCell.addView(tv("▾", 13f, T.muted).apply { setPadding(dp(8), 0, 0, 0) })
+        toolBtns["color"] = colorCell
+        r2.addView(colorCell, lp(0, dp(48), 1.6f))
+        grid.addView(r1, lp(MATCH, WRAP)); grid.addView(r2, lp(MATCH, WRAP))
+        val hs = grid
         formatBar = hs
         // Abajo: la barra de vidrio flotante (como en Best Notes)
         bottom = android.widget.FrameLayout(this).apply { background = Glass.make(this@NoteActivity, 26f, strong = true); setPadding(dp(4), dp(2), dp(4), dp(2)) }
@@ -368,11 +393,12 @@ class NoteActivity : Activity(), EditorView.Host {
     override fun onFocusEdit(e: RichEdit?) {
         val st = e?.currentStyle() ?: St.PLAIN
         fun on(k: String, v: Boolean) { toolBtns[k]?.background = if (v) roundBg(0x33FFFFFF, dp(22).toFloat()) else android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x33FFFFFF), null, roundBg(Color.WHITE, dp(22).toFloat())) }
-        on("b", st.b); on("i", st.i); on("u", st.u); on("s", st.s)
-        on("size", st.size > 0); on("color", st.color != 0); on("hi", st.bg != 0); on("out", st.o != 0)
+        on("b", st.b); on("i", st.i); on("u", st.u)
+        on("hi", st.bg != 0)
         val kind = e?.let { ed -> editor.views.firstOrNull { it.edits().contains(ed) }?.block as? Block.ListB }?.kind
         on("check", kind == "check"); on("ul", kind == "ul"); on("ol", kind == "ol")
-        (toolBtns["color"] as? IconView)?.color = if (st.color != 0) st.color else T.text
+        sizeTv.text = "${if (st.size > 0) st.size else T.baseSize}"
+        colorDot.background = roundBg(if (st.color != 0) st.color else T.text, dp(14).toFloat(), 0x55000000, dp(1))
     }
 
     /* ---------- guardar ---------- */
@@ -1223,6 +1249,31 @@ class NoteActivity : Activity(), EditorView.Host {
             L.t("wordCount", "w" to words, "c" to txt.replace(Regex("\\s"), "").length) + "\n\n" +
                 L.t("created") + ": " + df.format(Date(meta.created)) + "\n" + L.t("modified") + ": " + df.format(Date(meta.updated)),
         ).setPositiveButton(L.t("ok"), null).show()
+    }
+
+    /* ---------- 🖼️ insertar (foto, video, audio, IA) ---------- */
+    private fun insertMenu() {
+        Sheet(this, L.t("insert"))
+            .quick(Icons.SCAN, L.t("camera"), Sheet.PINK) { openCamera() }
+            .quick(Icons.IMAGE, L.t("gallery"), Sheet.BLUE) { openGallery() }
+            .quick(MoreIcons.VIDEO, L.t("video"), Sheet.ORANGE) { videoMenu() }
+            .quick(MoreIcons.MIC, L.t("audio"), Sheet.RED) { audioMenu() }
+            .item(Icons.STAR, "✨ " + L.t("ai"), Sheet.VIOLET, L.t("aiFree")) { aiMenu() }
+            .item(MoreIcons.TEXT_T, L.t("dictate"), Sheet.GREEN, L.t("dictateSub")) { startDictation() }
+            .item(MoreIcons.PEN, L.t("newDraw"), Sheet.TEAL) { setDrawMode(true) }
+            .show()
+    }
+
+    /* ---------- 🎨 colores y estilo de la letra ---------- */
+    private fun colorMenu() {
+        val e = editor.focused
+        val st = e?.currentStyle() ?: St.PLAIN
+        Sheet(this, L.t("textStyle"))
+            .quick(MoreIcons.PALETTE, L.t("textColor"), if (st.color != 0) st.color else Sheet.PINK, st.color != 0) { pickColor("color") }
+            .quick(MoreIcons.HILITE, L.t("hilite"), Sheet.AMBER, st.bg != 0) { pickColor("hi") }
+            .quick(MoreIcons.OUTLINE, L.t("outline"), Sheet.SKY, st.o != 0) { pickColor("ol") }
+            .quick(MoreIcons.STRIKE, L.t("strike"), Sheet.GRAY, st.s) { e?.requestFocus(); style { s -> s.copy(s = !cur().s) } }
+            .show()
     }
 
     /* ---------- 🖼️ fondo de la nota ---------- */

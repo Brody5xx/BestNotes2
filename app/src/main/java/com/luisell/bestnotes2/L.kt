@@ -202,6 +202,7 @@ object L {
         "versionDelTitle" to "¿Borrar esta versión?", "versionDeleted" to "Versión borrada", "versionRestored" to "Listo, volviste a esa versión ✨",
         "spellChecking" to "Revisando la ortografía…", "spellFail" to "No se pudo revisar. Revisa el internet.", "spellNone" to "¡Todo bien escrito!",
         "spellDone" to "¡Listo! Ya revisaste todo", "spellTitle" to "ORTOGRAFÍA", "spellNoSug" to "Sin sugerencias", "spellIgnore" to "Ignorar",
+        "insert" to "Agregar a la nota", "textStyle" to "Estilo de la letra", "strike" to "Tachado",
     )
 
     private val EN = mapOf(
@@ -340,5 +341,6 @@ object L {
         "versionDelTitle" to "Delete this version?", "versionDeleted" to "Version deleted", "versionRestored" to "Done, you went back to that version ✨",
         "spellChecking" to "Checking spelling…", "spellFail" to "Couldn't check. Check your internet.", "spellNone" to "Everything is spelled right!",
         "spellDone" to "Done! You checked everything", "spellTitle" to "SPELLING", "spellNoSug" to "No suggestions", "spellIgnore" to "Ignore",
+        "insert" to "Add to the note", "textStyle" to "Text style", "strike" to "Strikethrough",
     )
 }

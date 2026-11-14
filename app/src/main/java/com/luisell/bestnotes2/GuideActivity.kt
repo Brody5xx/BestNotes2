@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     private class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-14" to ("Barra de abajo de dos filas como en Best Notes: dibujar, agregar (foto, video, audio, IA), B I U, resaltar, listas, tamaño «Aa 17» y el círculo de color (color, resaltar, contorno y tachado). Ícono de girar arreglado" to
+            "Two-row bottom bar like Best Notes: draw, add (photo, video, audio, AI), B I U, highlight, lists, “Aa 17” size and the color circle (color, highlight, outline and strikethrough). Rotate icon fixed"),
         "2026-11-14" to ("Parte 4c-2: barra de arriba como en Best Notes (historial, ortografía, fondo de la nota y calculadora), historial y versiones de cada nota, revisar ortografía una por una, panel de la foto como antes y paneles nuevos de vidrio con animaciones" to
             "Part 4c-2: top bar like Best Notes (history, spelling, note background and calculator), history and versions of each note, spell check one by one, photo panel like before and new animated glass panels"),
         "2026-11-14" to ("Parte 4c-1: calculadora (gráficas, tabla, divisas y horas de trabajo), bóveda cifrada, fondos de pantalla, la misma fila de botones de Best Notes, brillo azul fino con dos líneas blancas que trazan la orilla de la foto seleccionada y animaciones más lentas" to

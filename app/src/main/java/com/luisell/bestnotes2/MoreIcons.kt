@@ -335,13 +335,20 @@ object MoreIcons {
                 c.drawCircle(cx + s * 0.28f, cy - s * 0.38f, s * 0.11f, fl)
             }
             ROTATE -> {
-                r.set(cx - s * 0.75f, cy - s * 0.75f, cx + s * 0.75f, cy + s * 0.75f)
-                c.drawArc(r, 300f, 300f, false, st)
-                path.reset()
-                path.moveTo(cx + s * 0.2f, cy - s * 0.95f)
-                path.lineTo(cx + s * 0.45f, cy - s * 0.62f)
-                path.lineTo(cx + s * 0.05f, cy - s * 0.48f)
-                c.drawPath(path, st)
+                // ↺ flecha redonda (girar a la izquierda)
+                val R = s * 0.72f
+                r.set(cx - R, cy - R, cx + R, cy + R)
+                c.drawArc(r, 225f, 300f, false, st)
+                val th = Math.toRadians(225.0)
+                val px = cx + R * Math.cos(th).toFloat(); val py = cy + R * Math.sin(th).toFloat()
+                val dx = Math.sin(th).toFloat(); val dy = -Math.cos(th).toFloat()          // hacia donde apunta
+                val L = s * 0.42f
+                for (sg in intArrayOf(-1, 1)) {
+                    val a2 = Math.toRadians(150.0 * sg)
+                    val wx = dx * Math.cos(a2).toFloat() - dy * Math.sin(a2).toFloat()
+                    val wy = dx * Math.sin(a2).toFloat() + dy * Math.cos(a2).toFloat()
+                    c.drawLine(px, py, px + wx * L, py + wy * L, st)
+                }
             }
             ATTACH -> {
                 // clip
