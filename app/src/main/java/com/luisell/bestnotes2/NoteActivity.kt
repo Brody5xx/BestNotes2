@@ -37,6 +37,9 @@ class NoteActivity : Activity(), EditorView.Host {
         const val EXTRA_NEW = "nuevo"          // "text" o "check"
         const val EXTRA_Q = "q"                // lo que se buscaba (para iluminarlo)
         const val EXTRA_FOLDER = "carpeta"
+        const val REQ_CAMERA = 51
+        const val REQ_GALLERY = 52
+        const val REQ_CROP = 53
     }
 
     private lateinit var meta: NoteMeta
@@ -171,6 +174,7 @@ class NoteActivity : Activity(), EditorView.Host {
             val b = iconBtn(icon, size) { act() }
             toolBtns[key] = b; bar.addView(b)
         }
+        tool("photo", Icons.IMAGE) { addPhoto() }
         tool("check", MoreIcons.CHECKBOX) { editor.toggleList("check") }
         tool("ul", MoreIcons.BULLETS) { editor.toggleList("ul") }
         tool("ol", MoreIcons.NUMBERS) { editor.toggleList("ol") }
@@ -180,8 +184,9 @@ class NoteActivity : Activity(), EditorView.Host {
         tool("u", MoreIcons.UNDERLINE) { style { s -> s.copy(u = !cur().u) } }
         tool("s", MoreIcons.STRIKE) { style { s -> s.copy(s = !cur().s) } }
         tool("size", MoreIcons.SIZE, 11f) { pickSize() }
-        tool("color", MoreIcons.PALETTE) { pickColor(false) }
-        tool("hi", MoreIcons.HILITE) { pickColor(true) }
+        tool("color", MoreIcons.PALETTE) { pickColor("color") }
+        tool("hi", MoreIcons.HILITE) { pickColor("hi") }
+        tool("out", MoreIcons.OUTLINE) { pickColor("ol") }
         hs.addView(bar)
         root.addView(View(this).apply { setBackgroundColor(T.border) }, lp(MATCH, dp(1)))
         root.addView(hs, lp(MATCH, WRAP))
@@ -239,42 +244,40 @@ class NoteActivity : Activity(), EditorView.Host {
             if (next.size != c.size) r = r.copy(size = next.size)
             if (next.color != c.color) r = r.copy(color = next.color)
             if (next.bg != c.bg) r = r.copy(bg = next.bg)
+            if (next.o != c.o) r = r.copy(o = next.o)
             r
         }
     }
 
     private fun pickSize() {
         val e = editor.focused ?: return
-        val curSize = e.currentStyle().size.let { if (it == 0) T.baseSize else it }
-        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, dp(8)) }
-        val d = dialog().setTitle(L.t("size")).setView(ScrollView(this).apply { addView(list) }).setNegativeButton(L.t("cancel"), null).create()
-        for (z in T.sizes) {
-            val t = tv(if (z == T.baseSize) "$z  ·  Normal" else "$z", minOf(z, 40).toFloat(), if (z == curSize) T.accent else T.text).apply {
-                setTextSize(TypedValue.COMPLEX_UNIT_DIP, minOf(z, 40).toFloat())
-                setPadding(dp(24), dp(8), dp(24), dp(8))
-                setOnClickListener { d.dismiss(); e.requestFocus(); style { s -> s.copy(size = if (z == T.baseSize) 0 else z) } }
-            }
-            list.addView(t)
-        }
-        d.show()
+        pickSize(e.currentStyle().size) { z -> e.requestFocus(); style { s -> s.copy(size = z) } }
     }
 
-    private fun pickColor(hi: Boolean) {
+    /** Color de letra (o del título si estás en el título), resaltar o contorno. */
+    private fun pickColor(kind: String) {
+        if (kind == "color" && title.hasFocus()) {
+            pickColor(L.t("titleColor"), meta.titleColor, T.textColors) { c ->
+                meta.titleColor = c; title.setTextColor(if (c != 0) c else T.text); onDirty()
+            }
+            return
+        }
         val e = editor.focused ?: return
         val c = e.currentStyle()
-        lateinit var d: android.app.AlertDialog
-        val v = colorRow(if (hi) T.hiliteColors else T.textColors, true, if (hi) c.bg else c.color) { col ->
-            d.dismiss(); e.requestFocus()
-            style { s -> if (hi) s.copy(bg = col) else s.copy(color = col) }
+        when (kind) {
+            "hi" -> pickColor(L.t("hilite"), if (c.bg != 0) c.bg or 0xFF000000.toInt() else 0, T.hiliteColors.map { it or 0xFF000000.toInt() }.toIntArray()) { col ->
+                e.requestFocus(); style { s -> s.copy(bg = if (col == 0) 0 else (col and 0xFFFFFF) or 0x73000000) }
+            }
+            "ol" -> pickColor(L.t("outline"), c.o, T.textColors) { col -> e.requestFocus(); style { s -> s.copy(o = col) } }
+            else -> pickColor(L.t("textColor"), c.color, T.textColors) { col -> e.requestFocus(); style { s -> s.copy(color = col) } }
         }
-        d = dialog().setTitle(L.t(if (hi) "hilite" else "textColor")).setView(v).setNegativeButton(L.t("cancel"), null).show()
     }
 
     override fun onFocusEdit(e: RichEdit?) {
         val st = e?.currentStyle() ?: St.PLAIN
         fun on(k: String, v: Boolean) { toolBtns[k]?.background = if (v) roundBg(0x33FFFFFF, dp(22).toFloat()) else android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x33FFFFFF), null, roundBg(Color.WHITE, dp(22).toFloat())) }
         on("b", st.b); on("i", st.i); on("u", st.u); on("s", st.s)
-        on("size", st.size > 0); on("color", st.color != 0); on("hi", st.bg != 0)
+        on("size", st.size > 0); on("color", st.color != 0); on("hi", st.bg != 0); on("out", st.o != 0)
         val kind = e?.let { ed -> editor.views.firstOrNull { it.edits().contains(ed) }?.block as? Block.ListB }?.kind
         on("check", kind == "check"); on("ul", kind == "ul"); on("ol", kind == "ol")
         (toolBtns["color"] as? IconView)?.color = if (st.color != 0) st.color else T.text
@@ -367,6 +370,98 @@ class NoteActivity : Activity(), EditorView.Host {
         } catch (_: Exception) { toast(L.t("cantOpen")) }
     }
 
+    /* ---------- fotos ---------- */
+    override fun noteTitle(): String = title.text.toString()
+
+    private var camFile: File? = null
+    private var cropTarget: Block.Img? = null
+
+    private fun addPhoto() {
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), dp(10), dp(6), dp(10)) }
+        val d = dialog().setTitle(L.t("addPhoto")).setView(list).create()
+        list.addView(menuRow(this, Icons.SCAN, L.t("camera")) { d.dismiss(); openCamera() })
+        list.addView(menuRow(this, Icons.IMAGE, L.t("gallery")) { d.dismiss(); openGallery() })
+        d.show()
+    }
+
+    private fun openCamera() {
+        val f = File(cacheDir, "camara_" + System.currentTimeMillis() + ".jpg")
+        camFile = f
+        val uri = FileProvider.getUriForFile(this, "$packageName.archivos", f)
+        val i = Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE).putExtra(android.provider.MediaStore.EXTRA_OUTPUT, uri)
+            .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        try { startActivityForResult(i, REQ_CAMERA) } catch (_: Exception) { toast(L.t("cantOpen")) }
+    }
+
+    private fun openGallery() {
+        val i = if (android.os.Build.VERSION.SDK_INT >= 33)
+            Intent(android.provider.MediaStore.ACTION_PICK_IMAGES).putExtra(android.provider.MediaStore.EXTRA_PICK_IMAGES_MAX, 20)
+        else Intent(Intent.ACTION_GET_CONTENT).setType("image/*").putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true).addCategory(Intent.CATEGORY_OPENABLE)
+        try { startActivityForResult(i, REQ_GALLERY) } catch (_: Exception) {
+            try { startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).setType("image/*").putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true), REQ_GALLERY) } catch (_: Exception) { toast(L.t("cantOpen")) }
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode != RESULT_OK) { if (requestCode == REQ_CAMERA) camFile?.delete(); return }
+        when (requestCode) {
+            REQ_CAMERA -> camFile?.let { f -> if (f.length() > 0) addUris(listOf(android.net.Uri.fromFile(f)), fromCamera = true) { f.delete() } }
+            REQ_GALLERY -> {
+                val uris = ArrayList<android.net.Uri>()
+                data?.clipData?.let { c -> for (k in 0 until c.itemCount) uris.add(c.getItemAt(k).uri) }
+                if (uris.isEmpty()) data?.data?.let { uris.add(it) }
+                addUris(uris, fromCamera = false) {}
+            }
+            REQ_CROP -> {
+                val t = cropTarget ?: return
+                val nf = data?.getStringExtra(CropActivity.OUT) ?: return
+                editor.flushAll()
+                t.file = nf; t.w = data.getIntExtra(CropActivity.OUT_W, 0); t.h = data.getIntExtra(CropActivity.OUT_H, 0)
+                editor.rebuild(null, t); onDirty()
+            }
+        }
+    }
+
+    /** Prepara las fotos en segundo plano y las pone donde está el cursor. */
+    private fun addUris(uris: List<android.net.Uri>, fromCamera: Boolean, after: () -> Unit) {
+        if (uris.isEmpty()) return
+        toast(L.t("addingPhotos"))
+        val stamp = Photos.stampOn(this)
+        val site = noteTitle()
+        Loader.pool.execute {
+            val out = ArrayList<Block.Img>()
+            for (u in uris) {
+                val r = try { Photos.import(this, u) } catch (_: Throwable) { null } ?: continue
+                val taken = if (fromCamera) System.currentTimeMillis() else r.taken
+                val pct = if (uris.size > 1) 48f else 60f
+                out.add(Block.Img(r.file, pct, "", (100f - pct) / 2, 0f, r.w, r.h, if (stamp) Photos.stampText(taken, site) else "", 0f, taken))
+            }
+            runOnUiThread {
+                after()
+                if (out.isEmpty()) toast(L.t("photoFail")) else editor.insertImages(out)
+            }
+        }
+    }
+
+    override fun cropImage(f: FotoView) {
+        cropTarget = f.block
+        startActivityForResult(Intent(this, CropActivity::class.java).putExtra(CropActivity.FILE, f.block.file), REQ_CROP)
+    }
+
+    override fun rotateImage(f: FotoView) {
+        val b = f.block
+        Loader.pool.execute {
+            val r = Photos.rotate90(b.file)
+            runOnUiThread {
+                if (r == null) return@runOnUiThread
+                b.file = r.file; b.w = r.w; b.h = r.h
+                f.reload(); onDirty()
+            }
+        }
+    }
+
     /* ---------- ⋮ opciones ---------- */
     private fun options() {
         save()
@@ -380,6 +475,7 @@ class NoteActivity : Activity(), EditorView.Host {
             }
         } else {
             add(MoreIcons.PALETTE, L.t("noteColor")) { noteColor() }
+            add(MoreIcons.PALETTE, L.t("titleColor")) { title.requestFocus(); pickColor("color") }
             add(MoreIcons.FOLDER, L.t("moveToFolder")) { moveFolder() }
             add(Icons.PIN, L.t(if (meta.pinned) "unpin" else "pinTop")) { meta.pinned = !meta.pinned; Store.saveMeta(meta); Store.changed() }
             add(Icons.LOCK, L.t(if (meta.locked) "unlock" else "lockPin")) { toggleLock() }

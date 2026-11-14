@@ -32,6 +32,7 @@ object MoreIcons {
     const val INFO = 218
     const val DOTS_V = 219
     const val UNPIN = 220
+    const val OUTLINE = 221
 
     private val path = Path()
     private val r = RectF()
@@ -155,6 +156,15 @@ object MoreIcons {
             }
             DOTS_V -> {
                 for (k in -1..1) c.drawCircle(cx, cy + k * s * 0.6f, s * 0.14f, fl)
+            }
+            OUTLINE -> {
+                // "A" con borde de color por fuera
+                tp.typeface = Typeface.DEFAULT_BOLD; tp.textSize = s * 1.75f
+                val fm = tp.fontMetrics; val y = cy - (fm.ascent + fm.descent) / 2f
+                tp.style = Paint.Style.STROKE; tp.strokeWidth = s * 0.28f; tp.strokeJoin = Paint.Join.ROUND; tp.color = 0xFFFF7A2A.toInt()
+                c.drawText("A", cx, y, tp)
+                tp.style = Paint.Style.FILL; tp.color = fl.color
+                c.drawText("A", cx, y, tp)
             }
             UNPIN -> {
                 c.drawLine(cx - s * 0.8f, cy - s * 0.8f, cx + s * 0.8f, cy + s * 0.8f, st)

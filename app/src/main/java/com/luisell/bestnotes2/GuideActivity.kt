@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     private class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-14" to ("Parte 2: fotos (mover, a un lado con texto, tamaño, girar, recortar, sello, anclar), rueda de colores, tamaños de 5 a 100 y contorno de letras" to
+            "Part 2: photos (move, beside text, size, rotate, crop, stamp, pin), color wheel, sizes 5 to 100 and letter outline"),
         "2026-11-14" to ("Parte 1: pantalla principal, texto, checklist, búsqueda iluminada e importar de Best Notes" to
             "Part 1: home screen, text, checklist, highlighted search and import from Best Notes"),
     )
@@ -68,6 +70,34 @@ class GuideActivity : Activity() {
                 "Select text and tap a button. With nothing selected, what you type next gets that format.",
                 "Undo and redo with the arrows at the top. The note saves itself.",
             )),
+        Sec(Icons.IMAGE,
+            "Fotos" to listOf(
+                "Botón de la foto en la barra de abajo: Cámara o Galería (puedes escoger varias). Se pone donde está el cursor.",
+                "Toca la foto para seleccionarla. Con un dedo la mueves a los lados (salen guías rojas en la orilla y el centro) o arriba y abajo.",
+                "Con dos dedos la haces más grande o más chica y la giras (cerca de derecho se endereza sola).",
+                "Abajo de la foto: − y +, Izquierda / Derecha (la foto a un lado y el texto al lado), Sola, Girar, Recortar, Sello, Anclar (ya no se mueve), Subir, Bajar, Ver y Quitar.",
+                "Sello: cada foto sale con una franja abajo con la fecha y hora en que se tomó y el sitio (el título de la nota). Si lo quitas, las próximas fotos salen sin sello.",
+                "Las fotos se achican solas a un tamaño razonable: la nota pesa menos y abre más rápido.",
+            ),
+            "Photos" to listOf(
+                "Photo button in the bottom bar: Camera or Gallery (you can pick several). It goes where the cursor is.",
+                "Tap the photo to select it. With one finger you move it sideways (red guides show at the edges and center) or up and down.",
+                "With two fingers you make it bigger or smaller and rotate it (near straight it straightens itself).",
+                "Below the photo: − and +, Left / Right (photo on one side and text next to it), Alone, Rotate, Crop, Stamp, Pin (it won't move), Up, Down, View and Remove.",
+                "Stamp: each photo gets a strip at the bottom with the date and time it was taken and the site (the note title). If you remove it, next photos come without a stamp.",
+                "Photos are resized automatically: the note weighs less and opens faster.",
+            )),
+        Sec(MoreIcons.PALETTE,
+            "Colores y tamaños" to listOf(
+                "Color de letra, resaltar y contorno de letras: rueda de colores, colores básicos, Recientes y Favoritos (Guardar este).",
+                "Tamaño de letra de 5 a 100, con vista previa.",
+                "El título también puede tener color: toca el título y luego el botón de color (o ⋮ → Color del título).",
+            ),
+            "Colors and sizes" to listOf(
+                "Text color, highlight and letter outline: color wheel, basic colors, Recent and Favorites (Save this one).",
+                "Font size from 5 to 100, with preview.",
+                "The title can have color too: tap the title and then the color button (or ⋮ → Title color).",
+            )),
         Sec(MoreIcons.FOLDER,
             "Organizar tus notas" to listOf(
                 "Carpetas con color (☰ → Nueva carpeta; mantén presionada una carpeta para editarla o borrarla).",
@@ -92,13 +122,11 @@ class GuideActivity : Activity() {
             )),
         Sec(MoreIcons.INFO,
             "Lo que viene" to listOf(
-                "Parte 2: fotos (mover, a un lado con el texto al lado, girar, recortar, sello) y más colores y tamaños.",
-                "Parte 3: audios, videos y dibujar dentro de la nota.",
+                "Parte 3: audios, videos y dibujar dentro de la nota (también escribir y dibujar encima de una foto).",
                 "Parte 4: dictado, IA, compartir como imagen o PDF, respaldo, bóveda, recordatorios, calculadora, reporte del día, pendientes, materiales, bloqueo de la app y más idiomas.",
             ),
             "Coming next" to listOf(
-                "Part 2: photos (move, beside the text, rotate, crop, stamp) and more colors and sizes.",
-                "Part 3: audio, videos and drawing inside the note.",
+                "Part 3: audio, videos and drawing inside the note (also writing and drawing on top of a photo).",
                 "Part 4: dictation, AI, share as image or PDF, backup, vault, reminders, calculator, daily report, to-dos, materials, app lock and more languages.",
             )),
     )

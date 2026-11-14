@@ -145,10 +145,10 @@ object Store {
     }
 
     /** Borra fotos/audios/videos que ya no usa ninguna nota. */
-    private fun cleanMedia() {
+    fun cleanMedia() {
         val used = HashSet<String>()
         db.rawQuery("SELECT body,extra FROM notes", null).use { c ->
-            val re = Regex("\"f\":\"([^\"]+)\"")
+            val re = Regex("\"(?:f|wall)\":\"([^\"]+)\"")
             while (c.moveToNext()) {
                 for (col in 0..1) c.getString(col)?.let { s -> re.findAll(s).forEach { used.add(it.groupValues[1]) } }
             }

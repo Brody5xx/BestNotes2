@@ -44,6 +44,10 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".CropActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".GuideActivity"
             android:exported="false" />
 

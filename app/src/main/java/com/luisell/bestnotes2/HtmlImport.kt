@@ -136,6 +136,13 @@ object HtmlImport {
                 "font-weight" -> s = if (v == "bold" || (v.toIntOrNull() ?: 400) >= 600) s.copy(b = true) else if (v == "normal" || (v.toIntOrNull() ?: 700) <= 500) s.copy(b = false) else s
                 "font-style" -> s = if (v == "italic") s.copy(i = true) else if (v == "normal") s.copy(i = false) else s
                 "text-decoration", "text-decoration-line" -> { if ("underline" in v) s = s.copy(u = true); if ("line-through" in v) s = s.copy(s = true) }
+                "-webkit-text-stroke" -> {
+                    // "3px #ff7a2a" o "0" (sin contorno)
+                    val w = Regex("([0-9.]+)px").find(v)?.groupValues?.get(1)?.toFloatOrNull() ?: 0f
+                    val col = cssColor(v0.replace(Regex("^\\s*[0-9.]+px\\s*"), "").trim())
+                    s = if (w > 0f && col != 0) s.copy(o = col) else s.copy(o = 0)
+                }
+                "-webkit-text-stroke-color" -> { val c = cssColor(v0); if (c != 0) s = s.copy(o = c) }
             }
         }
         return s
@@ -319,8 +326,35 @@ object HtmlImport {
             root.children.forEach { walk(it, St.PLAIN, e) }
         }
         e.flushText()
-        // Si un renglón tenía el color de toda la línea con <div style>, ya quedó en su estilo.
-        return Result(normalize(e.blocks), missing)
+        return Result(besideText(normalize(e.blocks)), missing)
+    }
+
+    /**
+     * Foto a un lado (como en Best Notes): los renglones que caben al lado de la foto
+     * pasan a ser "el texto de al lado". Se calcula con una pantalla de teléfono normal.
+     */
+    fun besideText(blocks: MutableList<Block>): MutableList<Block> {
+        val W = 340f
+        for (i in 0 until blocks.size - 1) {
+            val img = blocks[i] as? Block.Img ?: continue
+            if (img.side.isEmpty() || img.beside.isNotEmpty()) continue
+            val tb = blocks[i + 1] as? Block.Text ?: continue
+            val cw = W * (100 - img.pct) / 100f - 14f
+            if (cw < 70f) continue
+            val iw = W * img.pct / 100f
+            val ih = iw * (if (img.w > 0 && img.h > 0) img.h.toFloat() / img.w else 0.75f) + img.y + 10f
+            val plain = runsPlain(tb.runs)
+            val lines = plain.split('\n')
+            var acc = 0f; var n = 0; var pos = 0
+            while (n < lines.size && acc < ih) {
+                acc += maxOf(1, Math.ceil(lines[n].length * 8.6 / cw).toInt()) * 25f
+                pos += lines[n].length + 1; n++
+            }
+            val cut = minOf(plain.length, pos - 1).coerceAtLeast(0)
+            img.beside = mergeRuns(sliceRuns(tb.runs, 0, cut))
+            tb.runs = mergeRuns(sliceRuns(tb.runs, minOf(plain.length, cut + 1), plain.length))
+        }
+        return normalize(blocks.filter { !(it is Block.Text && it.runs.isEmpty() && it !== blocks.last()) }.toMutableList())
     }
 
     /** El color del título (Best Notes lo guardaba en titleHtml o en titleColor). */

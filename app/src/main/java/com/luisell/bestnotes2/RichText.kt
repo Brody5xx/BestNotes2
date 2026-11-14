@@ -40,6 +40,10 @@ class SizeS(size: Int) : AbsoluteSizeSpan(size, true), Ours
 class ColorS(c: Int) : ForegroundColorSpan(c), Ours
 class BgS(c: Int) : BackgroundColorSpan(c), Ours
 class LinkS(url: String) : URLSpan(url), Ours
+/** Contorno de las letras: lo dibuja RichEdit por detrás del texto. */
+class OutlineS(val color: Int) : android.text.style.CharacterStyle(), android.text.style.UpdateAppearance, Ours {
+    override fun updateDrawState(tp: android.text.TextPaint) {}
+}
 /** Iluminado de la búsqueda (no se guarda en la nota). */
 class SearchS : BackgroundColorSpan(T.search)
 
@@ -65,6 +69,7 @@ object Rich {
         if (st.color != 0) sp.setSpan(ColorS(st.color), a, b, f)
         if (st.bg != 0) sp.setSpan(BgS(st.bg), a, b, f)
         if (st.href != null) sp.setSpan(LinkS(st.href), a, b, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (st.o != 0) sp.setSpan(OutlineS(st.o), a, b, f)
     }
 
     private fun styleOf(spans: Array<Ours>): St {
@@ -78,6 +83,7 @@ object Rich {
             is ColorS -> s.copy(color = x.foregroundColor)
             is BgS -> s.copy(bg = x.backgroundColor)
             is LinkS -> s.copy(href = x.url)
+            is OutlineS -> s.copy(o = x.color)
             else -> s
         }
         return s
@@ -252,6 +258,40 @@ class RichEdit(ctx: Context) : EditText(ctx) {
     }
 
     private fun atStart(): Boolean = onBackAtStart?.invoke(this) ?: false
+
+    /* ---------- contorno de letras ---------- */
+    private val stroke = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+
+    override fun onDraw(canvas: android.graphics.Canvas) {
+        val t = text
+        val lay = layout
+        val outs = if (t != null && lay != null) t.getSpans(0, t.length, OutlineS::class.java) else emptyArray()
+        if (outs.isNotEmpty()) {
+            canvas.save()
+            canvas.translate(totalPaddingLeft.toFloat(), totalPaddingTop.toFloat())
+            for (o in outs) {
+                val a = t.getSpanStart(o); val b = t.getSpanEnd(o)
+                if (a < 0 || b <= a) continue
+                for (line in lay.getLineForOffset(a)..lay.getLineForOffset(b - 1)) {
+                    var s = maxOf(a, lay.getLineStart(line)); val e = minOf(b, lay.getLineVisibleEnd(line))
+                    val base = lay.getLineBaseline(line).toFloat()
+                    while (s < e) {
+                        val n = t.nextSpanTransition(s, e, android.text.style.MetricAffectingSpan::class.java)
+                        stroke.set(paint)
+                        t.getSpans(s, n, android.text.style.MetricAffectingSpan::class.java).forEach { it.updateMeasureState(stroke) }
+                        stroke.style = android.graphics.Paint.Style.STROKE
+                        stroke.strokeJoin = android.graphics.Paint.Join.ROUND
+                        stroke.strokeWidth = maxOf(dp(2.5f).toFloat(), stroke.textSize * 0.16f)
+                        stroke.color = o.color
+                        canvas.drawText(t, s, n, lay.getPrimaryHorizontal(s), base, stroke)
+                        s = n
+                    }
+                }
+            }
+            canvas.restore()
+        }
+        super.onDraw(canvas)
+    }
 
     /** Copiar y pegar: se pega solo el texto (sin estilos raros de otras apps). */
     override fun onTextContextMenuItem(id: Int): Boolean {

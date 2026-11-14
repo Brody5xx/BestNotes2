@@ -17,6 +17,8 @@ import org.json.JSONObject
 data class St(
     val b: Boolean = false, val i: Boolean = false, val u: Boolean = false, val s: Boolean = false,
     val size: Int = 0, val color: Int = 0, val bg: Int = 0, val href: String? = null,
+    /** Contorno de las letras (color del borde; 0 = sin contorno). */
+    val o: Int = 0,
 ) {
     fun isPlain() = this == PLAIN
 
@@ -28,6 +30,7 @@ data class St(
         if (color != 0) o.put("c", color)
         if (bg != 0) o.put("g", bg)
         if (href != null) o.put("h", href)
+        if (this.o != 0) o.put("o", this.o)
         return o
     }
 
@@ -37,7 +40,7 @@ data class St(
             if (o == null) return PLAIN
             return St(
                 o.optInt("b") == 1, o.optInt("i") == 1, o.optInt("u") == 1, o.optInt("s") == 1,
-                o.optInt("z"), o.optInt("c"), o.optInt("g"), if (o.has("h")) o.optString("h") else null,
+                o.optInt("z"), o.optInt("c"), o.optInt("g"), if (o.has("h")) o.optString("h") else null, o.optInt("o"),
             )
         }
     }
@@ -101,10 +104,13 @@ sealed class Block {
     class ListB(var kind: String, val items: MutableList<Item> = ArrayList()) : Block()
 
     /** Foto: archivo en /media. pct = ancho en % de la nota; side = "l", "r" o "" (sola);
-     *  x = borde izquierdo en %; y = cuánto se bajó (dp). stamp = texto del sello. */
+     *  x = borde izquierdo en %; y = cuánto se bajó (dp). stamp = texto del sello.
+     *  beside = el texto que va al lado de la foto (cuando side es "l" o "r").
+     *  pin = anclada (no se mueve con el dedo). */
     class Img(
         var file: String, var pct: Float = 40f, var side: String = "", var x: Float = 30f, var y: Float = 0f,
         var w: Int = 0, var h: Int = 0, var stamp: String = "", var rot: Float = 0f, var taken: Long = 0L,
+        var beside: MutableList<Run> = ArrayList(), var pin: Boolean = false,
     ) : Block()
 
     /** Audio o video (kind = "audio" / "video"). */
@@ -124,7 +130,7 @@ sealed class Block {
         }
         is Img -> JSONObject().put("t", "img").put("f", file).put("pct", pct.toDouble()).put("side", side)
             .put("x", x.toDouble()).put("y", y.toDouble()).put("w", w).put("h", h).put("stamp", stamp)
-            .put("rot", rot.toDouble()).put("tk", taken)
+            .put("rot", rot.toDouble()).put("tk", taken).put("bs", runsJson(beside)).put("pin", if (pin) 1 else 0)
         is Media -> JSONObject().put("t", "media").put("k", kind).put("f", file).put("dur", dur)
             .put("sz", size).put("mu", if (muted) 1 else 0)
     }
@@ -148,6 +154,7 @@ sealed class Block {
                 o.optString("f"), o.optDouble("pct", 40.0).toFloat(), o.optString("side"),
                 o.optDouble("x", 30.0).toFloat(), o.optDouble("y", 0.0).toFloat(), o.optInt("w"), o.optInt("h"),
                 o.optString("stamp"), o.optDouble("rot", 0.0).toFloat(), o.optLong("tk"),
+                runsFromJson(o.optJSONArray("bs")), o.optInt("pin") == 1,
             )
             "media" -> Media(o.optString("k", "audio"), o.optString("f"), o.optDouble("dur", 0.0), o.optLong("sz"), o.optInt("mu") == 1)
             else -> Text(runsFromJson(o.optJSONArray("r")))
@@ -176,6 +183,7 @@ fun blocksPlain(blocks: List<Block>): String = buildString {
         when (b) {
             is Block.Text -> { append(runsPlain(b.runs)); append('\n') }
             is Block.ListB -> b.items.forEach { append(runsPlain(it.runs)); append('\n') }
+            is Block.Img -> if (b.beside.isNotEmpty()) { append(runsPlain(b.beside)); append('\n') }
             else -> {}
         }
     }

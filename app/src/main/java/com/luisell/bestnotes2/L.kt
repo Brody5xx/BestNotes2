@@ -74,7 +74,7 @@ object L {
         "pinCreate" to "Crea un PIN de 4 números", "pinConfirm" to "Confirma tu PIN", "pinMismatch" to "Los PIN no coinciden. Otra vez.",
         "pinToUnlock" to "Escribe tu PIN", "pinWrong" to "PIN incorrecto", "lockRemoved" to "Se quitó el bloqueo", "lockedOk" to "Nota bloqueada con PIN",
         "audio" to "Nota de voz", "video" to "Video", "drawing" to "Dibujo",
-        "mediaSoon" to "Toca para abrirlo. Dentro de la nota llega en la parte 3.",
+        "mediaSoon" to "Toca para abrirlo. Escucharlo dentro de la nota llega en la parte 3.",
         "drawSoon" to "Esta nota tiene un dibujo: se verá aquí en la parte 3 (no se perdió).",
         "photoMissing" to "Foto que no venía en el archivo",
         "today" to "Hoy", "yesterday" to "Ayer",
@@ -84,6 +84,13 @@ object L {
         "tagsEmpty" to "Escribe #algo en una nota para crear una etiqueta",
         "progress" to "{d}/{t}",
         "info" to "Información", "created" to "Creada", "modified" to "Modificada",
+        "besidePh" to "Escribe al lado de la foto…", "imgLeft" to "Izquierda", "imgAlone" to "Sola", "imgRight" to "Derecha",
+        "imgRotate" to "Girar", "crop" to "Recortar", "reset" to "Volver", "stamp" to "Sello", "imgPin" to "Anclar", "imgUnpin" to "Soltar",
+        "moveUp" to "Subir", "moveDown" to "Bajar", "view" to "Ver",
+        "addPhoto" to "Poner foto", "camera" to "Cámara", "gallery" to "Galería", "addingPhotos" to "Poniendo la foto…", "photoFail" to "No se pudo poner la foto",
+        "titleColor" to "Color del título", "outline" to "Contorno de letras", "apply" to "Aplicar", "sizeNormal" to "Normal",
+        "colorsBasic" to "Colores", "colorsRecent" to "Recientes", "colorsFav" to "Favoritos", "colorsFavAdd" to "Guardar este",
+        "colorsFavHint" to "Mantén presionado un favorito para quitarlo",
     )
 
     private val EN = mapOf(
@@ -132,5 +139,12 @@ object L {
         "tagsEmpty" to "Write #something in a note to create a tag",
         "progress" to "{d}/{t}",
         "info" to "Information", "created" to "Created", "modified" to "Modified",
+        "besidePh" to "Write next to the photo…", "imgLeft" to "Left", "imgAlone" to "Alone", "imgRight" to "Right",
+        "imgRotate" to "Rotate", "crop" to "Crop", "reset" to "Reset", "stamp" to "Stamp", "imgPin" to "Pin", "imgUnpin" to "Unpin",
+        "moveUp" to "Up", "moveDown" to "Down", "view" to "View",
+        "addPhoto" to "Add photo", "camera" to "Camera", "gallery" to "Gallery", "addingPhotos" to "Adding the photo…", "photoFail" to "Couldn't add the photo",
+        "titleColor" to "Title color", "outline" to "Letter outline", "apply" to "Apply", "sizeNormal" to "Normal",
+        "colorsBasic" to "Colors", "colorsRecent" to "Recent", "colorsFav" to "Favorites", "colorsFavAdd" to "Save this one",
+        "colorsFavHint" to "Long-press a favorite to remove it",
     )
 }

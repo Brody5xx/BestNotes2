@@ -68,6 +68,7 @@ class PantallaTest {
         val blocks = blocksFromJson(body)
         val img = blocks.first { it is Block.Img } as Block.Img
         assertEquals("l", img.side); assertEquals(40f, img.pct); assertEquals("14 nov 2026 · Sitio A", img.stamp)
+        assertEquals("el texto de al lado de la foto", "Texto al lado", runsPlain(img.beside))
         assertTrue(Store.meta("n2")!!.hasMedia)
         assertTrue(Store.meta("n3")!!.deleted)
         assertTrue(Store.meta("n4")!!.locked)
@@ -172,5 +173,44 @@ class PantallaTest {
         e.onBackAtStart!!.invoke(e); idle()
         assertTrue(ed.blocks.none { it is Block.ListB })
         act.finish(); waitIo()
+    }
+
+    @Test fun fotos() {
+        reload(); Store.deleteForever(Store.notes.map { it.id }); waitIo()
+        importar()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n6")).setup().get()
+        waitIo(); idle()
+        val ed = find(act.window.decorView, EditorView::class.java).first()
+        val t = ed.views[0] as TextoView
+        t.edit.requestFocus(); t.edit.setSelection(9)               // después de "linea uno"
+        val name = Store.meta("n1")!!.thumb!!
+        ed.insertImages(listOf(Block.Img(name, 50f, "", 25f, 0f, 40, 30, "📅 sello", 0f, 1L)))
+        idle()
+        assertEquals(listOf("Text", "Img", "Text"), ed.blocks.map { it.javaClass.simpleName })
+        assertEquals("linea uno", runsPlain((ed.blocks[0] as Block.Text).runs))
+        assertEquals("linea dos", runsPlain((ed.blocks[2] as Block.Text).runs))
+        val f = ed.views[1] as FotoView
+        ed.selectImage(f); idle()
+        assertTrue(f.selected)
+        // a un lado: aparece la caja de texto al lado
+        val m = FotoView::class.java.getDeclaredMethod("setSide", String::class.java).apply { isAccessible = true }
+        m.invoke(f, "l"); idle()
+        assertEquals(1, f.edits().size)
+        f.edits()[0].setText("al lado")
+        ed.moveBlock(f, -1); idle()
+        assertTrue(ed.blocks[0] is Block.Img)
+        assertEquals("al lado", runsPlain((ed.blocks[0] as Block.Img).beside))
+        // quitar la foto: el texto de al lado se queda
+        ed.removeImage(ed.views[0] as FotoView); idle()
+        assertTrue(ed.blocks.none { it is Block.Img })
+        assertTrue(blocksPlain(ed.blocks).startsWith("al lado"))
+        // contorno y tamaño se guardan
+        val t2 = ed.views[0] as TextoView
+        t2.edit.requestFocus(); t2.edit.setSelection(0, 2)
+        t2.edit.applyStyle { it.copy(o = 0xFFFF7A2A.toInt(), size = 64) }
+        act.finish(); waitIo()
+        val saved = blocksFromJson(Store.readBody("n6").first)
+        val r0 = (saved[0] as Block.Text).runs[0]
+        assertEquals(0xFFFF7A2A.toInt(), r0.st.o); assertEquals(64, r0.st.size)
     }
 }
