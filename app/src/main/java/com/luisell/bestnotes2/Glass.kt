@@ -162,17 +162,22 @@ class GlassDrawable(
  * un halo azul que respira y una luz que da vueltas por la orilla.
  */
 class GlowBorder(private val d: Float, private val radiusDp: Float, private val padDp: Float = 10f) : Drawable(), android.graphics.drawable.Animatable {
-    private val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND }
+    private val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND; strokeCap = Paint.Cap.ROUND }
     private val r = RectF()
-    private val m = android.graphics.Matrix()
+    private val edge = Path()
+    private val seg = Path()
+    private val pm = android.graphics.PathMeasure()
+    private var len = 0f
+    private var lastW = -1; private var lastH = -1
     private var t = 0f
     private val anim = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-        duration = 2600; repeatCount = android.animation.ValueAnimator.INFINITE
+        duration = 3200; repeatCount = android.animation.ValueAnimator.INFINITE
         interpolator = android.view.animation.LinearInterpolator()
         addUpdateListener { t = it.animatedValue as Float; invalidateSelf() }
     }
 
-    private val HALO = (0 until 9).map { i -> val k = i / 8f; (18f - 15f * k) to (0.035f + 0.07f * k * k) }
+    /** Halo fino: pocas capas delgadas y suaves. */
+    private val HALO = (0 until 6).map { i -> val k = i / 5f; (7f - 5.5f * k) to (0.04f + 0.10f * k * k) }
 
     /** [bounds] = la foto + [padDp] de cada lado (el brillo va por FUERA de la foto). */
     override fun draw(c: Canvas) {
@@ -181,26 +186,52 @@ class GlowBorder(private val d: Float, private val radiusDp: Float, private val 
         val pad = padDp * d
         val rad = radiusDp * d
         val breathe = 0.5f + 0.5f * Math.sin(t * Math.PI * 4).toFloat()     // respira 2 veces por vuelta
-        // halo azul por fuera (capas cada vez más anchas y suaves)
+        // halo azul fino por fuera
         for ((w, a) in HALO) {
             val sw = w * d
-            p.shader = null; p.strokeWidth = sw
-            p.color = 0x4FC3F7 or ((255 * a * (0.55f + 0.45f * breathe)).toInt() shl 24)
-            val o = pad - sw / 2                       // el borde de adentro del halo pega con la foto
+            p.strokeWidth = sw
+            p.color = 0x4FC3F7 or ((255 * a * (0.6f + 0.4f * breathe)).toInt() shl 24)
+            val o = pad - sw / 2
             r.set(b.left + o, b.top + o, b.right - o, b.bottom - o)
             c.drawRoundRect(r, rad + sw / 2, rad + sw / 2, p)
         }
-        // la línea azul pegada a la foto
-        p.strokeWidth = 2.2f * d; p.color = 0xFF4FC3F7.toInt()
+        // la línea azul fina pegada a la foto
+        p.strokeWidth = 1.4f * d; p.color = 0xFF4FC3F7.toInt()
         r.set(b.left + pad, b.top + pad, b.right - pad, b.bottom - pad)
         c.drawRoundRect(r, rad, rad, p)
-        // la luz blanca que da vueltas por la orilla
-        val sg = android.graphics.SweepGradient(b.exactCenterX(), b.exactCenterY(),
-            intArrayOf(0x00FFFFFF, 0x00FFFFFF, 0xCCE1F5FE.toInt(), 0xFFFFFFFF.toInt(), 0x00FFFFFF), floatArrayOf(0f, 0.70f, 0.85f, 0.92f, 1f))
-        m.setRotate(t * 360f, b.exactCenterX(), b.exactCenterY()); sg.setLocalMatrix(m)
-        p.shader = sg; p.strokeWidth = 3.4f * d
-        c.drawRoundRect(r, rad, rad, p)
-        p.shader = null
+        // el camino de la orilla (se mide una sola vez por tamaño)
+        if (b.width() != lastW || b.height() != lastH) {
+            edge.reset(); edge.addRoundRect(r, rad, rad, Path.Direction.CW)
+            pm.setPath(edge, true); len = pm.length; lastW = b.width(); lastH = b.height()
+        }
+        // ✨ dos líneas blancas que van trazando la orilla, una frente a la otra, con cola que se apaga
+        val tail = len * 0.16f
+        val steps = 24
+        for (k in 0..1) {
+            val head = ((t + k * 0.5f) % 1f) * len
+            p.strokeCap = Paint.Cap.BUTT
+            for (i in 0 until steps) {
+                val f0 = i / steps.toFloat(); val f1 = (i + 1) / steps.toFloat()
+                val a0 = head - tail * (1 - f0); val a1 = head - tail * (1 - f1)
+                seg.reset(); addPiece(a0, a1)
+                p.strokeWidth = (0.8f + 1.4f * f1) * d
+                p.color = 0xFFFFFF or ((255 * f1 * f1).toInt() shl 24)
+                c.drawPath(seg, p)
+            }
+            p.strokeCap = Paint.Cap.ROUND
+            // puntita brillante con un poquito de luz
+            seg.reset(); addPiece(head - len * 0.012f, head)
+            p.strokeWidth = 5f * d; p.color = 0x55E1F5FE
+            c.drawPath(seg, p)
+        }
+    }
+
+    /** Agrega a [seg] el pedazo de la orilla entre [a] y [b] (da la vuelta si hace falta). */
+    private fun addPiece(a: Float, b: Float) {
+        var s = a; var e = b
+        while (s < 0) { s += len; e += len }
+        if (e <= len) pm.getSegment(s, e, seg, true)
+        else { pm.getSegment(s, len, seg, true); pm.getSegment(0f, e - len, seg, true) }
     }
 
     override fun start() { if (!anim.isRunning) anim.start() }

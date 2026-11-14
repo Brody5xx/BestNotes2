@@ -15,8 +15,8 @@ class GuideActivity : Activity() {
     private class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
-        "2026-11-14" to ("Parte 4c-1: calculadora (gráficas, tabla, divisas y horas de trabajo), bóveda cifrada, fondos de pantalla, la misma fila de botones de Best Notes, brillo azul que da vueltas en la foto seleccionada y animaciones más lentas" to
-            "Part 4c-1: calculator (graphs, table, currency and work hours), encrypted vault, wallpapers, the same button row as Best Notes, spinning blue glow on the selected photo and slower animations"),
+        "2026-11-14" to ("Parte 4c-1: calculadora (gráficas, tabla, divisas y horas de trabajo), bóveda cifrada, fondos de pantalla, la misma fila de botones de Best Notes, brillo azul fino con dos líneas blancas que trazan la orilla de la foto seleccionada y animaciones más lentas" to
+            "Part 4c-1: calculator (graphs, table, currency and work hours), encrypted vault, wallpapers, the same button row as Best Notes, thin blue glow with two white lines tracing the edge of the selected photo and slower animations"),
         "2026-11-14" to ("Parte 4b: el diseño de vidrio de Best Notes con sus animaciones (estrellitas, círculo al abrir), fotos que acomodan el texto en vivo, IA (asistente, reescribir, palabras y frases profesionales, ortografía), reporte del día, lista de materiales y pasar audios a texto" to
             "Part 4b: Best Notes glass design with its animations (sparkles, circle when opening), photos that move the text live, AI (assistant, rewrite, professional words and phrases, spelling), daily report, materials list and audio to text"),
         "2026-11-14" to ("Parte 4a: mover fotos como antes (brillo azul, cruz roja, escribir al lado), compartir como imagen o PDF, dictar, pendientes, recordatorios, bloqueo de la app y formato de hora" to
