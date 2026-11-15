@@ -12,9 +12,11 @@ import android.widget.ScrollView
    agrega una línea arriba en NEWS.
    ============================================================ */
 class GuideActivity : Activity() {
-    private class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
+    class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-14" to ("☀️ un toque cambia claro ↔ oscuro con un círculo (déjalo presionado para los fondos), modo Translúcido con el fondo de tu teléfono, idiomas de derecha a izquierda, y la guía y plantillas también se traducen" to
+            "☀️ one tap switches light ↔ dark with a circle (long-press for backgrounds), Translucent mode with your phone wallpaper, right-to-left languages, and the guide and templates are translated too"),
         "2026-11-14" to ("Parte 4c-3: respaldo con contraseña, plantillas, modo claro, 39 idiomas (traducidos con la IA), dibujos en las tarjetas de inicio y «Borrar todo el texto»" to
             "Part 4c-3: password backup, templates, light mode, 39 languages (translated by the AI), drawings on home cards and “Clear all the text”"),
         "2026-11-14" to ("El título se pinta letra por letra (como el texto) y la pantalla de inicio muestra la nota como es: colores, contorno, tamaños, listas, fotos, notas de voz y videos" to
@@ -45,7 +47,8 @@ class GuideActivity : Activity() {
             "Part 1: home screen, text, checklist, highlighted search and import from Best Notes"),
     )
 
-    private val GUIDE = listOf(
+    companion object {
+    val GUIDE = listOf(
         Sec(MoreIcons.IMPORT,
             "Pasar tus notas de Best Notes" to listOf(
                 "En Best Notes (la app vieja): menú ☰ → «Exportar todo para Best Notes 2». Pon una contraseña y compártelo con «Best Notes 2» (o guárdalo).",
@@ -343,14 +346,24 @@ class GuideActivity : Activity() {
             )),
         Sec(MoreIcons.MOON,
             "Modo claro e idiomas" to listOf(
-                "☀️ Apariencia → Oscuro o Claro. Cada modo tiene sus propios fondos.",
+                "Toca ☀️ para cambiar entre claro y oscuro. Déjalo presionado para escoger el fondo. Cada modo tiene sus propios fondos.",
+                "«Translúcido»: detrás de la app se ve el fondo de pantalla de tu teléfono.",
                 "☰ → Idioma: 39 idiomas. Español e inglés vienen listos; los demás los traduce la IA gratis una sola vez (1 a 4 minutos con internet).",
             ),
             "Light mode and languages" to listOf(
-                "☀️ Appearance → Dark or Light. Each mode has its own backgrounds.",
+                "Tap ☀️ to switch between light and dark. Long-press it to pick the background. Each mode has its own backgrounds.",
+                "“Translucent”: your phone wallpaper shows behind the app.",
                 "☰ → Language: 39 languages. Spanish and English come ready; the free AI translates the others only once (1 to 4 minutes with internet).",
             )),
     )
+
+    /** Los textos en inglés de la guía (para que la IA los traduzca a otros idiomas). */
+    fun enStrings(): Map<String, String> {
+        val m = LinkedHashMap<String, String>()
+        for ((i, sec) in GUIDE.withIndex()) { m["g.$i.t"] = sec.en.first; sec.en.second.forEachIndexed { j, x -> m["g.$i.$j"] = x } }
+        return m
+    }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -366,8 +379,10 @@ class GuideActivity : Activity() {
         sv.addView(col)
         col.addView(tv(if (es) "Lo más nuevo" else "What's new", 14f, T.accent, true).apply { setPadding(0, dp(6), 0, dp(4)) })
         NEWS.forEach { (d, t) -> col.addView(tv("$d · " + if (es) t.first else t.second, 14f, T.muted).apply { setPadding(0, 0, 0, dp(6)) }) }
-        for (s in GUIDE) {
-            val (t, lines) = if (es) s.es else s.en
+        val other = L.lang != "es" && L.lang != "en"
+        for ((gi, s) in GUIDE.withIndex()) {
+            var (t, lines) = if (es) s.es else s.en
+            if (other) { t = L.tx("g.$gi.t") ?: t; lines = lines.mapIndexed { j, x -> L.tx("g.$gi.$j") ?: x } }
             val card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(14), dp(16), dp(14)); background = roundBg(T.card, dp(18).toFloat(), T.border, dp(1)) }
             val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             head.addView(IconView(this, s.icon, 9f).apply { color = T.accent; isClickable = false }, lp(dp(26), dp(26)))

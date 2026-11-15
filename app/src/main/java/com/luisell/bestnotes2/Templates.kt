@@ -13,7 +13,7 @@ import org.json.JSONObject
 object Templates {
     class Tpl(val emoji: String, val name: String, val title: String, val blocks: () -> MutableList<Block>, val mine: Int = -1, val icon: Int = MoreIcons.TEXT_T)
 
-    private fun today(): String = java.text.SimpleDateFormat(if (L.lang == "es") "EEEE d 'de' MMMM yyyy" else "EEEE, MMMM d, yyyy", L.locale)
+    private fun today(): String = java.text.DateFormat.getDateInstance(java.text.DateFormat.FULL, L.locale)
         .format(java.util.Date()).replaceFirstChar { it.uppercase() }
 
     private fun b(t: String) = Run(t, St.PLAIN.copy(b = true))
@@ -21,9 +21,15 @@ object Templates {
     private fun text(vararg runs: Run) = Block.Text(runs.toMutableList())
     private fun list(kind: String, vararg items: String) = Block.ListB(kind, items.map { Item(mutableListOf(Run(it))) }.toMutableList())
 
+    /** Los textos en inglés de las plantillas (para traducirlos con la IA). */
+    val EN_STRINGS = LinkedHashMap<String, String>()
+
     fun builtIn(): List<Tpl> {
-        val es = L.lang == "es"
-        fun t(a: String, b: String) = if (es) a else b
+        fun t(a: String, b: String): String {
+            val k = "tpl." + b.lowercase().replace(Regex("[^a-z0-9]+"), "_").trim('_').take(40)
+            EN_STRINGS[k] = b
+            return when (L.lang) { "es" -> a; "en" -> b; else -> L.tx(k) ?: b }
+        }
         return listOf(
             Tpl("📋", t("Reporte de trabajo", "Work report"), t("Reporte", "Report") + " — " + today(), {
                 mutableListOf(

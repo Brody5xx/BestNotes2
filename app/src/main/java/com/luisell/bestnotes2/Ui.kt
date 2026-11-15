@@ -173,6 +173,13 @@ fun Activity.edgeToEdge(root: View, windowBg: Boolean = true) {
         (if (T.light) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or (if (android.os.Build.VERSION.SDK_INT >= 26) View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0) else 0)
     root.background = null
     root.fitsSystemWindows = true
+    // 🌍 árabe, hebreo, persa y urdu: la pantalla se acomoda de derecha a izquierda
+    window.decorView.layoutDirection = if (L.isRtl) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
+    // 📱 modo translúcido: se ve el fondo de pantalla del teléfono detrás de la app
+    if (Wall.current(this) == "phone") {
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+        window.setFormat(android.graphics.PixelFormat.TRANSLUCENT)
+    } else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
     if (windowBg) window.setBackgroundDrawable(Glass.background(this))       // el fondo escogido en ☀️ Apariencia
 }
 

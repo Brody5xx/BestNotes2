@@ -58,7 +58,7 @@ object Wall {
         val p = ctx.getSharedPreferences("ajustes", 0)
         val w = p.getString(if (T.light) "wallLight" else "wall", defaultId()) ?: defaultId()
         // un fondo del otro modo no sirve aquí
-        return if (w == "photo" || w == "best" && !T.light || GRADS.any { it[0] == w }) w else defaultId()
+        return if (w == "photo" || w == "phone" || w == "best" && !T.light || GRADS.any { it[0] == w }) w else defaultId()
     }
     fun blur(ctx: Context): Boolean = ctx.getSharedPreferences("ajustes", 0).getBoolean("wallBlur", true)
     fun photoFile(ctx: Context) = java.io.File(ctx.filesDir, "fondo_app.jpg")
@@ -66,7 +66,11 @@ object Wall {
     fun set(ctx: Context, id: String) { ctx.getSharedPreferences("ajustes", 0).edit().putString(if (T.light) "wallLight" else "wall", id).apply(); cacheKey = "" }
     fun setBlur(ctx: Context, on: Boolean) { ctx.getSharedPreferences("ajustes", 0).edit().putBoolean("wallBlur", on).apply(); cacheKey = "" }
 
+    /** Lo que se pone encima del fondo del teléfono (para que se lea la letra). */
+    fun phoneDim() = if (T.light) 0x8CFFFFFF.toInt() else 0x8C000000.toInt()
+
     fun drawable(ctx: Context, id: String = current(ctx)): Drawable {
+        if (id == "phone") return android.graphics.drawable.ColorDrawable(phoneDim())
         (DARK + LIGHT).firstOrNull { (it[0] as String) == id }?.let {
             return android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, it[3] as IntArray)
         }

@@ -181,5 +181,12 @@ class CapturasTest {
             val ca = Robolectric.buildActivity(CalcActivity::class.java).setup().visible().get(); idle()
             shot(ca.window.decorView, "25_claro_calc")
         } finally { T.light = false }
+        // 🌍 derecha a izquierda (árabe)
+        L.set(ctx, "ar")
+        try {
+            val m2 = Robolectric.buildActivity(MainActivity::class.java).setup().visible().get()
+            waitIo(); idle(); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+            shot(m2.window.decorView, "26_rtl")
+        } finally { L.set(ctx, "auto") }
     }
 }

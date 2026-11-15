@@ -54,7 +54,7 @@ class MainActivity : Activity() {
     private var drawer: View? = null
     private val listener: () -> Unit = { refresh() }
 
-    companion object { const val PICK_FILE = 41; const val REQ_WALL = 42; const val REQ_SAVE_BK = 43 }
+    
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -143,6 +143,50 @@ class MainActivity : Activity() {
         setContentView(root)
         root.isFocusableInTouchMode = true; root.requestFocus()
         paintHeader()
+        themeReveal()
+    }
+
+    /* ---------- ☀️/🌙 cambiar de modo con un círculo que crece desde el botón ---------- */
+    companion object {
+        const val PICK_FILE = 41; const val REQ_WALL = 42; const val REQ_SAVE_BK = 43
+        private var snap: android.graphics.Bitmap? = null
+        private var sx = 0; private var sy = 0
+    }
+
+    private fun switchTheme(light: Boolean, from: View?) {
+        if (T.light == light) return
+        val dv = window.decorView
+        try {
+            val bm = android.graphics.Bitmap.createBitmap(dv.width, dv.height, android.graphics.Bitmap.Config.ARGB_8888)
+            dv.draw(android.graphics.Canvas(bm)); snap = bm
+            val loc = IntArray(2)
+            if (from != null) { from.getLocationInWindow(loc); sx = loc[0] + from.width / 2; sy = loc[1] + from.height / 2 } else { sx = dv.width - dp(40); sy = dp(60) }
+        } catch (_: Throwable) { snap = null }
+        prefs.edit().putString("theme", if (light) "light" else "dark").apply()
+        if (!prefs.getBoolean("themeTip", false)) { prefs.edit().putBoolean("themeTip", true).apply(); toast(L.t("themeTip")) }
+        T.light = light
+        Sheet.closeTop(this)
+        recreate()
+    }
+
+    private fun themeReveal() {
+        val bm = snap ?: return
+        snap = null
+        val dv = window.decorView as ViewGroup
+        val old = ImageView(this).apply { setImageBitmap(bm); scaleType = ImageView.ScaleType.FIT_XY }
+        dv.addView(old, 0, ViewGroup.LayoutParams(MATCH, MATCH))          // lo de antes queda DEBAJO
+        root.background = Glass.background(this)
+        root.post {
+            val r = Math.hypot(maxOf(sx, root.width - sx).toDouble(), maxOf(sy, root.height - sy).toDouble()).toFloat()
+            val a = android.view.ViewAnimationUtils.createCircularReveal(root, sx, sy, 0f, r)
+            a.duration = 650; a.interpolator = android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f)
+            a.addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(x: android.animation.Animator) { dv.removeView(old); root.background = null; bm.recycle() }
+            })
+            a.start()
+            val sp = SparkleView(this, Fx.ring(this, sx.toFloat(), sy.toFloat(), r * 0.35f))
+            dv.addView(sp, ViewGroup.LayoutParams(MATCH, MATCH)); sp.play(800)
+        }
     }
 
     private lateinit var fabBox: View
@@ -182,7 +226,10 @@ class MainActivity : Activity() {
             spread(); header.addView(glassBtn(MoreIcons.SHIELD) { startActivity(Intent(this, VaultActivity::class.java)) })
             spread(); header.addView(glassBtn(MoreIcons.SORT) { pickSort() })
             spread(); header.addView(glassBtn(if (grid) MoreIcons.LISTV else MoreIcons.GRID) { toggleLayout() })
-            spread(); header.addView(glassBtn(MoreIcons.SUN) { appearance() })
+            // ☀️/🌙 un toque cambia claro ↔ oscuro; dejándolo presionado salen los fondos
+            spread(); header.addView(glassBtn(if (T.light) MoreIcons.MOON else MoreIcons.SUN) { v -> switchTheme(!T.light, v) }.apply {
+                setOnLongClickListener { appearance(); true }
+            })
         }
     }
 
@@ -435,16 +482,10 @@ class MainActivity : Activity() {
     private fun appearance() {
         val cur = Wall.current(this)
         val opts = (if (T.light) emptyList() else listOf("best" to "Best Notes")) + Wall.GRADS.map { it[0] as String to (if (L.lang == "es") it[1] else it[2]) as String } +
-            ("photo" to L.t("wallPhoto"))
+            ("photo" to L.t("wallPhoto")) + ("phone" to L.t("wallPhone"))
         val sh = Sheet(this, "☀️ " + L.t("appearance"), L.t("appearanceSub"))
         // 🌙 oscuro / ☀️ claro
-        fun setTheme(light: Boolean) {
-            if (T.light == light) return
-            prefs.edit().putString("theme", if (light) "light" else "dark").apply()
-            T.light = light
-            Sheet.closeTop(this)
-            Store.main.postDelayed({ recreate() }, 280)
-        }
+        fun setTheme(light: Boolean) { switchTheme(light, null) }
         sh.quick(MoreIcons.MOON, L.t("themeDark"), 0xFF8B7CFF.toInt(), !T.light, keepOpen = true) { setTheme(false) }
         sh.quick(MoreIcons.SUN, L.t("themeLight"), 0xFFFFB74D.toInt(), T.light, keepOpen = true) { setTheme(true) }
         val grid = android.widget.GridLayout(this).apply { columnCount = 3; setPadding(dp(6), dp(2), dp(6), dp(4)) }
@@ -465,6 +506,8 @@ class MainActivity : Activity() {
             val v = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(6), dp(4), dp(6), dp(10)) }
             val th = FrameLayout(this).apply {
                 background = if (id == "photo" && !Wall.photoFile(this@MainActivity).exists()) roundBg(tw(0x1A), dp(18).toFloat())
+                    else if (id == "phone") android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                        intArrayOf(0xFF5B86E5.toInt(), 0xFF36D1DC.toInt(), 0xFFB06AB3.toInt()))
                     else Wall.drawable(this@MainActivity, id)
                 clipToOutline = true; outlineProvider = object : android.view.ViewOutlineProvider() {
                     override fun getOutline(view: View, o: android.graphics.Outline) { o.setRoundRect(0, 0, view.width, view.height, dp(18).toFloat()) }
@@ -481,6 +524,7 @@ class MainActivity : Activity() {
                 mini.addView(card, lp(MATCH, WRAP).apply { bottomMargin = dp(6) })
             }
             if (id == "photo" && !Wall.photoFile(this).exists()) th.addView(tv("🖼️", 28f).apply { gravity = Gravity.CENTER }, FrameLayout.LayoutParams(MATCH, MATCH))
+            else if (id == "phone") { th.addView(mini, FrameLayout.LayoutParams(MATCH, WRAP)); th.addView(tv("📱", 24f).apply { gravity = Gravity.CENTER }, FrameLayout.LayoutParams(MATCH, MATCH)) }
             else th.addView(mini, FrameLayout.LayoutParams(MATCH, WRAP))
             // ✓ de seleccionado
             val mark = tv("✓", 15f, 0xFF161618.toInt(), true).apply { gravity = Gravity.CENTER; background = roundBg(0xFF4FC3F7.toInt(), dp(13).toFloat()); scaleX = 0f; scaleY = 0f; alpha = 0f }
@@ -492,7 +536,10 @@ class MainActivity : Activity() {
             v.setOnClickListener {
                 th.animate().scaleX(0.92f).scaleY(0.92f).setDuration(80).withEndAction { th.animate().scaleX(1f).scaleY(1f).setDuration(260).setInterpolator(android.view.animation.OvershootInterpolator(3f)).start() }.start()
                 if (id == "photo" && (selected == "photo" || !Wall.photoFile(this).exists())) { Sheet.closeTop(this); Store.main.postDelayed({ pickWallPhoto() }, 250); return@setOnClickListener }
-                selected = id; Wall.set(this, id); paint(); fadeWall()
+                val was = selected
+                selected = id; Wall.set(this, id); paint()
+                // el modo translúcido necesita volver a armar la ventana
+                if (id == "phone" || was == "phone") { Sheet.closeTop(this); Store.main.postDelayed({ recreate() }, 300) } else fadeWall()
             }
             grid.addView(v)
         }
@@ -646,7 +693,10 @@ class MainActivity : Activity() {
             val ready = L.hasLang(code)
             val sub = when { L.choice == code -> "✓"; ready -> null; else -> "✨ " + L.t("langAi") }
             sh.item(Icons.GLOBE, name, if (ready) Sheet.SKY else Sheet.VIOLET, sub) {
-                if (ready) { L.set(this, code); recreate() } else translateLang(code, name)
+                if (ready) {
+                    L.set(this, code); recreate()
+                    if (code != "es" && code != "en") Thread { try { Langs.translate(code) {} } catch (_: Exception) {} }.start()   // completa lo nuevo
+                } else translateLang(code, name)
             }
         }
         sh.show()

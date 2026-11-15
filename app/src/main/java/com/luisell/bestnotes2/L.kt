@@ -82,6 +82,12 @@ object L {
 
     val locale: Locale get() = when (lang) { "es" -> Locale("es"); "en" -> Locale.US; else -> Locale.forLanguageTag(lang) }
 
+    /** Idiomas que se escriben de derecha a izquierda. */
+    val isRtl get() = lang in setOf("ar", "he", "fa", "ur")
+
+    /** Un texto traducido por la IA (o null si no está). */
+    fun tx(k: String): String? = extra[k]
+
     fun t(k: String, vararg args: Pair<String, Any>): String {
         var s = (if (lang == "es") ES[k] else extra[k] ?: EN[k]) ?: ES[k] ?: k
         for ((a, b) in args) s = s.replace("{$a}", b.toString())
@@ -255,6 +261,7 @@ object L {
         "langSub" to "Español e inglés vienen listos; los demás los traduce la IA", "langAi" to "Se traduce con la IA (una vez)",
         "langAiMsg" to "La IA gratis va a traducir la app a este idioma. Tarda de 1 a 4 minutos y necesita internet (solo esta vez).", "langAiGo" to "Traducir",
         "langAiWorking" to "Traduciendo…", "langAiFail" to "No se pudo terminar. Revisa el internet e inténtalo otra vez (sigue donde quedó).",
+        "wallPhone" to "Translúcido", "themeTip" to "Tip: deja presionado ☀️ para escoger el fondo",
     )
 
     private val EN = mapOf(
@@ -419,5 +426,6 @@ object L {
         "langSub" to "Spanish and English come ready; the AI translates the others", "langAi" to "Translated by the AI (once)",
         "langAiMsg" to "The free AI will translate the app into this language. It takes 1 to 4 minutes and needs internet (only this time).", "langAiGo" to "Translate",
         "langAiWorking" to "Translating…", "langAiFail" to "Couldn't finish. Check your internet and try again (it continues where it stopped).",
+        "wallPhone" to "Translucent", "themeTip" to "Tip: long-press ☀️ to pick the background",
     )
 }

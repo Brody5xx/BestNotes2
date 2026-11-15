@@ -332,6 +332,7 @@ class NoteActivity : Activity(), EditorView.Host {
         val bg = if (c == 0) T.bg else blend(T.bg, c, 0.14f)
         // el fondo de vidrio de Best Notes, con el color de la nota encima (suavecito)
         val layers = arrayListOf<android.graphics.drawable.Drawable>(Glass.background(this))
+        if (Wall.current(this) == "phone") layers.add(0, android.graphics.drawable.ColorDrawable(0x1A000000))
         if (c != 0) layers.add(android.graphics.drawable.ColorDrawable((c and 0xFFFFFF) or 0x24000000))
         root.background = android.graphics.drawable.LayerDrawable(layers.toTypedArray())
         bgColor = bg

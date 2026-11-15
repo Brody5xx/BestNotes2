@@ -22,7 +22,9 @@ object Langs {
     fun translate(code: String, onProgress: (Int) -> Unit): Boolean {
         val f = L.langFile(code) ?: return false
         val done = try { JSONObject(f.takeIf { it.exists() }?.readText() ?: "{}") } catch (_: Exception) { JSONObject() }
-        val en = L.enMap()
+        // los textos de la app + la guía + las plantillas
+        Templates.builtIn().forEach { it.blocks() }
+        val en = L.enMap() + GuideActivity.enStrings() + Templates.EN_STRINGS
         val todo = en.keys.filter { !done.has(it) }
         val name = NAMES[code] ?: code
         val sys = "You are a professional mobile-app translator. Translate the VALUES of the JSON object from English to $name. " +
