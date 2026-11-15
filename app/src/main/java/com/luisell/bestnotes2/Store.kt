@@ -169,6 +169,8 @@ object Store {
         }
         // las fotos de las versiones viejas (🕘 historial) también se guardan
         appCtx?.let { ctx -> try { Versions.allText(ctx).forEach { s -> re2.findAll(s).forEach { used.add(it.groupValues[1]) } } } catch (_: Exception) {} }
+        // y las fotos del 📖 registro
+        appCtx?.let { ctx -> try { NoteLog.allText(ctx).forEach { s -> Regex("\\\\u0001([^\"\\\\]+)|\u0001([^\"]+)").findAll(s).forEach { m -> used.add(m.groupValues[1].ifEmpty { m.groupValues[2] }) } } } catch (_: Exception) {} }
         mediaDir.listFiles()?.forEach {
             val keep = it.name in used || (it.name.endsWith(".thumb.jpg") && it.name.removeSuffix(".thumb.jpg") in used)
             if (!keep && System.currentTimeMillis() - it.lastModified() > 60_000) it.delete()

@@ -252,6 +252,9 @@ class CalcActivity : Activity() {
         pad = buildPad()
         root.addView(pad, lp(MATCH, WRAP))
         setContentView(root)
+        // el teclado del teléfono NO se abre solo: la calculadora tiene sus propias teclas
+        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        root.post { hideKb() }
         syncAng()
         renderHist()
         setTab("calc")
@@ -290,8 +293,12 @@ class CalcActivity : Activity() {
     }
 
     private fun hideKb() {
-        (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).hideSoftInputFromWindow(window.decorView.windowToken, 0)
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+        imm.hideSoftInputFromWindow(window.decorView.windowToken, 0)
+        currentFocus?.let { imm.hideSoftInputFromWindow(it.windowToken, 0) }
     }
+
+    override fun onResume() { super.onResume(); if (tab == "calc" || tab == "y") window.decorView.post { hideKb() } }
 
     /* ---------- guardar (un poquito después, para no guardar en cada tecla) ---------- */
     private val saver = Runnable {

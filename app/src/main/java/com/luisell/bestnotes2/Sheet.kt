@@ -112,7 +112,8 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
 
         panel = LinearLayout(act).apply {
             orientation = LinearLayout.VERTICAL
-            background = Glass.make(act, 30f, strong = true)
+            // vidrio sobre un fondo oscuro (para que no se mezcle con lo de atrás)
+            background = android.graphics.drawable.LayerDrawable(arrayOf(roundBg(0xE61C1C20.toInt(), dp(30f).toFloat()), Glass.make(act, 30f, strong = true)))
             setPadding(dp(8f), dp(8f), dp(8f), dp(14f))
             isClickable = true; elevation = dp(16f).toFloat()
         }

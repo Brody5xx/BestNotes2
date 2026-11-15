@@ -97,7 +97,7 @@
         <activity
             android:name=".CalcActivity"
             android:exported="false"
-            android:windowSoftInputMode="adjustResize" />
+            android:windowSoftInputMode="adjustResize|stateAlwaysHidden" />
         <activity
             android:name=".VaultActivity"
             android:exported="false"

@@ -425,6 +425,9 @@ class NoteActivity : Activity(), EditorView.Host {
         extra = if (extraObj.length() > 0) extraObj.toString() else null
         Store.saveNote(meta, blocksJson(editor.blocks), extra, keepExtra = false)
         isNew = false
+        // 📖 el registro se actualiza solo (en segundo plano)
+        val toks = NoteLog.tokens(meta.title, editor.blocks); val id = meta.id; val app = applicationContext
+        Store.io.execute { try { NoteLog.update(app, id, toks, logMine) } catch (_: Exception) {} }
         Store.changed()
     }
 
@@ -1321,15 +1324,7 @@ class NoteActivity : Activity(), EditorView.Host {
     private var openAt = 0L
     private var wasNew = false
 
-    /** Al salir: si cambiaste algo, se guarda sola la versión de ANTES. */
-    private fun autoVersion() {
-        if (!loaded || wasNew || meta.deleted) return
-        val now = blocksJson(editor.blocks)
-        if (now == openBody && meta.title == openTitle && extraObj.opt("ink")?.toString() == openInk?.toString()) return
-        val v = Versions.make(openTitle, openBody, openInk, auto = true, at = openAt.takeIf { it > 0 } ?: System.currentTimeMillis())
-        val id = meta.id; val app = applicationContext
-        Store.io.execute { try { Versions.add(app, id, v) } catch (_: Exception) {} }
-    }
+    private val logMine = java.util.Collections.synchronizedSet(HashSet<String>())
 
     private fun histLocked() = extraObj.optBoolean("histLocked")
 
@@ -1339,36 +1334,52 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     private fun showHistory() {
-        editor.flushAll()
+        editor.flushAll(); save()
         val list = Versions.load(this, meta.id)
-        val sh = Sheet(this, "🕘 " + L.t("history"), L.t("historySub"))
+        val logN = NoteLog.load(this, meta.id).size
+        val sh = Sheet(this, "🕘 " + L.t("history"))
+        sh.custom(tv(L.t("histIntro"), 14f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(18), 0, dp(18), dp(12)) })
+        // 📖 el registro (una sola lista que se actualiza sola)
+        val logCard = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12), dp(12), dp(12), dp(12))
+            background = Glass.make(this@NoteActivity, 20f)
+        }
+        val ic = FrameLayout(this).apply { background = roundBg(0xFFFFFFFF.toInt(), dp(24).toFloat()) }
+        ic.addView(IconView(this, Icons.BOOK, 9.5f).apply { color = 0xFF161618.toInt(); isClickable = false }, FrameLayout.LayoutParams(dp(48), dp(48)))
+        logCard.addView(ic, lp(dp(48), dp(48)))
+        val lt = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), 0, dp(6), 0) }
+        lt.addView(tv(L.t("record"), 17f, T.text, true))
+        lt.addView(tv(L.t("recLines", "n" to logN), 13f, T.muted))
+        logCard.addView(lt, lp(0, WRAP, 1f))
+        logCard.addView(IconView(this, Icons.CHEVRON, 6.5f).apply { color = T.muted; isClickable = false }, lp(dp(20), dp(20)))
+        logCard.setOnClickListener { pop(it); Sheet.closeTop(this); Store.main.postDelayed({ viewLog() }, 300) }
+        sh.custom(FrameLayout(this).apply { setPadding(dp(6), 0, dp(6), dp(10)); addView(logCard) })
         // guardar ahora
         val saveBtn = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(dp(14), dp(13), dp(14), dp(13))
-            pressBg(0xFFFFFFFF.toInt(), 22f)
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(dp(14), dp(14), dp(14), dp(14))
+            pressBg(0xFFFFFFFF.toInt(), 24f)
         }
         saveBtn.addView(IconView(this, Icons.CHECK, 8.5f).apply { color = 0xFF161618.toInt(); isClickable = false }, lp(dp(22), dp(22)))
-        saveBtn.addView(tv(L.t("saveVersionNow"), 15.5f, 0xFF161618.toInt(), true).apply { setPadding(dp(8), 0, 0, 0) })
+        saveBtn.addView(tv(L.t("saveVersionNow"), 16f, 0xFF161618.toInt(), true).apply { setPadding(dp(8), 0, 0, 0) })
         saveBtn.setOnClickListener {
             pop(it)
             val v = Versions.make(title.text.toString(), blocksJson(editor.blocks), extraObj.opt("ink"), auto = false)
             if (Versions.add(this, meta.id, v)) { toast(L.t("versionSaved")); Sheet.closeTop(this); Store.main.postDelayed({ showHistory() }, 320) }
             else toast(L.t("versionExists"))
         }
-        sh.custom(LinearLayout(this).apply { setPadding(dp(8), dp(4), dp(8), dp(10)); addView(saveBtn, lp(MATCH, WRAP)) })
-        if (list.isEmpty()) sh.custom(tv(L.t("noVersions"), 14f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(20), dp(14), dp(20), dp(18)) })
+        sh.custom(LinearLayout(this).apply { setPadding(dp(6), 0, dp(6), dp(6)); addView(saveBtn, lp(MATCH, WRAP)) })
+        sh.custom(tv(L.t("savedVersions").uppercase(L.locale), 13f, T.muted, true).apply { letterSpacing = 0.1f; setPadding(dp(14), dp(12), dp(14), dp(8)) })
+        if (list.isEmpty()) sh.custom(tv(L.t("noVersions"), 14.5f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(20), dp(6), dp(20), dp(14)) })
         val df = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, L.locale)
         for ((i, v) in list.withIndex()) {
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(11), dp(10), dp(11))
                 background = Glass.make(this@NoteActivity, 18f)
             }
-            val auto = v.optBoolean("auto")
-            val dot = View(this).apply { background = roundBg(if (auto) 0xFF4DD0E1.toInt() else 0xFFFFD54F.toInt(), dp(5).toFloat()) }
-            card.addView(dot, lp(dp(10), dp(10)))
+            card.addView(View(this).apply { background = roundBg(0xFFFFD54F.toInt(), dp(5).toFloat()) }, lp(dp(10), dp(10)))
             val txt = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, dp(6), 0) }
             txt.addView(tv(df.format(Date(v.optLong("at"))) + (if (i == 0) "  ·  " + L.t("latest") else ""), 14f, T.text, true))
-            txt.addView(tv((if (auto) L.t("versionAuto") else L.t("versionMine")) + " · " + Versions.preview(v).ifEmpty { L.t("emptyNote") }, 12.5f, T.muted).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END })
+            txt.addView(tv(Versions.preview(v).ifEmpty { L.t("emptyNote") }, 12.5f, T.muted).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END })
             card.addView(txt, lp(0, WRAP, 1f))
             card.addView(IconView(this, Icons.CHEVRON, 6f).apply { color = 0x55FFFFFF; isClickable = false }, lp(dp(18), dp(18)))
             card.setOnClickListener { pop(it); Sheet.closeTop(this); Store.main.postDelayed({ viewVersion(v) }, 300) }
@@ -1376,7 +1387,9 @@ class NoteActivity : Activity(), EditorView.Host {
         }
         // proteger con PIN
         val sw = android.widget.Switch(this).apply {
-            text = L.t("protectHist"); setTextColor(T.text); textSize = 15f; isChecked = histLocked(); setPadding(dp(14), dp(12), dp(14), dp(8))
+            text = "🔒  " + L.t("protectHist"); setTextColor(T.text); textSize = 15.5f; isChecked = histLocked(); setPadding(dp(14), dp(12), dp(14), dp(8))
+            thumbTintList = android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0xFFFFFFFF.toInt(), 0xFFBDBDBD.toInt()))
+            trackTintList = android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0xFF4FC3F7.toInt(), 0x55FFFFFF))
             setOnCheckedChangeListener { b, on ->
                 if (on) {
                     val go = { extraObj.put("histLocked", true); dirty = true; save(); hint(L.t("histWithPin")) }
@@ -1387,6 +1400,45 @@ class NoteActivity : Activity(), EditorView.Host {
         }
         sh.custom(sw)
         sh.show()
+    }
+
+    /** 📖 Ver el registro: todo lo que escribiste (y fotos), en orden. */
+    private fun viewLog() {
+        val log = NoteLog.load(this, meta.id)
+        val sh = Sheet(this, "📖 " + L.t("record"), L.t("recIntro"))
+        sh.quick(MoreIcons.RESTORE, L.t("putAllInNote"), Sheet.GREEN) {
+            if (log.isEmpty()) return@quick
+            confirm(L.t("putAllInNote"), L.t("putAllMsg"), L.t("ok")) { logToNote(log) }
+        }
+        sh.quick(Icons.TRASH, L.t("recClear"), Sheet.RED) {
+            confirm(L.t("recClear"), L.t("recClearMsg"), L.t("del"), true) { NoteLog.clear(this, meta.id); logMine.clear(); toast(L.t("recCleared")) }
+        }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(12)); background = Glass.make(this@NoteActivity, 18f) }
+        if (log.isEmpty()) box.addView(tv(L.t("recEmpty"), 15f, T.muted).apply { gravity = Gravity.CENTER })
+        for (e in log) {
+            if (e.startsWith(NoteLog.IMG)) {
+                val iv = android.widget.ImageView(this).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP; clipToOutline = true; background = roundBg(0x1AFFFFFF, dp(12).toFloat()) }
+                Thumbs.load(e.substring(1), dp(300)) { bm -> if (bm != null) iv.setImageBitmap(bm) else iv.visibility = View.GONE }
+                box.addView(iv, lp(MATCH, dp(130)).apply { topMargin = dp(4); bottomMargin = dp(6) })
+            } else box.addView(tv(e, 15.5f, T.text).apply { setPadding(0, dp(3), 0, dp(3)) })
+        }
+        sh.custom(FrameLayout(this).apply { setPadding(dp(6), dp(4), dp(6), dp(4)); addView(box) })
+        sh.show()
+    }
+
+    private fun logToNote(log: List<String>) {
+        if (snapPending) snapshot()
+        val blocks = ArrayList<Block>()
+        val sb = StringBuilder()
+        fun flushText() { if (sb.isNotEmpty()) { blocks.add(Block.Text(mutableListOf(Run(sb.toString().trimEnd('\n'))))); sb.clear() } }
+        for (e in log) if (e.startsWith(NoteLog.IMG)) { flushText(); blocks.add(Block.Img(e.substring(1))) } else sb.append(e).append('\n')
+        flushText()
+        muting = true
+        editor.setBlocks(normalize(blocks))
+        muting = false
+        dirty = true; save(); snapshot()
+        root.alpha = 0.3f; root.animate().alpha(1f).setDuration(450).start()
+        toast(L.t("putAllDone"))
     }
 
     private fun viewVersion(v: JSONObject) {
@@ -1409,9 +1461,6 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     private fun restoreVersion(v: JSONObject) {
-        // lo de ahora se guarda como versión, por si acaso
-        val now = Versions.make(title.text.toString(), blocksJson(editor.blocks), extraObj.opt("ink"), auto = true)
-        Versions.add(this, meta.id, now)
         if (snapPending) snapshot()
         muting = true
         title.setText(v.optString("t"))
@@ -1573,7 +1622,6 @@ class NoteActivity : Activity(), EditorView.Host {
         if (closing) return
         if (rec != null) stopRecording(true)
         save()
-        autoVersion()
         if (!::root.isInitialized || !root.isAttachedToWindow) { super.finish(); return }
         closing = true
         currentFocus?.let { v -> (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).hideSoftInputFromWindow(v.windowToken, 0) }

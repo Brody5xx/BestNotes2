@@ -48,9 +48,22 @@ class CapturasTest {
         val open = MainActivity::class.java.getDeclaredMethod("openDrawer").apply { isAccessible = true }
         open.invoke(main); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
         shot(main.window.decorView, "2_menu")
+        MainActivity::class.java.getDeclaredMethod("closeDrawer").apply { isAccessible = true }.invoke(main)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(2))
+        MainActivity::class.java.getDeclaredMethod("appearance").apply { isAccessible = true }.invoke(main)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
+        shot(main.window.decorView, "2b_apariencia")
+        Sheet.closeTop(main); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
         val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n1")).setup().visible().get()
         waitIo(); idle(); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
         shot(act.window.decorView, "3_nota")
+        // escribir algo para que el registro tenga renglones
+        act.window.decorView.let { v -> fun f(x: View): RichEdit? { if (x is RichEdit) return x; if (x is android.view.ViewGroup) for (i in 0 until x.childCount) f(x.getChildAt(i))?.let { return it }; return null }; f(v) }?.let { e ->
+            e.requestFocus(); e.text.append(" nuevo"); idle()
+            NoteActivity::class.java.getDeclaredMethod("save").apply { isAccessible = true }.invoke(act); waitIo()
+            e.text.replace(0, e.text.length, "Otra cosa"); idle()
+            NoteActivity::class.java.getDeclaredMethod("save").apply { isAccessible = true }.invoke(act); waitIo()
+        }
         val ed = act.window.decorView.let { v -> fun find(x: View): EditorView? { if (x is EditorView) return x; if (x is android.view.ViewGroup) for (i in 0 until x.childCount) find(x.getChildAt(i))?.let { return it }; return null }; find(v)!! }
         val foto = ed.views.first { it is FotoView } as FotoView
         ed.selectImage(foto); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
@@ -65,6 +78,10 @@ class CapturasTest {
         NoteActivity::class.java.getDeclaredMethod("showHistory").apply { isAccessible = true }.invoke(act)
         shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
         shot(act.window.decorView, "11_historial")
+        Sheet.closeTop(act); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        NoteActivity::class.java.getDeclaredMethod("viewLog").apply { isAccessible = true }.invoke(act)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
+        shot(act.window.decorView, "11b_registro")
         Sheet.closeTop(act); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
         NoteActivity::class.java.getDeclaredMethod("wallMenu").apply { isAccessible = true }.invoke(act)
         shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))

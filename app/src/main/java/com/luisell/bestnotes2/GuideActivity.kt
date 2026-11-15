@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     private class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-14" to ("📖 Registro que se actualiza solo (ya no se llenan versiones automáticas), la calculadora ya no abre el teclado del teléfono y panel de Apariencia nuevo con vista previa" to
+            "📖 Log that updates by itself (no more automatic versions), the calculator no longer opens the phone keyboard and new Appearance panel with preview"),
         "2026-11-14" to ("Barra de abajo de dos filas como en Best Notes: dibujar, agregar (foto, video, audio, IA), B I U, resaltar, listas, tamaño «Aa 17» y el círculo de color (color, resaltar, contorno y tachado). Ícono de girar arreglado" to
             "Two-row bottom bar like Best Notes: draw, add (photo, video, audio, AI), B I U, highlight, lists, “Aa 17” size and the color circle (color, highlight, outline and strikethrough). Rotate icon fixed"),
         "2026-11-14" to ("Parte 4c-2: barra de arriba como en Best Notes (historial, ortografía, fondo de la nota y calculadora), historial y versiones de cada nota, revisar ortografía una por una, panel de la foto como antes y paneles nuevos de vidrio con animaciones" to
@@ -278,16 +280,18 @@ class GuideActivity : Activity() {
         Sec(MoreIcons.HISTORY,
             "Historial y versiones" to listOf(
                 "En la nota, arriba: el reloj con flecha 🕘 (entre deshacer y rehacer).",
-                "«Guardar versión ahora» guarda cómo está la nota. Esas no se borran nunca.",
-                "Al salir de una nota que cambiaste, se guarda sola la versión de ANTES (las 40 últimas).",
-                "Toca una versión para verla, restaurarla o borrarla. Lo de ahora también se guarda antes de restaurar.",
+                "📖 Registro: UNA sola lista que se va actualizando sola con todo lo que escribes (renglones y fotos), aunque después lo borres.",
+                "En el Registro: «Poner todo en la nota» o «Vaciar».",
+                "«Guardar versión ahora» guarda una copia exacta de la nota. Solo se guardan versiones cuando tú lo tocas.",
+                "Toca una versión para verla, restaurarla o borrarla.",
                 "Puedes proteger el historial con tu PIN.",
             ),
             "History and versions" to listOf(
                 "In the note, at the top: the clock with an arrow 🕘 (between undo and redo).",
-                "“Save version now” keeps how the note is. Those are never deleted.",
-                "When you leave a note you changed, the version from BEFORE is saved by itself (the last 40).",
-                "Tap a version to see it, restore it or delete it. What you have now is saved too before restoring.",
+                "📖 Log: ONE single list that updates by itself with everything you write (lines and photos), even if you delete it later.",
+                "In the Log: “Put all in the note” or “Clear”.",
+                "“Save version now” keeps an exact copy of the note. Versions are only saved when you tap it.",
+                "Tap a version to see it, restore it or delete it.",
                 "You can protect the history with your PIN.",
             )),
         Sec(Icons.SPELL,

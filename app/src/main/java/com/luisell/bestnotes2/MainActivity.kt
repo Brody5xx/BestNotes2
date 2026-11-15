@@ -425,42 +425,81 @@ class MainActivity : Activity() {
         va.start()
     }
 
-    /* ---------- ☀️ Apariencia: el fondo de la app ---------- */
+    /* ---------- ☀️ Apariencia: el fondo de la app (panel bonito) ---------- */
     private fun appearance() {
-        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(10), dp(16), dp(6)) }
-        val grid = android.widget.GridLayout(this).apply { columnCount = 3 }
-        val d = dialog().setTitle("☀️ " + L.t("appearance")).setView(ScrollView(this).apply { addView(box) }).setNegativeButton(L.t("done"), null).create()
         val cur = Wall.current(this)
         val opts = listOf("best" to "Best Notes") + Wall.GRADS.map { it[0] as String to (if (L.lang == "es") it[1] else it[2]) as String } +
             ("photo" to L.t("wallPhoto"))
-        val cell = (resources.displayMetrics.widthPixels - dp(120)) / 3
+        val sh = Sheet(this, "☀️ " + L.t("appearance"), L.t("appearanceSub"))
+        val grid = android.widget.GridLayout(this).apply { columnCount = 3; setPadding(dp(6), dp(2), dp(6), dp(4)) }
+        val cell = (resources.displayMetrics.widthPixels - dp(16 + 16 + 12 + 36 + 14)) / 3
+        val marks = HashMap<String, View>()
+        val names = HashMap<String, TextView>()
+        var selected = cur
+        fun paint() {
+            for ((id, m) in marks) {
+                val on = id == selected
+                m.animate().scaleX(if (on) 1f else 0f).scaleY(if (on) 1f else 0f).alpha(if (on) 1f else 0f).setDuration(260)
+                    .setInterpolator(android.view.animation.OvershootInterpolator(2.5f)).start()
+                names[id]?.setTextColor(if (on) 0xFF4FC3F7.toInt() else T.muted)
+                (m.parent as? View)?.foreground = if (on) roundBg(0, dp(18).toFloat(), 0xFF4FC3F7.toInt(), dp(3)) else roundBg(0, dp(18).toFloat(), 0x26FFFFFF, dp(1))
+            }
+        }
         for ((id, name) in opts) {
-            val v = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(4), dp(4), dp(4), dp(8)) }
+            val v = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(6), dp(4), dp(6), dp(10)) }
             val th = FrameLayout(this).apply {
-                background = if (id == "photo" && !Wall.photoFile(this@MainActivity).exists()) roundBg(0x1AFFFFFF, dp(14).toFloat(), T.border, dp(1))
+                background = if (id == "photo" && !Wall.photoFile(this@MainActivity).exists()) roundBg(0x1AFFFFFF, dp(18).toFloat())
                     else Wall.drawable(this@MainActivity, id)
                 clipToOutline = true; outlineProvider = object : android.view.ViewOutlineProvider() {
-                    override fun getOutline(view: View, o: android.graphics.Outline) { o.setRoundRect(0, 0, view.width, view.height, dp(14).toFloat()) }
+                    override fun getOutline(view: View, o: android.graphics.Outline) { o.setRoundRect(0, 0, view.width, view.height, dp(18).toFloat()) }
                 }
-                foreground = if (id == cur) roundBg(0, dp(14).toFloat(), 0xFF4FC3F7.toInt(), dp(3)) else null
             }
-            if (id == "photo") th.addView(tv("🖼️", 26f).apply { gravity = Gravity.CENTER }, FrameLayout.LayoutParams(MATCH, MATCH))
-            v.addView(th, lp(cell, (cell * 1.5f).toInt()))
-            v.addView(tv(name, 12f, if (id == cur) 0xFF4FC3F7.toInt() else T.muted, id == cur).apply { gravity = Gravity.CENTER; setPadding(0, dp(4), 0, 0) })
+            // una mini pantalla encima, para ver cómo quedan las notas
+            val mini = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(8), dp(10), dp(8), dp(8)) }
+            mini.addView(View(this).apply { background = roundBg(0xCCFFFFFF.toInt(), dp(3).toFloat()) }, lp(cell / 2, dp(6)).apply { bottomMargin = dp(8) })
+            for (k in 0 until 2) {
+                val card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), dp(6), dp(6), dp(6)); background = Glass.make(this@MainActivity, 9f) }
+                card.addView(View(this).apply { background = roundBg(0xB3FFFFFF.toInt(), dp(2).toFloat()) }, lp((cell * 0.45f).toInt(), dp(4)))
+                card.addView(View(this).apply { background = roundBg(0x59FFFFFF, dp(2).toFloat()) }, lp((cell * 0.6f).toInt(), dp(3)).apply { topMargin = dp(5) })
+                card.addView(View(this).apply { background = roundBg(0x59FFFFFF, dp(2).toFloat()) }, lp((cell * 0.35f).toInt(), dp(3)).apply { topMargin = dp(4) })
+                mini.addView(card, lp(MATCH, WRAP).apply { bottomMargin = dp(6) })
+            }
+            if (id == "photo" && !Wall.photoFile(this).exists()) th.addView(tv("🖼️", 28f).apply { gravity = Gravity.CENTER }, FrameLayout.LayoutParams(MATCH, MATCH))
+            else th.addView(mini, FrameLayout.LayoutParams(MATCH, WRAP))
+            // ✓ de seleccionado
+            val mark = tv("✓", 15f, 0xFF161618.toInt(), true).apply { gravity = Gravity.CENTER; background = roundBg(0xFF4FC3F7.toInt(), dp(13).toFloat()); scaleX = 0f; scaleY = 0f; alpha = 0f }
+            th.addView(mark, FrameLayout.LayoutParams(dp(26), dp(26), Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, dp(7), dp(7)) })
+            marks[id] = mark
+            v.addView(th, lp(cell, (cell * 1.25f).toInt()))
+            val nm = tv(name, 12.5f, T.muted, true).apply { gravity = Gravity.CENTER; setPadding(0, dp(6), 0, 0); maxLines = 1 }
+            names[id] = nm; v.addView(nm)
             v.setOnClickListener {
-                d.dismiss()
-                if (id == "photo") pickWallPhoto() else { Wall.set(this, id); recreate() }
+                th.animate().scaleX(0.92f).scaleY(0.92f).setDuration(80).withEndAction { th.animate().scaleX(1f).scaleY(1f).setDuration(260).setInterpolator(android.view.animation.OvershootInterpolator(3f)).start() }.start()
+                if (id == "photo" && (selected == "photo" || !Wall.photoFile(this).exists())) { Sheet.closeTop(this); Store.main.postDelayed({ pickWallPhoto() }, 250); return@setOnClickListener }
+                selected = id; Wall.set(this, id); paint(); fadeWall()
             }
             grid.addView(v)
         }
-        box.addView(grid)
-        val blur = android.widget.Switch(this).apply {
-            text = L.t("wallBlur"); setTextColor(T.text); isChecked = Wall.blur(this@MainActivity); setPadding(dp(6), dp(12), dp(6), dp(4))
-            setOnCheckedChangeListener { _, on -> Wall.setBlur(this@MainActivity, on); if (Wall.current(this@MainActivity) == "photo") { d.dismiss(); recreate() } }
+        sh.custom(grid)
+        // difuminar mi foto
+        val sw = android.widget.Switch(this).apply {
+            text = "✨  " + L.t("wallBlur"); setTextColor(T.text); textSize = 15.5f; isChecked = Wall.blur(this@MainActivity); setPadding(dp(14), dp(10), dp(14), dp(6))
+            thumbTintList = android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0xFFFFFFFF.toInt(), 0xFFBDBDBD.toInt()))
+            trackTintList = android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0xFF4FC3F7.toInt(), 0x55FFFFFF))
+            setOnCheckedChangeListener { _, on -> Wall.setBlur(this@MainActivity, on); if (Wall.current(this@MainActivity) == "photo") fadeWall() }
         }
-        box.addView(blur)
-        box.addView(tv(L.t("lightSoon"), 12f, T.muted).apply { setPadding(dp(6), dp(8), dp(6), 0) })
-        d.show()
+        sh.custom(sw)
+        sh.custom(tv("🌙 " + L.t("lightSoon"), 12.5f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(14), dp(8), dp(14), dp(4)) })
+        sh.show()
+        grid.post { paint() }
+    }
+
+    /** El fondo nuevo aparece suavecito (se mezcla con el de antes). */
+    private fun fadeWall() {
+        val old = window.decorView.background ?: android.graphics.drawable.ColorDrawable(T.bg)
+        val td = android.graphics.drawable.TransitionDrawable(arrayOf(old, Glass.background(this)))
+        td.isCrossFadeEnabled = true
+        window.setBackgroundDrawable(td); td.startTransition(700)
     }
 
     private fun pickWallPhoto() {
@@ -606,7 +645,7 @@ class MainActivity : Activity() {
         if (requestCode == REQ_WALL && resultCode == RESULT_OK) data?.data?.let { u ->
             Thread {
                 val ok = try { contentResolver.openInputStream(u)!!.use { inp -> Wall.photoFile(this).outputStream().use { inp.copyTo(it) } }; true } catch (_: Exception) { false }
-                runOnUiThread { if (ok) { Wall.set(this, "photo"); recreate() } else toast(L.t("cantOpen")) }
+                runOnUiThread { if (ok) { Wall.set(this, "photo"); fadeWall() } else toast(L.t("cantOpen")) }
             }.start()
         }
     }
