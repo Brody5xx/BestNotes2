@@ -105,6 +105,7 @@ class CapturasTest {
         shot(ca.window.decorView, "5_calc")
         tab.invoke(ca, "y"); ins.invoke(ca, "x²−4", true); idle()
         tab.invoke(ca, "graph"); idle(); shot(ca.window.decorView, "6_grafica")
+        tab.invoke(ca, "table"); idle(); shot(ca.window.decorView, "6b_tabla")
         tab.invoke(ca, "hrs"); idle(); shot(ca.window.decorView, "7_horas")
         tab.invoke(ca, "fx"); idle(); shot(ca.window.decorView, "8_divisas")
         VaultBox.wipe(ctx)

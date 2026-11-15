@@ -658,26 +658,29 @@ class CalcActivity : Activity() {
        TABLA
        ========================================================= */
     private fun buildTableView(): View {
-        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(4), dp(12), 0) }
-        val set = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        fun field(label: String, v: String): EditText {
-            set.addView(tv(label, 13f, T.muted).apply { setPadding(dp(4), 0, dp(6), 0) })
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(14), dp(12), 0) }
+        // INICIO y PASO, con su nombre arriba (como en Best Notes)
+        val set = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        fun field(label: String, v: String, end: Boolean): EditText {
+            val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            col.addView(tv(label.uppercase(L.locale), 13f, T.muted).apply { letterSpacing = 0.08f; setPadding(dp(2), 0, 0, dp(8)) })
             val e = EditText(this).apply {
-                setText(v); setTextColor(T.text); setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+                setText(v); setTextColor(T.text); setTextSize(TypedValue.COMPLEX_UNIT_SP, 21f); isSingleLine = true
                 inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
-                background = roundBg(0x1AFFFFFF, dp(12).toFloat(), T.border, dp(1)); setPadding(dp(10), dp(6), dp(10), dp(6))
+                background = roundBg(0x33000000, dp(18).toFloat(), 0x40FFFFFF, dp(1)); setPadding(dp(14), dp(10), dp(14), dp(10))
                 addTextChangedListener(object : TextWatcher {
                     override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                     override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                     override fun afterTextChanged(s: Editable?) { buildTable() }
                 })
             }
-            set.addView(e, lp(0, WRAP, 1f).apply { marginEnd = dp(10) })
+            col.addView(e, lp(MATCH, WRAP))
+            set.addView(col, lp(0, WRAP, 1f).apply { if (end) marginStart = dp(6) else marginEnd = dp(6) })
             return e
         }
-        tStart = field(L.t("calcStart"), "0"); tStep = field(L.t("calcStep"), "1")
-        box.addView(set, lp(MATCH, WRAP).apply { bottomMargin = dp(8) })
-        val sv = ScrollView(this)
+        tStart = field(L.t("calcStart"), "0", false); tStep = field(L.t("calcStep"), "1", true)
+        box.addView(set, lp(MATCH, WRAP).apply { bottomMargin = dp(10) })
+        val sv = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
         table = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         sv.addView(table)
         box.addView(sv, lp(MATCH, 0, 1f))
@@ -691,18 +694,21 @@ class CalcActivity : Activity() {
         table.removeAllViews()
         val fs = funcs()
         val a = num(tStart, 0.0); val s = num(tStep, 1.0).let { if (it == 0.0) 1.0 else it }
-        fun row(cells: List<Pair<String, Int>>, head: Boolean) {
-            val r = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(7), 0, dp(7)) }
-            for ((t, c) in cells) r.addView(tv(t, 14f, c, head).apply { gravity = Gravity.CENTER }, lp(0, WRAP, 1f))
+        val pre = (if (a != 0.0) Formula.fmt(a) + " + " else "") + Formula.fmt(s) + " × "
+        // fila: x a la izquierda, las Y en el medio, "1 × n" a la derecha
+        fun row(x: String, ys: List<Pair<String, Int>>, mul: String, head: Boolean) {
+            val r = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), 0, dp(8), 0); minimumHeight = dp(52) }
+            r.addView(tv(x, 18f, if (head) T.text else 0xE6FFFFFF.toInt(), head), lp(0, WRAP, 1f))
+            for ((t, c) in ys) r.addView(tv(t, 18f, c, head).apply { gravity = Gravity.CENTER }, lp(0, WRAP, 1.2f))
+            r.addView(tv(mul, 18f, if (head) T.text else T.muted, head).apply { gravity = Gravity.END }, lp(0, WRAP, 1.3f))
             table.addView(r)
-            table.addView(View(this).apply { setBackgroundColor(0x12FFFFFF) }, lp(MATCH, dp(1)))
+            table.addView(View(this).apply { setBackgroundColor(0x1FFFFFFF) }, lp(MATCH, dp(1)))
         }
-        row(listOf("x" to T.muted) + fs.map { "Y${it.first + 1}" to COLORS[it.first] }, true)
-        for (k in 0 until 40) {
+        row("x", fs.map { "Y${it.first + 1}" to COLORS[it.first] }, pre + "n", true)
+        for (k in 0 until 60) {
             val x = (a + k * s).toBigDecimal().round(java.math.MathContext(12)).toDouble()
-            row(listOf(Formula.fmt(x) to T.text) + fs.map { (_, f) -> Formula.fmt(try { f(x) } catch (_: Exception) { Double.NaN }) to T.text }, false)
+            row(Formula.fmt(x), fs.map { (_, f) -> Formula.fmt(try { f(x) } catch (_: Exception) { Double.NaN }) to T.text }, pre + k, false)
         }
-        if (fs.isEmpty()) table.addView(tv(L.t("calcNoY"), 14f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(10), dp(20), dp(10), 0) })
     }
 
     /* =========================================================
