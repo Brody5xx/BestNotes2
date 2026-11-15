@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-15" to ("🔒 Nuevo teclado del PIN de vidrio (bolitas que se llenan, tiemblan si te equivocas, y el candado se abre), y todas las ventanitas de preguntar ahora son de vidrio con animación" to
+            "🔒 New glass PIN pad (dots that fill in, shake on a wrong PIN, and the lock opens), and every pop-up question is now glass with an animation"),
         "2026-11-15" to ("Compartir varias notas a la vez (página con videos, PDF, texto o SMS), «Página con videos» que se abre en cualquier teléfono, y «Deshacer» al mandar a la papelera" to
             "Share several notes at once (page with videos, PDF, text or SMS), “Page with videos” that opens on any phone, and “Undo” when moving to trash"),
         "2026-11-14" to ("☀️ un toque cambia claro ↔ oscuro con un círculo (déjalo presionado para los fondos), modo Translúcido con el fondo de tu teléfono, idiomas de derecha a izquierda, y la guía y plantillas también se traducen" to

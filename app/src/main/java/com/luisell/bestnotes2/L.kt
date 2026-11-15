@@ -265,6 +265,8 @@ object L {
         "sharePage" to "Página con videos", "sharePageSub" to "Se abre en cualquier teléfono, con fotos, audios y videos", "shareMany" to "{n} notas",
         "sizeSend" to "Tamaño para enviar: {s}", "sizeOk" to "✅ Cabe por correo (Outlook, Gmail) y por mensaje", "sizeBig" to "⚠️ Muy grande para correo (máx. ~20 MB). Mándalo por WhatsApp como documento o achica los videos.",
         "sizeHuge" to "⚠️ Muy grande. Mándalo por WhatsApp como documento (hasta 2 GB) o achica los videos.", "shareLocked" to "Las notas con PIN no se comparten",
+        "pinCreateSub" to "Lo vas a usar para abrir notas bloqueadas", "pinConfirmSub" to "Escríbelo otra vez para estar seguros",
+        "pinCurrent" to "Escribe tu PIN actual", "pinCurrentSub" to "Después eliges el nuevo",
     )
 
     private val EN = mapOf(
@@ -433,5 +435,7 @@ object L {
         "sharePage" to "Page with videos", "sharePageSub" to "Opens on any phone, with photos, audio and videos", "shareMany" to "{n} notes",
         "sizeSend" to "Size to send: {s}", "sizeOk" to "✅ Fits by email (Outlook, Gmail) and by message", "sizeBig" to "⚠️ Too big for email (max ~20 MB). Send it on WhatsApp as a document or shrink the videos.",
         "sizeHuge" to "⚠️ Very big. Send it on WhatsApp as a document (up to 2 GB) or shrink the videos.", "shareLocked" to "Notes with a PIN aren't shared",
+        "pinCreateSub" to "You'll use it to open locked notes", "pinConfirmSub" to "Type it again to be sure",
+        "pinCurrent" to "Enter your current PIN", "pinCurrentSub" to "Then you'll choose the new one",
     )
 }

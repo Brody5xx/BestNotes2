@@ -401,7 +401,7 @@ class MainActivity : Activity() {
         }.show()
     }
     private fun selColor() {
-        lateinit var d: AlertDialog
+        lateinit var d: GlassDialog
         val v = colorRow(T.noteColors, true, -1) { c -> d.dismiss(); sel().forEach { it.color = c; Store.saveMeta(it) }; done() }
         d = dialog().setTitle(L.t("noteColor")).setView(v).setNegativeButton(L.t("cancel"), null).show()
     }
@@ -478,7 +478,7 @@ class MainActivity : Activity() {
         p.addView(menuRow(this, Icons.GLOBE, L.t("language"), when (L.choice) { "es" -> "Español"; "en" -> "English"; else -> L.t("langAuto") }) { closeDrawer(); pickLang() })
         p.addView(menuRow(this, Icons.CLOCK, L.t("hourFmt"), when (L.hourFmt) { "12" -> "12 h (3:00 PM)"; "24" -> "24 h (15:00)"; else -> L.t("hourAuto") }) { closeDrawer(); pickHourFmt() })
         p.addView(menuRow(this, Icons.LOCK, L.t("lockApp"), if (AppLock.on(this)) "✓ " + L.t("lockAppOn") else null) { closeDrawer(); toggleAppLock() })
-        if (Pin.saved(this) != null) p.addView(menuRow(this, Icons.KEY, L.t("changePin")) { closeDrawer(); Pin.check(this) { Pin.create(this) { toast(L.t("pinChanged")) } } })
+        if (Pin.saved(this) != null) p.addView(menuRow(this, Icons.KEY, L.t("changePin")) { closeDrawer(); Pin.change(this) { toast(L.t("pinChanged")) } })
         p.addView(sep())
         val ver = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (_: Exception) { "" }
         p.addView(tv(L.t("devBy") + "\n" + L.t("version", "v" to (ver ?: "")), 12.5f, T.muted).apply { setPadding(dp(14), dp(8), dp(8), 0) })

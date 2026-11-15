@@ -106,12 +106,12 @@ const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
 
 fun Context.toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 
-fun Context.dialog(): AlertDialog.Builder = AlertDialog.Builder(this, if (T.light) android.R.style.Theme_Material_Light_Dialog_Alert else android.R.style.Theme_Material_Dialog_Alert)
+/** Las ventanitas de la app, con el vidrio bonito (ver GlassDialog.kt). */
+fun Context.dialog(): GlassBuilder = GlassBuilder(this)
 
 fun Context.confirm(title: String, msg: String?, okText: String, danger: Boolean = false, onOk: () -> Unit) {
-    val d = dialog().setTitle(title).setMessage(msg).setPositiveButton(okText) { _, _ -> onOk() }
+    dialog().apply { this.danger = danger }.setTitle(title).setMessage(msg).setPositiveButton(okText) { _, _ -> onOk() }
         .setNegativeButton(L.t("cancel"), null).show()
-    if (danger) d.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(T.danger)
 }
 
 /** Pide un texto (nombre de carpeta, contraseña…). */
@@ -122,7 +122,7 @@ fun Context.askText(title: String, initial: String = "", hint: String = "", pass
         if (password) inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         else inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
     }
-    val box = FrameLayout(this).apply { setPadding(dp(22), dp(8), dp(22), 0); addView(e) }
+    val box = FrameLayout(this).apply { setPadding(0, dp(4), 0, dp(4)); addView(e) }
     val d = dialog().setTitle(title).setView(box)
         .setPositiveButton(L.t("ok")) { _, _ -> onOk(e.text.toString()) }
         .setNegativeButton(L.t("cancel"), null).create()

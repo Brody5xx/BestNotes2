@@ -25,41 +25,33 @@ object Pin {
 
     fun saved(ctx: Context): String? = ctx.getSharedPreferences("ajustes", 0).getString("pinHash", null)?.takeIf { it.isNotEmpty() }
 
-    private fun pad(ctx: Context, title: String, onDone: (String) -> Unit) {
-        val e = EditText(ctx).apply {
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            filters = arrayOf(InputFilter.LengthFilter(4))
-            gravity = Gravity.CENTER; textSize = 28f; letterSpacing = 0.6f
-            setTextColor(T.text)
-        }
-        val box = FrameLayout(ctx).apply { setPadding(ctx.dp(40), ctx.dp(8), ctx.dp(40), 0); addView(e) }
-        val d = ctx.dialog().setTitle(title).setView(box).setNegativeButton(L.t("cancel"), null).create()
-        e.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-            override fun afterTextChanged(s: android.text.Editable) {
-                if (s.length == 4) { val v = s.toString(); e.postDelayed({ d.dismiss(); onDone(v) }, 120) }
-            }
-        })
-        d.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
-        d.show(); e.requestFocus()
-    }
-
     /** Pide el PIN y llama [onOk] si es correcto. Si no hay PIN todavía, lo crea. */
     fun check(ctx: Context, onOk: () -> Unit) {
         val h = saved(ctx)
         if (h == null) { create(ctx, onOk); return }
-        pad(ctx, L.t("pinToUnlock")) { v -> if (hash(v) == h) onOk() else ctx.toast(L.t("pinWrong")) }
+        PinPad.show(ctx, L.t("pinToUnlock")) { v -> val ok = hash(v) == h; if (ok) ctx.mainLooperPost { onOk() }; ok }
+    }
+
+    /** Cambiar el PIN: primero el actual, luego el nuevo (dos veces). */
+    fun change(ctx: Context, onOk: () -> Unit) {
+        val h = saved(ctx) ?: run { create(ctx, onOk); return }
+        PinPad.show(ctx, L.t("pinCurrent"), L.t("pinCurrentSub")) { v -> val ok = hash(v) == h; if (ok) ctx.mainLooperPost { create(ctx, onOk) }; ok }
     }
 
     fun create(ctx: Context, onOk: () -> Unit) {
-        pad(ctx, L.t("pinCreate")) { a ->
-            pad(ctx, L.t("pinConfirm")) { b ->
-                if (a == b) {
-                    ctx.getSharedPreferences("ajustes", 0).edit().putString("pinHash", hash(a)).apply()
-                    onOk()
-                } else { ctx.toast(L.t("pinMismatch")); create(ctx, onOk) }
+        PinPad.show(ctx, L.t("pinCreate"), L.t("pinCreateSub")) { a ->
+            ctx.mainLooperPost {
+                PinPad.show(ctx, L.t("pinConfirm"), L.t("pinConfirmSub")) { b ->
+                    if (a == b) {
+                        ctx.getSharedPreferences("ajustes", 0).edit().putString("pinHash", hash(a)).apply()
+                        ctx.mainLooperPost { onOk() }; true
+                    } else { ctx.toast(L.t("pinMismatch")); false }
+                }
             }
+            true
         }
     }
+
+    /** Un ratito después (cuando el teclado ya se cerró). */
+    private fun Context.mainLooperPost(f: () -> Unit) { android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(f, 220) }
 }

@@ -199,4 +199,21 @@ class CapturasTest {
             shot(m2.window.decorView, "26_rtl")
         } finally { L.set(ctx, "auto") }
     }
+
+    @Test fun capturasVentanas() {
+        if (System.getenv("CAPTURAS") == null) return
+        var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
+        val main = Robolectric.buildActivity(MainActivity::class.java).setup().visible().get(); idle()
+        fun last(name: String) {
+            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(800))
+            val d = org.robolectric.shadows.ShadowDialog.getLatestDialog()!!
+            shot(d.window!!.decorView, name); d.dismiss(); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(500))
+        }
+        main.confirm("Vaciar papelera", "Se borrarán 3 notas para siempre.", "Vaciar", true) {}; last("30_confirmar")
+        main.dialog().setTitle("Mover a carpeta").setSingleChoiceItems(arrayOf("Sin carpeta", "Ideas", "Recetas"), 1) { _, _ -> }.setNegativeButton("Cancelar", null).show(); last("31_lista")
+        Pin.create(main) {}; last("32_pin")
+        main.askText("Nueva carpeta", hint = "Nombre") {}; last("35_texto")
+        T.light = true
+        try { Pin.change(main) {}; last("33_pin_claro"); main.confirm("¿Borrar?", "No se puede deshacer.", "Borrar", true) {}; last("34_confirmar_claro") } finally { T.light = false }
+    }
 }

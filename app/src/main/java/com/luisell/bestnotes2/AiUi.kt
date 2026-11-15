@@ -30,7 +30,7 @@ fun Activity.aiDialog(title: String, jobs: List<AiJob>, actions: List<AiAction>,
     val waitTv = tv(L.t("aiWorking"), 15f, T.muted).apply { setPadding(dp(12), 0, 0, 0) }
     wait.addView(waitTv)
     col.addView(wait)
-    lateinit var d: AlertDialog
+    lateinit var d: GlassDialog
     d = dialog().setTitle("✨ $title").setView(ScrollView(this).apply { addView(col) }).setNegativeButton(L.t("close"), null).show()
     var alive = true
     d.setOnDismissListener { alive = false }

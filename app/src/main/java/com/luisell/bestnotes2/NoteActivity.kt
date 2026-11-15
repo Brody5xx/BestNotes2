@@ -1270,7 +1270,7 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     private fun noteColor() {
-        lateinit var d: android.app.AlertDialog
+        lateinit var d: GlassDialog
         val v = colorRow(T.noteColors, true, meta.color) { c -> d.dismiss(); meta.color = c; tint(); Store.saveMeta(meta); Store.changed() }
         d = dialog().setTitle(L.t("noteColor")).setView(v).setNegativeButton(L.t("cancel"), null).show()
     }
