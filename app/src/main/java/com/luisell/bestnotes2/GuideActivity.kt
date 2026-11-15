@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     private class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-14" to ("La rueda de colores pinta la letra EN VIVO y tiene un botón «✓ Listo» que siempre se ve; la barrita de Cortar/Copiar se esconde mientras escoges" to
+            "The color wheel paints the text LIVE and has a “✓ Done” button that's always visible; the Cut/Copy bar hides while you choose"),
         "2026-11-14" to ("Panel de estilo de la letra abajo (colores de un toque, resaltar, contorno y tachado) para que no lo tapen Cortar/Copiar/Pegar; rueda de colores y tamaño de letra nuevos; los paneles ya salen abajo" to
             "Text style panel at the bottom (one-tap colors, highlight, outline and strike) so Cut/Copy/Paste don't cover it; new color wheel and font size; panels now open at the bottom"),
         "2026-11-14" to ("📖 Registro que se actualiza solo (ya no se llenan versiones automáticas), la calculadora ya no abre el teclado del teléfono y panel de Apariencia nuevo con vista previa" to

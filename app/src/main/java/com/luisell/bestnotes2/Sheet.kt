@@ -47,6 +47,10 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
     private fun dp(v: Float) = (v * d + 0.5f).toInt()
     private val quick = ArrayList<View>()
     private val rows = ArrayList<View>()
+    private var footer: View? = null
+    private var doneLabel: String? = null
+    private var doneAct: (() -> Unit)? = null
+    private val keepHidden = object : Runnable { override fun run() { RichEdit.hideToolbar(3000); overlay.postDelayed(this, 2500) } }
     private lateinit var overlay: FrameLayout
     private lateinit var panel: LinearLayout
     private lateinit var scrim: View
@@ -101,6 +105,12 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
     /** Una línea suave para separar grupos. */
     fun divider(): Sheet { rows.add(View(act).apply { setBackgroundColor(0x14FFFFFF); tag = "div" }); return this }
 
+    /** Algo fijo abajo del panel (siempre se ve, aunque la lista sea larga). */
+    fun footer(v: View): Sheet { footer = v; return this }
+
+    /** Botón "Listo" arriba a la derecha. */
+    fun done(label: String, action: () -> Unit): Sheet { doneLabel = label; doneAct = action; return this }
+
     /** Cualquier otra cosa (por ejemplo la lista del historial). */
     fun custom(v: View): Sheet { rows.add(v); return this }
 
@@ -129,7 +139,15 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
             })
             if (sub != null) head.addView(act.tv(sub, 12.5f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(16f), dp(2f), dp(16f), 0) })
         }
-        panel.addView(head, LinearLayout.LayoutParams(MATCH, WRAP))
+        val headBox = FrameLayout(act)
+        headBox.addView(head, FrameLayout.LayoutParams(MATCH, WRAP))
+        doneLabel?.let { lbl ->
+            headBox.addView(act.tv(lbl, 15f, 0xFF161618.toInt(), true).apply {
+                setPadding(dp(16f), dp(8f), dp(16f), dp(8f)); pressBg(0xFFFFFFFF.toInt(), 20f)
+                setOnClickListener { v -> v.animate().scaleX(0.9f).scaleY(0.9f).setDuration(70).withEndAction { v.animate().scaleX(1f).scaleY(1f).setDuration(150).start() }.start(); doneAct?.invoke() }
+            }, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.END or Gravity.TOP).apply { setMargins(0, dp(12f), dp(8f), 0) })
+        }
+        panel.addView(headBox, LinearLayout.LayoutParams(MATCH, WRAP))
         dragToClose(head)
 
         if (quick.isNotEmpty()) {
@@ -150,6 +168,7 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
             }
         }.apply { isVerticalScrollBarEnabled = false; overScrollMode = View.OVER_SCROLL_NEVER; addView(list) }
         panel.addView(sv, LinearLayout.LayoutParams(MATCH, WRAP))
+        footer?.let { panel.addView(it, LinearLayout.LayoutParams(MATCH, WRAP)) }
 
         val pf = FrameLayout(act)                       // el panel + el brillo que pasa encima
         pf.addView(panel, FrameLayout.LayoutParams(MATCH, WRAP))
@@ -157,6 +176,7 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
         overlay.addView(pf, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.BOTTOM).apply { setMargins(dp(8f), 0, dp(8f), dp(10f) + navInset()) })
         content.addView(overlay, FrameLayout.LayoutParams(MATCH, MATCH))
         open[act]?.dismissNow(); open[act] = this
+        overlay.post(keepHidden)                     // la barrita de Cortar/Copiar no tapa el panel
 
         // ✨ entrada
         scrim.animate().alpha(1f).setDuration(260).start()
@@ -213,6 +233,7 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
         if (closing || !::overlay.isInitialized) { after(); return }
         closing = true
         if (open[act] === this) open.remove(act)
+        overlay.removeCallbacks(keepHidden); RichEdit.hideToolbar(0)
         val pf = panel.parent as View
         scrim.animate().alpha(0f).setDuration(240).start()
         pf.animate().translationY(pf.height.toFloat() + dp(30f)).alpha(0.4f).setDuration(260)
@@ -222,7 +243,7 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
         overlay.postDelayed({ after() }, 140)
     }
 
-    private fun dismissNow() { if (open[act] === this) open.remove(act); (overlay.parent as? ViewGroup)?.removeView(overlay) }
+    private fun dismissNow() { overlay.removeCallbacks(keepHidden); if (open[act] === this) open.remove(act); (overlay.parent as? ViewGroup)?.removeView(overlay) }
 
     /** Un brillo diagonal que cruza el panel al abrirse. */
     private class Shine(ctx: android.content.Context) : View(ctx) {

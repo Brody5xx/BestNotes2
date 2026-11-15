@@ -368,25 +368,38 @@ class NoteActivity : Activity(), EditorView.Host {
 
     private fun pickSize() {
         val e = editor.focused ?: return
-        pickSize(e.currentStyle().size) { z -> e.requestFocus(); style { s -> s.copy(size = z) } }
+        val a0 = minOf(e.selectionStart, e.selectionEnd); val b0 = maxOf(e.selectionStart, e.selectionEnd)
+        pickSize(e.currentStyle().size) { z ->
+            if (!e.hasFocus()) e.requestFocus()
+            if (a0 in 0 until b0 && b0 <= e.text.length) e.setSelection(a0, b0)
+            style { s -> s.copy(size = z) }
+        }
     }
 
     /** Color de letra (o del título si estás en el título), resaltar o contorno. */
     private fun pickColor(kind: String) {
         if (kind == "color" && title.hasFocus()) {
-            pickColor(L.t("titleColor"), meta.titleColor, T.textColors) { c ->
+            pickColor(L.t("titleColor"), meta.titleColor, T.textColors, { c -> title.setTextColor(if (c != 0) c else T.text) }) { c ->
                 meta.titleColor = c; title.setTextColor(if (c != 0) c else T.text); onDirty()
             }
             return
         }
         val e = editor.focused ?: return
         val c = e.currentStyle()
+        val a0 = minOf(e.selectionStart, e.selectionEnd); val b0 = maxOf(e.selectionStart, e.selectionEnd)
+        // en vivo: se pinta lo seleccionado mientras mueves la rueda
+        fun sel() {
+            if (!e.hasFocus()) e.requestFocus()
+            if (a0 in 0 until b0 && (e.selectionStart != a0 || e.selectionEnd != b0) && b0 <= e.text.length) e.setSelection(a0, b0)
+        }
+        fun liveOn(f: (St, Int) -> St): (Int) -> Unit = { col -> sel(); style { s -> f(s, col) } }
         when (kind) {
-            "hi" -> pickColor(L.t("hilite"), if (c.bg != 0) c.bg or 0xFF000000.toInt() else 0, T.hiliteColors.map { it or 0xFF000000.toInt() }.toIntArray()) { col ->
-                e.requestFocus(); style { s -> s.copy(bg = if (col == 0) 0 else (col and 0xFFFFFF) or 0x73000000) }; Store.main.post { fillStyle() }
+            "hi" -> pickColor(L.t("hilite"), if (c.bg != 0) c.bg or 0xFF000000.toInt() else 0, T.hiliteColors.map { it or 0xFF000000.toInt() }.toIntArray(),
+                liveOn { s, col -> s.copy(bg = if (col == 0) 0 else (col and 0xFFFFFF) or 0x73000000) }) { col ->
+                sel(); style { s -> s.copy(bg = if (col == 0) 0 else (col and 0xFFFFFF) or 0x73000000) }; Store.main.post { fillStyle() }
             }
-            "ol" -> pickColor(L.t("outline"), c.o, T.textColors) { col -> e.requestFocus(); style { s -> s.copy(o = col) }; Store.main.post { fillStyle() } }
-            else -> pickColor(L.t("textColor"), c.color, T.textColors) { col -> e.requestFocus(); style { s -> s.copy(color = col) }; Store.main.post { fillStyle() } }
+            "ol" -> pickColor(L.t("outline"), c.o, T.textColors, liveOn { s, col -> s.copy(o = col) }) { col -> sel(); style { s -> s.copy(o = col) }; Store.main.post { fillStyle() } }
+            else -> pickColor(L.t("textColor"), c.color, T.textColors, liveOn { s, col -> s.copy(color = col) }) { col -> sel(); style { s -> s.copy(color = col) }; Store.main.post { fillStyle() } }
         }
     }
 

@@ -156,7 +156,19 @@ class RichEdit(ctx: Context) : EditText(ctx) {
     private var pendB = -1
     private var muting = false
 
+    companion object {
+        /** La barrita de Cortar/Copiar/Pegar que está abierta ahora (para esconderla bajo los paneles). */
+        var toolbar: android.view.ActionMode? = null
+        fun hideToolbar(ms: Long) { if (android.os.Build.VERSION.SDK_INT >= 23) try { toolbar?.hide(ms) } catch (_: Exception) {} }
+    }
+
     init {
+        customSelectionActionModeCallback = object : android.view.ActionMode.Callback {
+            override fun onCreateActionMode(m: android.view.ActionMode, menu: android.view.Menu): Boolean { toolbar = m; return true }
+            override fun onPrepareActionMode(m: android.view.ActionMode, menu: android.view.Menu) = false
+            override fun onActionItemClicked(m: android.view.ActionMode, item: android.view.MenuItem) = false
+            override fun onDestroyActionMode(m: android.view.ActionMode) { if (toolbar === m) toolbar = null }
+        }
         background = null
         setTextColor(T.text)
         setHintTextColor(T.faint)

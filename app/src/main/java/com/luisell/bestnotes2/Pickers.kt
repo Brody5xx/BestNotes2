@@ -41,12 +41,16 @@ fun addRecentColor(ctx: Context, c: Int) {
  * Ventana para escoger un color. [current] = el color de ahora (0 = ninguno).
  * [onPick] recibe el color escogido, o 0 si tocaste "Sin color".
  */
-fun Context.pickColor(title: String, current: Int, presets: IntArray, onPick: (Int) -> Unit) {
+fun Context.pickColor(title: String, current: Int, presets: IntArray, onLive: ((Int) -> Unit)? = null, onPick: (Int) -> Unit) {
     val act = this as? android.app.Activity ?: return
     val ctx = this
     val hsv = FloatArray(3).also { Color.colorToHSV(if (current != 0) current or 0xFF000000.toInt() else T.textColors[4], it) }
     lateinit var sheet: Sheet
+    var decided = false
+    var touched = false
     fun now() = Color.HSVToColor(hsv)
+    /** Se ve en la letra mientras escoges (en vivo). */
+    fun live() { touched = true; onLive?.invoke(now()) }
 
     // muestra grande: una bolita que brilla con el color + "Aa" pintado + el código
     val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(2), dp(14), dp(12)) }
@@ -78,13 +82,13 @@ fun Context.pickColor(title: String, current: Int, presets: IntArray, onPick: (I
     }
     fun pickDot(c: Int, v: View) {
         v.animate().scaleX(0.8f).scaleY(0.8f).setDuration(70).withEndAction { v.animate().scaleX(1f).scaleY(1f).setDuration(240).setInterpolator(android.view.animation.OvershootInterpolator(3f)).start() }.start()
-        Color.colorToHSV(c or 0xFF000000.toInt(), hsv); paint()
+        Color.colorToHSV(c or 0xFF000000.toInt(), hsv); paint(); live()
         swatchBox.animate().scaleX(1.12f).scaleY(1.12f).setDuration(110).withEndAction { swatchBox.animate().scaleX(1f).scaleY(1f).setDuration(220).start() }.start()
     }
-    sv.onChange = { s, v -> hsv[1] = s; hsv[2] = v; paint() }
-    hue.onChange = { h -> hsv[0] = h; paint() }
+    sv.onChange = { s, v -> hsv[1] = s; hsv[2] = v; paint(); live() }
+    hue.onChange = { h -> hsv[0] = h; paint(); live() }
     val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), 0, dp(14), 0) }
-    pad.addView(sv, lp(MATCH, dp(160)))
+    pad.addView(sv, lp(MATCH, dp(140)))
     pad.addView(hue, lp(MATCH, dp(38)).apply { topMargin = dp(10) })
 
     fun dots(colors: List<Int>, onLong: ((Int) -> Unit)? = null): View {
@@ -123,21 +127,24 @@ fun Context.pickColor(title: String, current: Int, presets: IntArray, onPick: (I
     drawFavs()
 
     // botones de abajo: Sin color · Aplicar
-    val btns = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(10), dp(16), dp(10), dp(4)) }
+    // botones fijos abajo (siempre se ven): Sin color · ✓ Listo
+    val btns = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(10), dp(12), dp(10), dp(2)) }
     btns.addView(tv(L.t("noColor"), 15.5f, T.text, true).apply {
         gravity = Gravity.CENTER; setPadding(dp(10), dp(13), dp(10), dp(13)); pressBg(0, 24f, 0x55FFFFFF)
-        setOnClickListener { sheet.dismiss { onPick(0) } }
+        setOnClickListener { decided = true; sheet.dismiss { onPick(0) } }
     }, lp(0, WRAP, 1f).apply { marginEnd = dp(10) })
-    btns.addView(tv("✓  " + L.t("apply"), 15.5f, 0xFF161618.toInt(), true).apply {
+    btns.addView(tv("✓  " + L.t("done"), 16f, 0xFF161618.toInt(), true).apply {
         gravity = Gravity.CENTER; setPadding(dp(10), dp(13), dp(10), dp(13)); pressBg(0xFFFFFFFF.toInt(), 24f)
-        setOnClickListener { val c = now(); addRecentColor(ctx, c); sheet.dismiss { onPick(c) } }
+        setOnClickListener { decided = true; val c = now(); addRecentColor(ctx, c); sheet.dismiss { onPick(c) } }
     }, lp(0, WRAP, 1.4f))
 
     sheet = Sheet(act, title).custom(head).custom(pad)
         .custom(label(L.t("colorsBasic"))).custom(dots(presets.toList()))
     val rec = prefsList(this, "colorRecent")
     if (rec.isNotEmpty()) sheet.custom(label(L.t("colorsRecent"))).custom(dots(rec))
-    sheet.custom(favBox).custom(btns)
+    sheet.custom(favBox).footer(btns)
+    // si cierras sin tocar "Listo", la letra vuelve como estaba
+    sheet.onClose = { if (!decided && touched) onLive?.invoke(current) }
     paint()
     sheet.show()
 }
@@ -240,11 +247,11 @@ fun Context.pickSize(current: Int, onPick: (Int) -> Unit) {
         gravity = Gravity.CENTER; setPadding(dp(10), dp(13), dp(10), dp(13)); pressBg(0, 24f, 0x55FFFFFF)
         setOnClickListener { sheet.dismiss { onPick(0) } }
     }, lp(0, WRAP, 1f).apply { marginEnd = dp(10) })
-    btns.addView(tv("✓  " + L.t("apply"), 15.5f, 0xFF161618.toInt(), true).apply {
+    btns.addView(tv("✓  " + L.t("done"), 16f, 0xFF161618.toInt(), true).apply {
         gravity = Gravity.CENTER; setPadding(dp(10), dp(13), dp(10), dp(13)); pressBg(0xFFFFFFFF.toInt(), 24f)
         setOnClickListener { sheet.dismiss { onPick(if (size == T.baseSize) 0 else size) } }
     }, lp(0, WRAP, 1.4f))
-    col.addView(btns)
-    sheet = Sheet(act, "Aa  " + L.t("size")).custom(col)
+    btns.setPadding(dp(14), dp(12), dp(14), dp(2))
+    sheet = Sheet(act, "Aa  " + L.t("size")).custom(col).footer(btns)
     sheet.show()
 }
