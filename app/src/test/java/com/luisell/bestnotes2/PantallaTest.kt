@@ -333,4 +333,26 @@ class PantallaTest {
         Robolectric.buildActivity(CalcActivity::class.java).setup()
         Robolectric.buildActivity(VaultActivity::class.java).setup()
     }
+
+    @Test fun colorDelTituloSeGuarda() {
+        importar()
+        var act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n1")).setup().get()
+        waitIo(); idle()
+        val t = NoteActivity::class.java.getDeclaredField("title").apply { isAccessible = true }.get(act) as TitleEdit
+        t.requestFocus(); t.setSelection(0, 3)
+        val style = NoteActivity::class.java.getDeclaredMethod("style", Function1::class.java).apply { isAccessible = true }
+        style.invoke(act, { s: St -> s.copy(color = 0xFF30D158.toInt()) })
+        t.setSelection(3, 6)
+        style.invoke(act, { s: St -> s.copy(color = 0xFFBF5AF2.toInt(), o = 0xFFFF375F.toInt()) })
+        act.finish(); idle(); waitIo()
+        // al volver a entrar, los colores siguen
+        act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n1")).setup().get()
+        waitIo(); idle()
+        val t2 = NoteActivity::class.java.getDeclaredField("title").apply { isAccessible = true }.get(act) as TitleEdit
+        val runs = Rich.runs(t2.text)
+        assertEquals(0xFF30D158.toInt(), runs[0].st.color)
+        assertTrue(runs.any { it.st.color == 0xFFBF5AF2.toInt() && it.st.o == 0xFFFF375F.toInt() })
+        // y la tarjeta de inicio también
+        assertTrue(Store.meta("n1")!!.pv!!.contains("\"t\""))
+    }
 }

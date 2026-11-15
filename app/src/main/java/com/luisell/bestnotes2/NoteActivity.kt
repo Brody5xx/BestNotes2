@@ -196,6 +196,7 @@ class NoteActivity : Activity(), EditorView.Host {
             })
             setOnFocusChangeListener { _, has -> if (has) onFocusEdit(this) }
             onCursor = { onFocusEdit(it) }
+            onEdit = { onDirty() }                    // pintar letras del título también se guarda
         }
         col.addView(title, lp(MATCH, WRAP))
         bannerBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), 0, dp(18), 0) }
@@ -350,7 +351,7 @@ class NoteActivity : Activity(), EditorView.Host {
     /* ---------- estilos ---------- */
     /** Los pedacitos del título con su estilo (o el título de antes, todo de un color). */
     private fun titleRuns(): List<Run> {
-        extraObj.optJSONArray("tr")?.let { val r = runsFromJson(it); if (runsPlain(r) == meta.title) return r }
+        extraObj.optJSONArray("tr")?.let { val r = runsFromJson(it); if (runsPlain(r).trim() == meta.title.trim()) return r }
         if (meta.title.isEmpty()) return emptyList()
         val st = St.PLAIN.copy(color = meta.titleColor, o = extraObj.optInt("tOl", 0), bg = extraObj.optInt("tBg", 0), s = extraObj.optBoolean("tS"))
         return listOf(Run(meta.title, st))
@@ -382,6 +383,8 @@ class NoteActivity : Activity(), EditorView.Host {
             if (next.o != c.o) r = r.copy(o = next.o)
             r
         }
+        // cambiar el estilo SIEMPRE cuenta como cambio (para que se guarde al salir)
+        onDirty(); dirty = true
     }
 
     private fun pickSize() {
