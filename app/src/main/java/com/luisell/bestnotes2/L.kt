@@ -210,6 +210,7 @@ object L {
         "recClear" to "Vaciar", "recClearMsg" to "Se borra el registro de esta nota. La nota no se toca.", "recCleared" to "Registro vaciado",
         "recEmpty" to "Todavía no hay nada. Empieza a escribir y se guarda solo.",
         "appearanceSub" to "Escoge el fondo de tu app",
+        "outlineShort" to "Contorno", "colorHint" to "Toca el cuadro, la barra o una bolita", "colorsFavEmpty" to "Guarda aquí tus colores preferidos",
     )
 
     private val EN = mapOf(
@@ -348,7 +349,7 @@ object L {
         "versionDelTitle" to "Delete this version?", "versionDeleted" to "Version deleted", "versionRestored" to "Done, you went back to that version ✨",
         "spellChecking" to "Checking spelling…", "spellFail" to "Couldn't check. Check your internet.", "spellNone" to "Everything is spelled right!",
         "spellDone" to "Done! You checked everything", "spellTitle" to "SPELLING", "spellNoSug" to "No suggestions", "spellIgnore" to "Ignore",
-        "insert" to "Add to the note", "textStyle" to "Text style", "strike" to "Strikethrough",
+        "insert" to "Add to the note", "textStyle" to "Text style", "strike" to "Strike",
         "histIntro" to "The Log automatically keeps everything you write, even if you delete it. Versions are saved whenever you want.",
         "record" to "Log", "recLines" to "{n} line(s) · updates by itself", "savedVersions" to "Saved versions",
         "recIntro" to "Everything you've written in this note, even if you deleted it", "putAllInNote" to "Put all in the note",
@@ -356,5 +357,6 @@ object L {
         "recClear" to "Clear", "recClearMsg" to "This note's log is deleted. The note isn't touched.", "recCleared" to "Log cleared",
         "recEmpty" to "Nothing yet. Start writing and it saves by itself.",
         "appearanceSub" to "Pick your app background",
+        "outlineShort" to "Outline", "colorHint" to "Tap the square, the bar or a dot", "colorsFavEmpty" to "Keep your favorite colors here",
     )
 }

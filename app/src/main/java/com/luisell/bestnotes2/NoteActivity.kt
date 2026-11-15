@@ -383,10 +383,10 @@ class NoteActivity : Activity(), EditorView.Host {
         val c = e.currentStyle()
         when (kind) {
             "hi" -> pickColor(L.t("hilite"), if (c.bg != 0) c.bg or 0xFF000000.toInt() else 0, T.hiliteColors.map { it or 0xFF000000.toInt() }.toIntArray()) { col ->
-                e.requestFocus(); style { s -> s.copy(bg = if (col == 0) 0 else (col and 0xFFFFFF) or 0x73000000) }
+                e.requestFocus(); style { s -> s.copy(bg = if (col == 0) 0 else (col and 0xFFFFFF) or 0x73000000) }; Store.main.post { fillStyle() }
             }
-            "ol" -> pickColor(L.t("outline"), c.o, T.textColors) { col -> e.requestFocus(); style { s -> s.copy(o = col) } }
-            else -> pickColor(L.t("textColor"), c.color, T.textColors) { col -> e.requestFocus(); style { s -> s.copy(color = col) } }
+            "ol" -> pickColor(L.t("outline"), c.o, T.textColors) { col -> e.requestFocus(); style { s -> s.copy(o = col) }; Store.main.post { fillStyle() } }
+            else -> pickColor(L.t("textColor"), c.color, T.textColors) { col -> e.requestFocus(); style { s -> s.copy(color = col) }; Store.main.post { fillStyle() } }
         }
     }
 
@@ -398,6 +398,7 @@ class NoteActivity : Activity(), EditorView.Host {
         val kind = e?.let { ed -> editor.views.firstOrNull { it.edits().contains(ed) }?.block as? Block.ListB }?.kind
         on("check", kind == "check"); on("ul", kind == "ul"); on("ol", kind == "ol")
         sizeTv.text = "${if (st.size > 0) st.size else T.baseSize}"
+        if (stylePanel != null) Store.main.post { fillStyle() }
         colorDot.background = roundBg(if (st.color != 0) st.color else T.text, dp(14).toFloat(), 0x55000000, dp(1))
     }
 
@@ -737,6 +738,7 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     override fun onImageSelected(f: FotoView?) {
+        if (f != null && stylePanel != null) { bottom.removeView(stylePanel); stylePanel = null }
         imgPanel?.let { bottom.removeView(it) }; imgPanel = null
         if (f == null) { if (!ink.drawing && rec == null) formatBar.visibility = View.VISIBLE; return }
         formatBar.visibility = View.GONE
@@ -1211,6 +1213,7 @@ class NoteActivity : Activity(), EditorView.Host {
         when {
             Sheet.closeTop(this) -> {}
             spell != null -> closeSpell()
+            stylePanel != null -> closeStyle()
             editor.selected != null -> editor.selectImage(null)
             else -> @Suppress("DEPRECATION") super.onBackPressed()
         }
@@ -1267,16 +1270,86 @@ class NoteActivity : Activity(), EditorView.Host {
             .show()
     }
 
-    /* ---------- 🎨 colores y estilo de la letra ---------- */
+    /* ---------- 🎨 estilo de la letra: un panel ABAJO (no tapa lo que seleccionaste) ---------- */
+    private var stylePanel: LinearLayout? = null
+
     private fun colorMenu() {
-        val e = editor.focused
-        val st = e?.currentStyle() ?: St.PLAIN
-        Sheet(this, L.t("textStyle"))
-            .quick(MoreIcons.PALETTE, L.t("textColor"), if (st.color != 0) st.color else Sheet.PINK, st.color != 0) { pickColor("color") }
-            .quick(MoreIcons.HILITE, L.t("hilite"), Sheet.AMBER, st.bg != 0) { pickColor("hi") }
-            .quick(MoreIcons.OUTLINE, L.t("outline"), Sheet.SKY, st.o != 0) { pickColor("ol") }
-            .quick(MoreIcons.STRIKE, L.t("strike"), Sheet.GRAY, st.s) { e?.requestFocus(); style { s -> s.copy(s = !cur().s) } }
-            .show()
+        if (stylePanel != null) { closeStyle(); return }
+        if (spell != null) closeSpell()
+        val p = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), dp(8), dp(8), dp(10)) }
+        stylePanel = p
+        formatBar.visibility = View.GONE
+        bottom.addView(p, android.widget.FrameLayout.LayoutParams(MATCH, WRAP))
+        fillStyle()
+        p.translationY = dp(50).toFloat(); p.alpha = 0f
+        p.animate().translationY(0f).alpha(1f).setDuration(380).setInterpolator(android.view.animation.OvershootInterpolator(1.1f)).start()
+        for (i in 0 until p.childCount) { val ch = p.getChildAt(i); ch.alpha = 0f; ch.translationX = dp(24).toFloat()
+            ch.animate().alpha(1f).translationX(0f).setStartDelay(80L + i * 70).setDuration(320).setInterpolator(android.view.animation.DecelerateInterpolator()).start() }
+    }
+
+    private fun fillStyle() {
+        val p = stylePanel ?: return
+        p.removeAllViews()
+        val st = editor.focused?.currentStyle() ?: St.PLAIN
+        val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), 0, 0, 0) }
+        head.addView(tv(L.t("textStyle").uppercase(L.locale), 12f, T.muted, true).apply { letterSpacing = 0.1f }, lp(0, WRAP, 1f))
+        head.addView(iconBtn(Icons.CLOSE, 8.5f) { closeStyle() }.apply { layoutParams = lp(dp(36), dp(36)) })
+        p.addView(head)
+        // 1) los colores de letra: un toque y listo
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(4), dp(4), dp(4), dp(8)) }
+        fun dot(c: Int, on: Boolean, a: (View) -> Unit) {
+            val v = FrameLayout(this)
+            val inner = View(this).apply { background = if (c == 0) roundBg(0, dp(16).toFloat(), 0x99FFFFFF.toInt(), dp(2)) else roundBg(c, dp(16).toFloat(), 0x40000000, dp(1)) }
+            v.addView(inner, android.widget.FrameLayout.LayoutParams(dp(32), dp(32), Gravity.CENTER))
+            if (c == 0) v.addView(tv("∅", 15f, T.text, true).apply { gravity = Gravity.CENTER }, android.widget.FrameLayout.LayoutParams(dp(32), dp(32), Gravity.CENTER))
+            if (on) v.background = roundBg(0, dp(21).toFloat(), 0xFFFFFFFF.toInt(), dp(2))
+            v.setOnClickListener { pop(inner); a(it) }
+            row.addView(v, lp(dp(42), dp(42)).apply { marginEnd = dp(4) })
+        }
+        dot(0, st.color == 0) { styleNow { s -> s.copy(color = 0) } }
+        for (c in T.textColors) dot(c, st.color == c) { styleNow { s -> s.copy(color = c) } }
+        // ＋ = todos los colores (rueda)
+        val more = View(this).apply {
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                gradientType = android.graphics.drawable.GradientDrawable.SWEEP_GRADIENT
+                colors = intArrayOf(0xFFFF453A.toInt(), 0xFFFFD60A.toInt(), 0xFF30D158.toInt(), 0xFF64D2FF.toInt(), 0xFF0A84FF.toInt(), 0xFFBF5AF2.toInt(), 0xFFFF453A.toInt())
+            }
+            setOnClickListener { pop(it); pickColor("color") }
+        }
+        row.addView(more, lp(dp(32), dp(32)).apply { marginStart = dp(5); marginEnd = dp(8) })
+        p.addView(android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(row) })
+        // 2) resaltar · contorno · tachado
+        val r2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        fun pill(icon: Int, label: String, on: Boolean, color: Int, a: () -> Unit) {
+            val v = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(dp(8), dp(9), dp(8), dp(9))
+                background = if (on) roundBg((color and 0xFFFFFF) or 0x40000000, dp(20).toFloat(), color, dp(1)) else roundBg(0x14FFFFFF, dp(20).toFloat(), 0x26FFFFFF, dp(1))
+                setOnClickListener { pop(it); a() }
+            }
+            v.addView(IconView(this, icon, 7.5f).apply { this.color = if (on) color else T.text; isClickable = false }, lp(dp(22), dp(22)))
+            v.addView(tv(label, 13.5f, if (on) color else T.text, true).apply { setPadding(dp(5), 0, 0, 0); maxLines = 1 })
+            r2.addView(v, lp(0, WRAP, 1f).apply { marginEnd = dp(6) })
+        }
+        pill(MoreIcons.HILITE, L.t("hilite"), st.bg != 0, 0xFFFFD54F.toInt()) { pickColor("hi") }
+        pill(MoreIcons.OUTLINE, L.t("outlineShort"), st.o != 0, 0xFF4FC3F7.toInt()) { pickColor("ol") }
+        pill(MoreIcons.STRIKE, L.t("strike"), st.s, 0xFFF48FB1.toInt()) { styleNow { s -> s.copy(s = !cur().s) } }
+        p.addView(r2)
+    }
+
+    /** Aplica el estilo sin quitar lo que seleccionaste, y repinta el panel. */
+    private fun styleNow(f: (St) -> St) {
+        editor.focused?.let { if (!it.hasFocus()) it.requestFocus() }
+        style(f)
+        Store.main.post { fillStyle() }
+    }
+
+    private fun closeStyle() {
+        val p = stylePanel ?: return
+        stylePanel = null
+        p.animate().translationY(dp(40).toFloat()).alpha(0f).setDuration(200).withEndAction {
+            bottom.removeView(p); if (imgPanel == null && spell == null && !ink.drawing && rec == null) formatBar.visibility = View.VISIBLE
+        }.start()
     }
 
     /* ---------- 🖼️ fondo de la nota ---------- */

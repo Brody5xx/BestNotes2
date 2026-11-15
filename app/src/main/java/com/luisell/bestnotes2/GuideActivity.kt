@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     private class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-14" to ("Panel de estilo de la letra abajo (colores de un toque, resaltar, contorno y tachado) para que no lo tapen Cortar/Copiar/Pegar; rueda de colores y tamaño de letra nuevos; los paneles ya salen abajo" to
+            "Text style panel at the bottom (one-tap colors, highlight, outline and strike) so Cut/Copy/Paste don't cover it; new color wheel and font size; panels now open at the bottom"),
         "2026-11-14" to ("📖 Registro que se actualiza solo (ya no se llenan versiones automáticas), la calculadora ya no abre el teclado del teléfono y panel de Apariencia nuevo con vista previa" to
             "📖 Log that updates by itself (no more automatic versions), the calculator no longer opens the phone keyboard and new Appearance panel with preview"),
         "2026-11-14" to ("Barra de abajo de dos filas como en Best Notes: dibujar, agregar (foto, video, audio, IA), B I U, resaltar, listas, tamaño «Aa 17» y el círculo de color (color, resaltar, contorno y tachado). Ícono de girar arreglado" to

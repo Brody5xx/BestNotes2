@@ -86,6 +86,17 @@ class CapturasTest {
         NoteActivity::class.java.getDeclaredMethod("wallMenu").apply { isAccessible = true }.invoke(act)
         shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
         shot(act.window.decorView, "12_fondo")
+        Sheet.closeTop(act); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        NoteActivity::class.java.getDeclaredMethod("colorMenu").apply { isAccessible = true }.invoke(act)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
+        shot(act.window.decorView, "13_estilo")
+        act.pickColor("Color", 0xFF0A84FF.toInt(), T.textColors) {}
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
+        shot(act.window.decorView, "14_rueda")
+        Sheet.closeTop(act); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        act.pickSize(17) {}
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
+        shot(act.window.decorView, "15_tamano")
     }
 
     @Test fun cierreDelMenu() {

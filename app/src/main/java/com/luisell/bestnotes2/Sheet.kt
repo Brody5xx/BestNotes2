@@ -106,6 +106,9 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
 
     fun show(): Sheet {
         val content = act.findViewById<ViewGroup>(android.R.id.content)
+        // el teclado se esconde (si no, el panel queda apretado arriba)
+        (act.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+            .hideSoftInputFromWindow(content.windowToken, 0)
         overlay = FrameLayout(act).apply { isClickable = true; isFocusable = true }
         scrim = View(act).apply { setBackgroundColor(0x8C000000.toInt()); alpha = 0f; setOnClickListener { dismiss() } }
         overlay.addView(scrim, FrameLayout.LayoutParams(MATCH, MATCH))
@@ -226,6 +229,11 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
         private val p = Paint(Paint.ANTI_ALIAS_FLAG)
         private var t = -1f
         init { isClickable = false }
+        // no ocupa espacio propio: toma el tamaño del panel (si no, el panel se iba ARRIBA)
+        override fun onMeasure(w: Int, h: Int) {
+            fun size(spec: Int) = if (MeasureSpec.getMode(spec) == MeasureSpec.EXACTLY) MeasureSpec.getSize(spec) else 0
+            setMeasuredDimension(size(w), size(h))
+        }
         fun play(delay: Long) {
             val a = android.animation.ValueAnimator.ofFloat(0f, 1f).setDuration(900)
             a.startDelay = delay; a.interpolator = PathInterpolator(0.3f, 0f, 0.3f, 1f)

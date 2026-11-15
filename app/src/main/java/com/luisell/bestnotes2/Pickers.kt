@@ -42,75 +42,104 @@ fun addRecentColor(ctx: Context, c: Int) {
  * [onPick] recibe el color escogido, o 0 si tocaste "Sin color".
  */
 fun Context.pickColor(title: String, current: Int, presets: IntArray, onPick: (Int) -> Unit) {
+    val act = this as? android.app.Activity ?: return
     val ctx = this
-    var hsv = FloatArray(3).also { Color.colorToHSV(if (current != 0) current or 0xFF000000.toInt() else T.textColors[4], it) }
-    val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(10), dp(18), dp(4)) }
-    lateinit var d: AlertDialog
+    val hsv = FloatArray(3).also { Color.colorToHSV(if (current != 0) current or 0xFF000000.toInt() else T.textColors[4], it) }
+    lateinit var sheet: Sheet
+    fun now() = Color.HSVToColor(hsv)
 
-    // Muestra del color + código
-    val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-    val swatch = View(this)
-    val hex = tv("", 15f, T.muted).apply { setPadding(dp(12), 0, 0, 0) }
-    head.addView(swatch, lp(dp(44), dp(44)))
-    head.addView(hex, lp(0, WRAP, 1f))
-    col.addView(head, lp(MATCH, WRAP).apply { bottomMargin = dp(10) })
+    // muestra grande: una bolita que brilla con el color + "Aa" pintado + el código
+    val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(2), dp(14), dp(12)) }
+    val glow = View(this)
+    val sample = tv("Aa", 30f, T.text, true).apply { gravity = Gravity.CENTER }
+    val swatchBox = FrameLayout(this)
+    swatchBox.addView(glow, FrameLayout.LayoutParams(dp(64), dp(64), Gravity.CENTER))
+    swatchBox.addView(sample, FrameLayout.LayoutParams(dp(64), dp(64), Gravity.CENTER))
+    head.addView(swatchBox, lp(dp(70), dp(70)))
+    val hexCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), 0, 0, 0) }
+    val hex = tv("", 20f, T.text, true)
+    hexCol.addView(hex)
+    hexCol.addView(tv(L.t("colorHint"), 12.5f, T.muted))
+    head.addView(hexCol, lp(0, WRAP, 1f))
 
     val sv = SVView(this); val hue = HueView(this)
-    fun now() = Color.HSVToColor(hsv)
     fun paint() {
-        swatch.background = roundBg(now(), dp(22).toFloat(), T.border, dp(1))
-        hex.text = String.format("#%06X", now() and 0xFFFFFF)
+        val c = now()
+        glow.background = android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.OVAL
+            gradientType = android.graphics.drawable.GradientDrawable.RADIAL_GRADIENT
+            colors = intArrayOf(c, c, (c and 0xFFFFFF) or 0x55000000, (c and 0xFFFFFF)); gradientRadius = dp(32).toFloat()
+        }
+        val lum = (Color.red(c) * 0.3 + Color.green(c) * 0.59 + Color.blue(c) * 0.11)
+        sample.setTextColor(if (lum > 150) 0xFF161618.toInt() else Color.WHITE)
+        hex.text = String.format("#%06X", c and 0xFFFFFF); hex.setTextColor(if (lum < 60) T.text else c)
         sv.hue = hsv[0]; sv.s = hsv[1]; sv.v = hsv[2]; sv.invalidate()
         hue.hue = hsv[0]; hue.invalidate()
     }
+    fun pickDot(c: Int, v: View) {
+        v.animate().scaleX(0.8f).scaleY(0.8f).setDuration(70).withEndAction { v.animate().scaleX(1f).scaleY(1f).setDuration(240).setInterpolator(android.view.animation.OvershootInterpolator(3f)).start() }.start()
+        Color.colorToHSV(c or 0xFF000000.toInt(), hsv); paint()
+        swatchBox.animate().scaleX(1.12f).scaleY(1.12f).setDuration(110).withEndAction { swatchBox.animate().scaleX(1f).scaleY(1f).setDuration(220).start() }.start()
+    }
     sv.onChange = { s, v -> hsv[1] = s; hsv[2] = v; paint() }
     hue.onChange = { h -> hsv[0] = h; paint() }
-    col.addView(sv, lp(MATCH, dp(170)))
-    col.addView(hue, lp(MATCH, dp(34)).apply { topMargin = dp(10) })
+    val pad = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), 0, dp(14), 0) }
+    pad.addView(sv, lp(MATCH, dp(160)))
+    pad.addView(hue, lp(MATCH, dp(38)).apply { topMargin = dp(10) })
 
-    fun section(label: String, colors: List<Int>, removable: Boolean = false): View? {
-        if (colors.isEmpty()) return null
-        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        box.addView(tv(label, 13f, T.muted, true).apply { setPadding(0, dp(12), 0, dp(2)) })
-        box.addView(colorRow(colors.toIntArray(), false, -1) { c -> Color.colorToHSV(c or 0xFF000000.toInt(), hsv); paint() }.also { v ->
-            if (removable) v.setOnLongClickListener { true }
-        })
-        return box
+    fun dots(colors: List<Int>, onLong: ((Int) -> Unit)? = null): View {
+        val hs = android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(10), dp(6), dp(10), dp(6)) }
+        for (c in colors) {
+            val v = View(this).apply {
+                background = roundBg(c or 0xFF000000.toInt(), dp(19).toFloat(), 0x40FFFFFF, dp(1))
+                setOnClickListener { pickDot(c, it) }
+                if (onLong != null) setOnLongClickListener { onLong(c); true }
+            }
+            row.addView(v, lp(dp(38), dp(38)).apply { marginEnd = dp(10) })
+        }
+        hs.addView(row); return hs
     }
-    section(L.t("colorsBasic"), presets.toList())?.let { col.addView(it) }
-    section(L.t("colorsRecent"), prefsList(this, "colorRecent"))?.let { col.addView(it) }
+    fun label(t: String) = tv(t.uppercase(L.locale), 12f, T.muted, true).apply { letterSpacing = 0.1f; setPadding(dp(16), dp(14), dp(16), 0) }
+
     val favBox = FrameLayout(this)
     fun drawFavs() {
         favBox.removeAllViews()
         val favs = prefsList(ctx, "colorFav")
         val box = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
         val h = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        h.addView(tv(L.t("colorsFav"), 13f, T.muted, true).apply { setPadding(0, dp(12), 0, dp(2)) }, lp(0, WRAP, 1f))
-        h.addView(tv("＋ " + L.t("colorsFavAdd"), 13f, T.accent, true).apply {
-            setPadding(dp(8), dp(12), 0, dp(2))
+        h.addView(label(L.t("colorsFav")), lp(0, WRAP, 1f))
+        h.addView(tv("＋ " + L.t("colorsFavAdd"), 13f, 0xFFB388FF.toInt(), true).apply {
+            setPadding(dp(12), dp(10), dp(16), 0)
             setOnClickListener { val l = prefsList(ctx, "colorFav"); val c = now(); l.remove(c); l.add(0, c); savePrefsList(ctx, "colorFav", l.take(20)); drawFavs() }
         })
         box.addView(h)
         if (favs.isNotEmpty()) {
-            box.addView(colorRow(favs.toIntArray(), false, -1) { c -> Color.colorToHSV(c or 0xFF000000.toInt(), hsv); paint() })
-            box.addView(tv(L.t("colorsFavHint"), 11.5f, T.faint))
-            // mantener presionado un favorito lo quita
-            ((box.getChildAt(1) as android.widget.HorizontalScrollView).getChildAt(0) as LinearLayout).let { row ->
-                for (i in 0 until row.childCount) {
-                    val c = favs[i]
-                    row.getChildAt(i).setOnLongClickListener { savePrefsList(ctx, "colorFav", prefsList(ctx, "colorFav").filter { it != c }); drawFavs(); true }
-                }
-            }
-        }
+            box.addView(dots(favs) { c -> savePrefsList(ctx, "colorFav", prefsList(ctx, "colorFav").filter { it != c }); drawFavs() })
+            box.addView(tv(L.t("colorsFavHint"), 11.5f, T.faint).apply { setPadding(dp(16), 0, dp(16), 0) })
+        } else box.addView(tv(L.t("colorsFavEmpty"), 12.5f, T.faint).apply { setPadding(dp(16), dp(4), dp(16), dp(4)) })
         favBox.addView(box)
     }
     drawFavs()
-    col.addView(favBox)
+
+    // botones de abajo: Sin color · Aplicar
+    val btns = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(10), dp(16), dp(10), dp(4)) }
+    btns.addView(tv(L.t("noColor"), 15.5f, T.text, true).apply {
+        gravity = Gravity.CENTER; setPadding(dp(10), dp(13), dp(10), dp(13)); pressBg(0, 24f, 0x55FFFFFF)
+        setOnClickListener { sheet.dismiss { onPick(0) } }
+    }, lp(0, WRAP, 1f).apply { marginEnd = dp(10) })
+    btns.addView(tv("✓  " + L.t("apply"), 15.5f, 0xFF161618.toInt(), true).apply {
+        gravity = Gravity.CENTER; setPadding(dp(10), dp(13), dp(10), dp(13)); pressBg(0xFFFFFFFF.toInt(), 24f)
+        setOnClickListener { val c = now(); addRecentColor(ctx, c); sheet.dismiss { onPick(c) } }
+    }, lp(0, WRAP, 1.4f))
+
+    sheet = Sheet(act, title).custom(head).custom(pad)
+        .custom(label(L.t("colorsBasic"))).custom(dots(presets.toList()))
+    val rec = prefsList(this, "colorRecent")
+    if (rec.isNotEmpty()) sheet.custom(label(L.t("colorsRecent"))).custom(dots(rec))
+    sheet.custom(favBox).custom(btns)
     paint()
-    d = dialog().setTitle(title).setView(ScrollView(this).apply { addView(col) })
-        .setPositiveButton(L.t("apply")) { _, _ -> addRecentColor(ctx, now()); onPick(now()) }
-        .setNeutralButton(L.t("noColor")) { _, _ -> onPick(0) }
-        .setNegativeButton(L.t("cancel"), null).show()
+    sheet.show()
 }
 
 /** Cuadro de saturación (izq→der) y brillo (arriba→abajo). */
@@ -122,7 +151,7 @@ class SVView(ctx: Context) : View(ctx) {
     private val r = RectF()
     override fun onDraw(c: Canvas) {
         r.set(0f, 0f, width.toFloat(), height.toFloat())
-        val rad = dp(12).toFloat()
+        val rad = dp(18).toFloat()
         p.shader = LinearGradient(0f, 0f, width.toFloat(), 0f, Color.WHITE, Color.HSVToColor(floatArrayOf(hue, 1f, 1f)), Shader.TileMode.CLAMP)
         c.drawRoundRect(r, rad, rad, p)
         p.shader = LinearGradient(0f, 0f, 0f, height.toFloat(), 0x00000000, 0xFF000000.toInt(), Shader.TileMode.CLAMP)
@@ -199,13 +228,23 @@ fun Context.pickSize(current: Int, onPick: (Int) -> Unit) {
     val chips = android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
     val cr = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, dp(4)) }
     for (z in T.sizes) cr.addView(tv("$z", 14f, T.text).apply {
-        setPadding(dp(14), dp(8), dp(14), dp(8)); background = roundBg(T.card, dp(16).toFloat(), T.border, dp(1))
-        setOnClickListener { size = z; paint() }
+        setPadding(dp(16), dp(9), dp(16), dp(9)); pressBg(0x1AFFFFFF, 18f, 0x33FFFFFF)
+        setOnClickListener { v -> size = z; paint(); v.animate().scaleX(0.85f).scaleY(0.85f).setDuration(70).withEndAction { v.animate().scaleX(1f).scaleY(1f).setDuration(220).setInterpolator(android.view.animation.OvershootInterpolator(3f)).start() }.start() }
     }, lp(WRAP, WRAP).apply { marginEnd = dp(6) })
     chips.addView(cr); col.addView(chips)
     paint()
-    dialog().setTitle(L.t("size")).setView(col)
-        .setPositiveButton(L.t("apply")) { _, _ -> onPick(if (size == T.baseSize) 0 else size) }
-        .setNeutralButton(L.t("sizeNormal")) { _, _ -> onPick(0) }
-        .setNegativeButton(L.t("cancel"), null).show()
+    val act = this as? android.app.Activity ?: return
+    lateinit var sheet: Sheet
+    val btns = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(16), 0, dp(4)) }
+    btns.addView(tv(L.t("sizeNormal"), 15.5f, T.text, true).apply {
+        gravity = Gravity.CENTER; setPadding(dp(10), dp(13), dp(10), dp(13)); pressBg(0, 24f, 0x55FFFFFF)
+        setOnClickListener { sheet.dismiss { onPick(0) } }
+    }, lp(0, WRAP, 1f).apply { marginEnd = dp(10) })
+    btns.addView(tv("✓  " + L.t("apply"), 15.5f, 0xFF161618.toInt(), true).apply {
+        gravity = Gravity.CENTER; setPadding(dp(10), dp(13), dp(10), dp(13)); pressBg(0xFFFFFFFF.toInt(), 24f)
+        setOnClickListener { sheet.dismiss { onPick(if (size == T.baseSize) 0 else size) } }
+    }, lp(0, WRAP, 1.4f))
+    col.addView(btns)
+    sheet = Sheet(act, "Aa  " + L.t("size")).custom(col)
+    sheet.show()
 }
