@@ -101,4 +101,28 @@ class PruebasTest {
         L.javaClass
         assertTrue(Templates.builtIn().all { it.blocks().isNotEmpty() })
     }
+
+    @Test fun lineaDeTiempoVeLoQueCambio() {
+        val pre = Timeline.snap("Compras", null, blocksJson(listOf(
+            Block.Text(mutableListOf(Run("leche y pan\nhuevos"))),
+            Block.ListB("check", mutableListOf(Item(mutableListOf(Run("arroz"))), Item(mutableListOf(Run("frijoles"))))),
+            Block.Img("f1.jpg"))), null)
+        val post = Timeline.snap("Compras", null, blocksJson(listOf(
+            Block.Text(mutableListOf(Run("leche y pan\nqueso blanco fresco"))),
+            Block.ListB("check", mutableListOf(Item(mutableListOf(Run("arroz")), done = true), Item(mutableListOf(Run("frijoles"))))),
+            Block.Media("audio", "v1.m4a", 3.0))), null)
+        val d = Timeline.diff(pre, post)
+        assertEquals(3, d.wordsAdd)                       // queso blanco fresco
+        assertEquals(1, d.wordsDel)                       // huevos
+        assertEquals(1, d.checked)                        // arroz marcado
+        assertEquals(1, d.count(Timeline.K.IMG, '-'))     // la foto se borró…
+        assertEquals(1, d.count(Timeline.K.AUDIO, '+'))   // …y llegó una nota de voz
+        assertTrue(d.changes.any { it.op == '-' && it.tok.show == "huevos" })
+        assertTrue(d.changes.none { it.tok.show == "leche y pan" })   // lo que no cambió no sale
+        assertEquals(setOf("text", "img", "list", "media"), d.kinds)
+        // la foto borrada se puede recuperar tal cual
+        assertEquals("f1.jpg", (d.changes.first { it.tok.k == Timeline.K.IMG }.tok.block as Block.Img).file)
+        // y si no cambió nada, no hay cambios
+        assertTrue(Timeline.diff(post, post).changes.isEmpty())
+    }
 }

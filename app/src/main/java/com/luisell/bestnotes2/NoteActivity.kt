@@ -39,6 +39,7 @@ class NoteActivity : Activity(), EditorView.Host {
         const val EXTRA_Q = "q"                // lo que se buscaba (para iluminarlo)
         const val EXTRA_FOLDER = "carpeta"
         const val REQ_CAMERA = 51
+        const val REQ_SCAN = 66
         const val REQ_GALLERY = 52
         const val REQ_CROP = 53
         const val REQ_MIC = 54
@@ -137,6 +138,7 @@ class NoteActivity : Activity(), EditorView.Host {
         showBanners()
         // lo que había al abrir (para guardar la versión de antes si cambias algo)
         openTitle = meta.title; openBody = blocksJson(editor.blocks); openInk = extraObj.opt("ink"); openAt = meta.updated; wasNew = isNew
+        sessStart = System.currentTimeMillis(); sessPre = Timeline.snap(meta.title, extraObj.optJSONArray("tr"), openBody, openInk)
         val q = intent.getStringExtra(EXTRA_Q)
         if (!q.isNullOrBlank()) {
             Rich.highlight(title.text, q)
@@ -457,8 +459,15 @@ class NoteActivity : Activity(), EditorView.Host {
         meta.titleColor = tRuns.firstOrNull { it.text.isNotBlank() }?.st?.color ?: 0
         Store.fillMeta(meta, editor.blocks, tRuns, extraObj.optJSONArray("ink"))
         extra = if (extraObj.length() > 0) extraObj.toString() else null
-        Store.saveNote(meta, blocksJson(editor.blocks), extra, keepExtra = false)
+        val bodyNow = blocksJson(editor.blocks)
+        Store.saveNote(meta, bodyNow, extra, keepExtra = false)
         isNew = false
+        // 🕘 la línea de tiempo: este rato de trabajo (un solo bloque que se va actualizando)
+        sessPre?.let { pre ->
+            val post = Timeline.snap(meta.title, extraObj.optJSONArray("tr"), bodyNow, extraObj.opt("ink"))
+            val st = sessStart; val nid = meta.id; val c = applicationContext
+            Store.io.execute { try { Timeline.record(c, nid, st, pre, post) } catch (_: Exception) {} }
+        }
         // 📖 el registro se actualiza solo (en segundo plano)
         val toks = NoteLog.tokens(meta.title, editor.blocks); val id = meta.id; val app = applicationContext
         Store.io.execute { try { NoteLog.update(app, id, toks, logMine) } catch (_: Exception) {} }
@@ -1081,13 +1090,16 @@ class NoteActivity : Activity(), EditorView.Host {
     private fun addPhoto() {
         Sheet(this, "📷 " + L.t("addPhoto"))
             .quick(Icons.SCAN, L.t("camera"), Sheet.PINK) { openCamera() }
+            .quick(Icons.REPORT, L.t("scanDocQuick"), Sheet.TEAL) { openCamera(scan = true) }
             .quick(Icons.IMAGE, L.t("gallery"), Sheet.BLUE) { openGallery() }
             .show()
     }
 
-    private fun openCamera() {
+    private var scanMode = false
+
+    private fun openCamera(scan: Boolean = false) {
         val f = File(cacheDir, "camara_" + System.currentTimeMillis() + ".jpg")
-        camFile = f
+        camFile = f; scanMode = scan
         val uri = FileProvider.getUriForFile(this, "$packageName.archivos", f)
         val i = Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE).putExtra(android.provider.MediaStore.EXTRA_OUTPUT, uri)
             .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -1145,7 +1157,21 @@ class NoteActivity : Activity(), EditorView.Host {
                 t.file = nf; t.w = data.getIntExtra(CropActivity.OUT_W, 0); t.h = data.getIntExtra(CropActivity.OUT_H, 0)
                 editor.rebuild(null, t); onDirty()
             }
-            REQ_CAMERA -> camFile?.let { f -> if (f.length() > 0) addUris(listOf(android.net.Uri.fromFile(f)), fromCamera = true) { f.delete() } }
+            REQ_CAMERA -> camFile?.let { f ->
+                if (f.length() == 0L) return@let
+                if (scanMode) {
+                    // 📄 escanear: primero se endereza y aclara
+                    Loader.pool.execute {
+                        val r = try { Photos.import(this, android.net.Uri.fromFile(f)) } catch (_: Throwable) { null }
+                        f.delete()
+                        runOnUiThread { if (r != null) startActivityForResult(Intent(this, ScanActivity::class.java).putExtra(ScanActivity.FILE, r.file), REQ_SCAN) else toast(L.t("photoFail")) }
+                    }
+                } else addUris(listOf(android.net.Uri.fromFile(f)), fromCamera = true) { f.delete() }
+            }
+            REQ_SCAN -> {
+                val nf = data?.getStringExtra(ScanActivity.OUT) ?: return
+                editor.insertImages(listOf(Block.Img(nf, 90f, "", 5f, 0f, data.getIntExtra(ScanActivity.OUT_W, 0), data.getIntExtra(ScanActivity.OUT_H, 0), "", 0f, System.currentTimeMillis())))
+            }
             REQ_GALLERY -> {
                 val uris = ArrayList<android.net.Uri>()
                 data?.clipData?.let { c -> for (k in 0 until c.itemCount) uris.add(c.getItemAt(k).uri) }
@@ -1331,6 +1357,7 @@ class NoteActivity : Activity(), EditorView.Host {
     private fun insertMenu() {
         Sheet(this, L.t("insert"))
             .quick(Icons.SCAN, L.t("camera"), Sheet.PINK) { openCamera() }
+            .quick(Icons.REPORT, L.t("scanDocQuick"), Sheet.TEAL) { openCamera(scan = true) }
             .quick(Icons.IMAGE, L.t("gallery"), Sheet.BLUE) { openGallery() }
             .quick(MoreIcons.VIDEO, L.t("video"), Sheet.ORANGE) { videoMenu() }
             .quick(MoreIcons.MIC, L.t("audio"), Sheet.RED) { audioMenu() }
@@ -1467,6 +1494,9 @@ class NoteActivity : Activity(), EditorView.Host {
     private var openBody = ""
     private var openInk: Any? = null
     private var openAt = 0L
+    /** 🕘 este rato de trabajo (para la línea de tiempo). */
+    private var sessStart = 0L
+    private var sessPre: JSONObject? = null
     private var wasNew = false
 
     private val logMine = java.util.Collections.synchronizedSet(HashSet<String>())
@@ -1483,7 +1513,8 @@ class NoteActivity : Activity(), EditorView.Host {
         val list = Versions.load(this, meta.id)
         val logN = NoteLog.load(this, meta.id).size
         val sh = Sheet(this, "🕘 " + L.t("history"))
-        sh.custom(tv(L.t("histIntro"), 14f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(18), 0, dp(18), dp(12)) })
+        timelineInto(sh)
+        sh.custom(tv(L.t("tlMore").uppercase(L.locale), 13f, T.muted, true).apply { letterSpacing = 0.1f; setPadding(dp(14), dp(18), dp(14), dp(8)) })
         // 📖 el registro (una sola lista que se actualiza sola)
         val logCard = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12), dp(12), dp(12), dp(12))
@@ -1586,6 +1617,170 @@ class NoteActivity : Activity(), EditorView.Host {
         toast(L.t("putAllDone"))
     }
 
+    /* ---------- 🕘 la línea de tiempo ---------- */
+    private var tlFilter = "all"
+
+    private fun dayLabel(t: Long): String {
+        val c = java.util.Calendar.getInstance(); val d = java.util.Calendar.getInstance().apply { timeInMillis = t }
+        fun same() = c.get(java.util.Calendar.YEAR) == d.get(java.util.Calendar.YEAR) && c.get(java.util.Calendar.DAY_OF_YEAR) == d.get(java.util.Calendar.DAY_OF_YEAR)
+        if (same()) return L.t("today")
+        c.add(java.util.Calendar.DAY_OF_YEAR, -1); if (same()) return L.t("yesterday")
+        if (System.currentTimeMillis() - t < 7 * 86_400_000L) return L.t("tlThisWeek")
+        return java.text.SimpleDateFormat(if (L.lang == "es") "d 'de' MMMM yyyy" else "MMMM d, yyyy", L.locale).format(Date(t))
+    }
+
+    private fun tlRange(o: JSONObject): String {
+        val a = L.time(o.optLong("s")); val b = L.time(o.optLong("e"))
+        return if (a == b) a else "$a – $b"
+    }
+
+    private fun tlStyle(kind: String): Pair<Int, Int> = when (kind) {
+        "img" -> Icons.IMAGE to Sheet.PINK
+        "media" -> MoreIcons.MIC to Sheet.ORANGE
+        "list" -> MoreIcons.CHECKBOX to Sheet.GREEN
+        "style" -> MoreIcons.PALETTE to Sheet.VIOLET
+        else -> MoreIcons.PEN to Sheet.SKY
+    }
+
+    /** Pone los filtros y la línea de tiempo dentro del panel de historial. */
+    private fun timelineInto(sh: Sheet) {
+        val all = Timeline.load(this, meta.id).map { it to Timeline.diff(it.getJSONObject("pre"), it.getJSONObject("post")) }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), 0, dp(6), 0) }
+        val chips = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(6), dp(2), dp(6), dp(12)) }
+        val filters = listOf("all" to L.t("tlAll"), "text" to "✏️ " + L.t("tlText"), "img" to "📷 " + L.t("tlPhotos"), "list" to "☑ " + L.t("tlLists"), "media" to "🎤 " + L.t("tlMedia"), "style" to "🎨 " + L.t("tlStyle"))
+        fun render() {
+            for (k in 0 until chips.childCount) (chips.getChildAt(k) as TextView).let { c ->
+                val on = c.tag == tlFilter
+                c.setTextColor(if (on) T.onPill else T.text)
+                c.pressBg(if (on) T.pill else 0, 18f, if (on) 0 else tw(0x33))
+            }
+            box.removeAllViews()
+            val list = all.filter { tlFilter == "all" || tlFilter in it.second.kinds }
+            if (list.isEmpty()) {
+                box.addView(tv(if (all.isEmpty()) L.t("tlEmpty") else L.t("tlNoneFilter"), 14.5f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(18), dp(10), dp(18), dp(14)) })
+                return
+            }
+            var lastDay = ""
+            for ((idx, p) in list.withIndex()) {
+                val (o, d) = p
+                val day = dayLabel(o.optLong("s"))
+                if (day != lastDay) {
+                    lastDay = day
+                    box.addView(tv(day, 13.5f, T.muted, true).apply { setPadding(dp(8), dp(if (idx == 0) 0 else 12), dp(8), dp(6)) })
+                }
+                val (icon, col) = tlStyle(d.main)
+                val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 0, dp(4), 0) }
+                // la rayita y la bolita con el ícono
+                val rail = FrameLayout(this)
+                val last = idx == list.size - 1 || dayLabel(list[idx + 1].first.optLong("s")) != day
+                rail.addView(View(this).apply { setBackgroundColor(tw(0x26)) }, FrameLayout.LayoutParams(dp(2), if (last) dp(40) else MATCH, Gravity.CENTER_HORIZONTAL))
+                val dot = FrameLayout(this).apply { background = roundBg(col and 0x33FFFFFF or 0x33000000, dp(18).toFloat(), col, dp(2)) }
+                dot.addView(IconView(this, icon, 7.5f).apply { color = col; isClickable = false }, FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER))
+                rail.addView(dot, FrameLayout.LayoutParams(dp(36), dp(36), Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(4) })
+                row.addView(rail, lp(dp(44), MATCH))
+                val card = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(11), dp(12), dp(11))
+                    background = Glass.make(this@NoteActivity, 18f)
+                }
+                val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+                top.addView(tv(tlRange(o), 15f, T.text, true), lp(0, WRAP, 1f))
+                top.addView(IconView(this, Icons.CHEVRON, 6f).apply { color = tw(0x55); isClickable = false }, lp(dp(16), dp(16)))
+                card.addView(top)
+                card.addView(tv(Timeline.summary(d), 13f, col).apply { setPadding(0, dp(3), 0, 0) })
+                (d.changes.firstOrNull { it.op == '+' && it.tok.k != Timeline.K.IMG && it.tok.k != Timeline.K.AUDIO && it.tok.k != Timeline.K.VIDEO }
+                    ?: d.changes.firstOrNull { it.tok.k == Timeline.K.TEXT || it.tok.k == Timeline.K.LIST })?.let { c ->
+                    card.addView(tv((if (c.op == '+') "" else "− ") + c.tok.show, 13f, T.muted).apply {
+                        maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, dp(3), 0, 0)
+                        if (c.op == '-') paintFlags = paintFlags or android.graphics.Paint.STRIKE_THRU_TEXT_FLAG
+                    })
+                }
+                card.setOnClickListener { pop(it); Sheet.closeTop(this); Store.main.postDelayed({ viewSession(o, d) }, 300) }
+                row.addView(card, lp(0, WRAP, 1f).apply { bottomMargin = dp(8) })
+                box.addView(row, lp(MATCH, WRAP))
+                // entra con una animacioncita
+                row.alpha = 0f; row.translationX = dp(24).toFloat()
+                row.animate().alpha(1f).translationX(0f).setStartDelay(40L * minOf(idx, 10)).setDuration(260).start()
+            }
+        }
+        for ((k, label) in filters) chips.addView(tv(label, 13.5f, T.text, true).apply {
+            tag = k; setPadding(dp(14), dp(8), dp(14), dp(8))
+            setOnClickListener { pop(it); tlFilter = k; render() }
+        }, lp(WRAP, WRAP).apply { marginEnd = dp(6) })
+        sh.custom(android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(chips) })
+        render()
+        sh.custom(box)
+    }
+
+    /** Lo que cambió en un rato de trabajo: verde = nuevo, rojo = borrado. */
+    private fun viewSession(o: JSONObject, d: Timeline.Diff) {
+        val pre = o.getJSONObject("pre"); val post = o.getJSONObject("post")
+        val sh = Sheet(this, dayLabel(o.optLong("s")) + ", " + tlRange(o), Timeline.summary(d))
+        sh.quick(MoreIcons.RESTORE, L.t("tlBackTo"), Sheet.GREEN) {
+            confirm(L.t("tlBackTo"), L.t("tlBackToMsg"), L.t("restore")) { restoreVersion(post) }
+        }
+        sh.quick(MoreIcons.HISTORY, L.t("tlBefore"), Sheet.BLUE) {
+            confirm(L.t("tlBefore"), L.t("tlBeforeMsg"), L.t("restore")) { restoreVersion(pre) }
+        }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(12), dp(12), dp(12)); background = Glass.make(this@NoteActivity, 18f) }
+        val green = 0xFF30D158.toInt(); val red = 0xFFFF453A.toInt()
+        if (d.changes.isEmpty()) box.addView(tv(L.t("tlOnlyStyle"), 14.5f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(6), dp(6), dp(6), dp(6)) })
+        for (c in d.changes.take(250)) {
+            val add = c.op == '+'
+            val col = if (add) green else red
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(10), dp(7), dp(8), dp(7))
+                background = roundBg(col and 0x00FFFFFF or 0x24000000, dp(12).toFloat())
+            }
+            row.addView(tv(if (add) "+" else "−", 17f, col, true).apply { gravity = Gravity.CENTER }, lp(dp(20), WRAP))
+            when (c.tok.k) {
+                Timeline.K.IMG -> {
+                    val iv = android.widget.ImageView(this).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP; clipToOutline = true; background = roundBg(tw(0x1A), dp(10).toFloat(), col, dp(2)); setPadding(dp(2), dp(2), dp(2), dp(2)) }
+                    Thumbs.load(c.tok.show, dp(240)) { bm -> if (bm != null) iv.setImageBitmap(bm) }
+                    row.addView(iv, lp(0, dp(110), 1f).apply { marginStart = dp(4); marginEnd = dp(8) })
+                }
+                Timeline.K.AUDIO, Timeline.K.VIDEO -> {
+                    val m = c.tok.block as? Block.Media
+                    val name = (if (c.tok.k == Timeline.K.AUDIO) "🎤 " + L.t("tlVoice") else "🎬 " + L.t("tlVideo")) + (m?.let { if (it.dur > 0) "  " + MediaFiles.timeText(it.dur) else "" } ?: "")
+                    row.addView(tv(name, 15f, T.text, true).apply { setPadding(dp(4), 0, dp(6), 0) }, lp(0, WRAP, 1f))
+                }
+                else -> row.addView(tv((if (c.tok.k == Timeline.K.TITLE) "🏷️ " else if (c.tok.k == Timeline.K.LIST) "• " else "") + c.tok.show, 15f, if (add) T.text else T.muted).apply {
+                    setPadding(dp(4), 0, dp(6), 0)
+                    if (!add) paintFlags = paintFlags or android.graphics.Paint.STRIKE_THRU_TEXT_FLAG
+                }, lp(0, WRAP, 1f))
+            }
+            if (!add && c.tok.k != Timeline.K.TITLE) {
+                row.addView(tv("↩ " + L.t("tlRecover"), 13f, T.onPill, true).apply {
+                    setPadding(dp(12), dp(7), dp(12), dp(7)); pressBg(T.pill, 16f)
+                    setOnClickListener { b -> pop(b); recover(c.tok); (b as TextView).text = "✓"; b.isEnabled = false }
+                })
+            }
+            box.addView(row, lp(MATCH, WRAP).apply { bottomMargin = dp(6) })
+        }
+        if (d.changes.size > 250) box.addView(tv("… +" + (d.changes.size - 250), 14f, T.muted).apply { gravity = Gravity.CENTER })
+        sh.custom(FrameLayout(this).apply { setPadding(dp(6), dp(4), dp(6), dp(4)); addView(box) })
+        sh.show()
+    }
+
+    /** Vuelve a poner (al final de la nota) algo que habías borrado. */
+    private fun recover(t: Timeline.Tok) {
+        if (snapPending) snapshot()
+        editor.flushAll()
+        val b: Block = when (t.k) {
+            Timeline.K.TEXT, Timeline.K.TITLE -> (t.block as? Block.Text)?.let { tb ->
+                // si el renglón tenía estilo, se recupera con su estilo
+                val plain = runsPlain(tb.runs); val i = plain.indexOf(t.show)
+                if (i >= 0) Block.Text(sliceRuns(tb.runs, i, i + t.show.length)) else null
+            } ?: Block.Text(mutableListOf(Run(t.show)))
+            else -> t.block ?: Block.Text(mutableListOf(Run(t.show)))
+        }
+        val nb = editor.blocks.toMutableList(); nb.add(b)
+        muting = true
+        editor.setBlocks(normalize(nb))
+        muting = false
+        dirty = true; save(); snapshot()
+        toast(L.t("tlRecovered"))
+    }
+
     private fun viewVersion(v: JSONObject) {
         val df = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, L.locale)
         val blocks = blocksFromJson(v.optString("b"))
@@ -1608,7 +1803,8 @@ class NoteActivity : Activity(), EditorView.Host {
     private fun restoreVersion(v: JSONObject) {
         if (snapPending) snapshot()
         muting = true
-        title.setText(v.optString("t"))
+        val tr = v.optJSONArray("tr")?.let { runsFromJson(it) }?.takeIf { runsPlain(it).trim() == v.optString("t").trim() }
+        if (tr != null) { extraObj.put("tr", runsJson(tr)); title.setText(Rich.build(tr)) } else { extraObj.remove("tr"); title.setText(v.optString("t")) }
         editor.setBlocks(blocksFromJson(v.optString("b")))
         val inkJ = v.opt("ink")
         if (inkJ is org.json.JSONArray) { extraObj.put("ink", inkJ); ink.set(Stroke.listFrom(inkJ)) } else { extraObj.remove("ink"); ink.set(emptyList()) }

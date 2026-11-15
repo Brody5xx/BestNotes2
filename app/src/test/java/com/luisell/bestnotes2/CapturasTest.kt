@@ -24,6 +24,9 @@ class CapturasTest {
     private fun idle() { shadowOf(Looper.getMainLooper()).idle() }
     private fun waitIo() { val l = java.util.concurrent.CountDownLatch(1); Store.io.execute { l.countDown() }; l.await(); idle() }
 
+    /** Al terminar cada prueba se olvidan las pantallas viejas (si no, Android las "espera" y se traba la siguiente). */
+    @org.junit.After fun limpiar() { (Store::class.java.getDeclaredField("listeners").apply { isAccessible = true }.get(Store) as MutableList<*>).clear() }
+
     private fun shot(v: View, name: String) {
         val w = 1080; val h = 2340
         if (v.width != w) { v.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY)); v.layout(0, 0, w, h) }
@@ -215,5 +218,68 @@ class CapturasTest {
         main.askText("Nueva carpeta", hint = "Nombre") {}; last("35_texto")
         T.light = true
         try { Pin.change(main) {}; last("33_pin_claro"); main.confirm("¿Borrar?", "No se puede deshacer.", "Borrar", true) {}; last("34_confirmar_claro") } finally { T.light = false }
+    }
+
+    @Test fun capturasNuevas() {
+        if (System.getenv("CAPTURAS") == null) return
+        var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
+        val f = File(ctx.cacheDir, "r.json"); f.writeText(javaClass.classLoader!!.getResource("respaldo.json")!!.readText())
+        Backup.importFile(ctx, Uri.fromFile(f), "prueba") {}
+        ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
+        // 🕘 línea de tiempo con 3 ratos de trabajo
+        var (body, _) = Store.readBody("n1")
+        val b0 = blocksFromJson(body)
+        val s0 = Timeline.snap("Ticket de prueba", null, blocksJson(b0), null)
+        val b1 = b0.toMutableList().apply { add(Block.Text(mutableListOf(Run("Cambiar la batería del control\nRevisar el cable de la puerta 2")))) }
+        val s1 = Timeline.snap("Ticket de prueba", null, blocksJson(b1), null)
+        val b2 = b1.filter { it !is Block.Img }.toMutableList().apply { add(Block.ListB("check", mutableListOf(Item(mutableListOf(Run("Llevar escalera")), false)))) }
+        val s2 = Timeline.snap("Ticket de prueba", null, blocksJson(b2), null)
+        val now = System.currentTimeMillis()
+        Timeline.clear(ctx, "n1")
+        Timeline.record(ctx, "n1", now - 26 * 3600_000L, s0, s1)
+        Timeline.record(ctx, "n1", now - 3600_000L, s1, s2)
+        Timeline.record(ctx, "n1", now - 600_000L, s2, Timeline.snap("Ticket de prueba", runsJson(listOf(Run("Ticket de prueba", St(color = 0xFFFF5252.toInt())))), blocksJson(b2), null))
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n1")).setup().visible().get()
+        waitIo(); idle(); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        NoteActivity::class.java.getDeclaredMethod("showHistory").apply { isAccessible = true }.invoke(act)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1800))
+        shot(act.window.decorView, "40_linea")
+        Sheet.closeTop(act); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        val o = Timeline.load(ctx, "n1")[1]
+        val d = Timeline.diff(o.getJSONObject("pre"), o.getJSONObject("post"))
+        NoteActivity::class.java.getDeclaredMethod("viewSession", org.json.JSONObject::class.java, Timeline.Diff::class.java).apply { isAccessible = true }.invoke(act, o, d)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1800))
+        shot(act.window.decorView, "41_cambios")
+        // 📄 escáner con una "foto" de un papel chueco
+        val bm = android.graphics.Bitmap.createBitmap(1200, 1600, android.graphics.Bitmap.Config.ARGB_8888)
+        android.graphics.Canvas(bm).apply {
+            drawColor(0xFF5D4037.toInt())
+            val paper = android.graphics.Path().apply { moveTo(260f, 220f); lineTo(1010f, 330f); lineTo(930f, 1420f); lineTo(170f, 1300f); close() }
+            drawPath(paper, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFEDEBE6.toInt() })
+            val tp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF222222.toInt(); textSize = 46f }
+            save(); rotate(8f, 600f, 800f)
+            for (k in 0 until 9) drawText("Línea de ejemplo número ${k + 1}", 300f, 470f + k * 95f, tp)
+            restore()
+        }
+        val r = Photos.saveNew(bm)
+        val sa = Robolectric.buildActivity(ScanActivity::class.java, Intent(ctx, ScanActivity::class.java).putExtra(ScanActivity.FILE, r.file)).setup().visible().get()
+        Thread.sleep(1500); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1200))
+        shot(sa.window.decorView, "42_escaner")
+        ScanActivity::class.java.getDeclaredMethod("flatten").apply { isAccessible = true }.invoke(sa)
+        repeat(30) { Thread.sleep(150); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(200)) }
+        shot(sa.window.decorView, "43_escaneado")
+        // 🏠 widget
+        val v = android.widget.RemoteViews(ctx.packageName, R.layout.widget)
+        try {
+            val m = NotesWidget.Companion::class.java  // solo para que se cargue
+            val box = android.widget.FrameLayout(ctx)
+            val w = v.apply(ctx, box)
+            NotesWidget.pick().forEachIndexed { i, n -> w.findViewById<android.widget.TextView>(listOf(R.id.t0, R.id.t1, R.id.t2, R.id.t3)[i]).text = (if (n.pinned) "📌 " else "") + n.title.ifBlank { "Sin título" }; w.findViewById<android.widget.TextView>(listOf(R.id.s0, R.id.s1, R.id.s2, R.id.s3)[i]).text = n.plain.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty() }
+            box.addView(w, android.widget.FrameLayout.LayoutParams(1000, 640))
+            box.measure(View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(700, View.MeasureSpec.EXACTLY)); box.layout(0, 0, 1080, 700)
+            val out = android.graphics.Bitmap.createBitmap(1080, 700, android.graphics.Bitmap.Config.ARGB_8888)
+            android.graphics.Canvas(out).apply { drawColor(0xFF3A5A7A.toInt()); box.draw(this) }
+            File("/tmp/capturas/44_widget.png").outputStream().use { out.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        } catch (e: Throwable) { e.printStackTrace() }
     }
 }

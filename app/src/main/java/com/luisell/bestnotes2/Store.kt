@@ -32,7 +32,7 @@ object Store {
     private val listeners = ArrayList<() -> Unit>()
 
     fun init(ctx: Context) {
-        if (::db.isInitialized) return
+        if (::db.isInitialized && db.isOpen) return
         db = Helper(ctx.applicationContext).writableDatabase
         mediaDir = File(ctx.filesDir, "media").apply { mkdirs() }
         appCtx = ctx.applicationContext
@@ -50,6 +50,16 @@ object Store {
         loading = true
         val myGen = gen
         io.execute {
+            try { loadNow(myGen) } catch (e: Throwable) {
+                // si algo falla, que la app no se quede esperando para siempre
+                android.util.Log.w("Store", "load", e)
+                main.post { if (myGen == gen) { loading = false; loaded = true; val w = waiting.toList(); waiting.clear(); w.forEach { try { it() } catch (_: Exception) {} } } }
+            }
+        }
+    }
+
+    private fun loadNow(myGen: Int) {
+        run {
             val list = ArrayList<NoteMeta>()
             db.rawQuery(
                 "SELECT id,title,title_color,color,folder,fav,pinned,deleted,deleted_at,locked,kind,created,updated,plain,thumb,ck_total,ck_done,has_media,pv FROM notes",
@@ -85,7 +95,7 @@ object Store {
                 folders.clear(); folders.addAll(fl)
                 loaded = true; loading = false
                 val w = waiting.toList(); waiting.clear()
-                w.forEach { it() }
+                w.forEach { try { it() } catch (e: Exception) { android.util.Log.w("Store", "load", e) } }
             }
         }
     }
@@ -156,8 +166,22 @@ object Store {
         io.execute { db.update("notes", v, "id=?", arrayOf(m.id)) }
     }
 
+    const val TRASH_DAYS = 30
+
+    /** 🗑️ Las notas que llevan más de 30 días en la papelera se borran solas. */
+    fun purgeTrash() {
+        val now = System.currentTimeMillis()
+        notes.filter { it.deleted && it.deletedAt == 0L }.forEach { it.deletedAt = now; saveMeta(it) }   // las viejas empiezan a contar hoy
+        val old = notes.filter { it.deleted && now - it.deletedAt > TRASH_DAYS * 86_400_000L }.map { it.id }
+        if (old.isNotEmpty()) { deleteForever(old); changed() }
+    }
+
+    /** Cuántos días le quedan en la papelera. */
+    fun daysLeft(m: NoteMeta): Int = maxOf(0, TRASH_DAYS - ((System.currentTimeMillis() - m.deletedAt) / 86_400_000L).toInt())
+
     fun deleteForever(ids: Collection<String>) {
         notes.removeAll { it.id in ids }
+        appCtx?.let { c -> ids.forEach { id -> try { Timeline.clear(c, id); NoteLog.clear(c, id); Versions.deleteAll(c, id) } catch (_: Exception) {} } }
         val list = ids.toList()
         io.execute {
             db.beginTransaction()
@@ -178,6 +202,8 @@ object Store {
         }
         // las fotos de las versiones viejas (🕘 historial) también se guardan
         appCtx?.let { ctx -> try { Versions.allText(ctx).forEach { s -> re2.findAll(s).forEach { used.add(it.groupValues[1]) } } } catch (_: Exception) {} }
+        // y las de la 🕘 línea de tiempo
+        appCtx?.let { ctx -> try { Timeline.allText(ctx).forEach { s -> re2.findAll(s).forEach { used.add(it.groupValues[1]) } } } catch (_: Exception) {} }
         // y las fotos del 📖 registro
         appCtx?.let { ctx -> try { NoteLog.allText(ctx).forEach { s -> Regex("\\\\u0001([^\"\\\\]+)|\u0001([^\"]+)").findAll(s).forEach { m -> used.add(m.groupValues[1].ifEmpty { m.groupValues[2] }) } } } catch (_: Exception) {} }
         mediaDir.listFiles()?.forEach {

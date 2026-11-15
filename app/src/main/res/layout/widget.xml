@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 🏠 El widget de la pantalla de inicio: tus notas fijadas (o las últimas) y un botón + -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:padding="12dp" android:background="@drawable/widget_bg">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+        <TextView android:id="@+id/w_title" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+            android:paddingStart="6dp" android:textColor="#FFFFFFFF" android:textSize="18sp" android:textStyle="bold" android:text="@string/app_name" />
+        <TextView android:id="@+id/w_new" android:layout_width="36dp" android:layout_height="36dp" android:gravity="center"
+            android:background="@drawable/widget_plus" android:text="+" android:textColor="#FF16161A" android:textSize="24sp" android:textStyle="bold" />
+    </LinearLayout>
+    <TextView android:id="@+id/w_empty" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center"
+        android:textColor="#B3FFFFFF" android:textSize="14sp" android:visibility="gone" />
+    <LinearLayout android:id="@+id/r0" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="6dp" android:orientation="vertical" android:gravity="center_vertical"
+        android:paddingStart="14dp" android:paddingEnd="14dp" android:paddingTop="8dp" android:paddingBottom="8dp" android:background="@drawable/widget_row">
+        <TextView android:id="@+id/t0" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textColor="#FFFFFFFF" android:textSize="15sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+        <TextView android:id="@+id/s0" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textColor="#B3FFFFFF" android:textSize="12.5sp" android:maxLines="1" android:ellipsize="end" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/r1" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="6dp" android:orientation="vertical" android:gravity="center_vertical"
+        android:paddingStart="14dp" android:paddingEnd="14dp" android:paddingTop="8dp" android:paddingBottom="8dp" android:background="@drawable/widget_row">
+        <TextView android:id="@+id/t1" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textColor="#FFFFFFFF" android:textSize="15sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+        <TextView android:id="@+id/s1" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textColor="#B3FFFFFF" android:textSize="12.5sp" android:maxLines="1" android:ellipsize="end" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/r2" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="6dp" android:orientation="vertical" android:gravity="center_vertical"
+        android:paddingStart="14dp" android:paddingEnd="14dp" android:paddingTop="8dp" android:paddingBottom="8dp" android:background="@drawable/widget_row">
+        <TextView android:id="@+id/t2" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textColor="#FFFFFFFF" android:textSize="15sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+        <TextView android:id="@+id/s2" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textColor="#B3FFFFFF" android:textSize="12.5sp" android:maxLines="1" android:ellipsize="end" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/r3" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="6dp" android:orientation="vertical" android:gravity="center_vertical"
+        android:paddingStart="14dp" android:paddingEnd="14dp" android:paddingTop="8dp" android:paddingBottom="8dp" android:background="@drawable/widget_row">
+        <TextView android:id="@+id/t3" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textColor="#FFFFFFFF" android:textSize="15sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+        <TextView android:id="@+id/s3" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textColor="#B3FFFFFF" android:textSize="12.5sp" android:maxLines="1" android:ellipsize="end" />
+    </LinearLayout>
+</LinearLayout>

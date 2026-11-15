@@ -62,6 +62,9 @@ object Photos {
         return Result(name, bm.width, bm.height, if (taken > 0) taken else System.currentTimeMillis())
     }
 
+    /** Guarda una foto nueva (por ejemplo, un documento escaneado). */
+    fun saveNew(bm: Bitmap): Result = Result(save(bm), bm.width, bm.height, System.currentTimeMillis())
+
     private fun save(bm: Bitmap): String {
         val name = "f" + newId() + ".jpg"
         val f = File(Store.mediaDir, name)

@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-15" to ("🕘 Historial nuevo: línea de tiempo por ratos de trabajo, verde lo nuevo y rojo lo borrado, «Volver a como quedó» y «Recuperar». 👆 Huella o cara, 📥 guardar fotos y textos de otras apps, 🏠 widget, 🔁 respaldo automático cada semana, 🗑️ la papelera se vacía sola a los 30 días y 📄 escáner de documentos" to
+            "🕘 New history: a timeline of work sessions, green for new and red for deleted, “Go back to this” and “Recover”. 👆 Fingerprint or face, 📥 save photos and text from other apps, 🏠 widget, 🔁 weekly automatic backup, 🗑️ trash empties itself after 30 days and 📄 document scanner"),
         "2026-11-15" to ("🔒 Nuevo teclado del PIN de vidrio (bolitas que se llenan, tiemblan si te equivocas, y el candado se abre), y todas las ventanitas de preguntar ahora son de vidrio con animación" to
             "🔒 New glass PIN pad (dots that fill in, shake on a wrong PIN, and the lock opens), and every pop-up question is now glass with an animation"),
         "2026-11-15" to ("Compartir varias notas a la vez (página con videos, PDF, texto o SMS), «Página con videos» que se abre en cualquier teléfono, y «Deshacer» al mandar a la papelera" to

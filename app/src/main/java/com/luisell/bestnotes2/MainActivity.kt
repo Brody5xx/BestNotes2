@@ -151,7 +151,7 @@ class MainActivity : Activity() {
 
     /* ---------- ☀️/🌙 cambiar de modo con un círculo que crece desde el botón ---------- */
     companion object {
-        const val PICK_FILE = 41; const val REQ_WALL = 42; const val REQ_SAVE_BK = 43
+        const val PICK_FILE = 41; const val REQ_WALL = 42; const val REQ_SAVE_BK = 43; const val REQ_AUTO_DIR = 44
         /** Notas que se acaban de mandar a la papelera desde una nota (para "Deshacer"). */
         var pendingTrash: List<String>? = null
         private var snap: android.graphics.Bitmap? = null
@@ -200,7 +200,7 @@ class MainActivity : Activity() {
         header.removeAllViews()
         titleTv.text = viewName()
         val total = visibleCount
-        countTv.text = if (total == 1) L.t("nNotes1") else L.t("nNotes", "n" to total)
+        countTv.text = (if (total == 1) L.t("nNotes1") else L.t("nNotes", "n" to total)) + if (view == "trash") "  ·  " + L.t("trashAuto") else ""
         if (selected.isNotEmpty()) {
             header.addView(glassBtn(Icons.CLOSE) { selected.clear(); refresh() })
             header.addView(View(this), lp(0, 1, 1f))
@@ -479,6 +479,9 @@ class MainActivity : Activity() {
         p.addView(menuRow(this, Icons.CLOCK, L.t("hourFmt"), when (L.hourFmt) { "12" -> "12 h (3:00 PM)"; "24" -> "24 h (15:00)"; else -> L.t("hourAuto") }) { closeDrawer(); pickHourFmt() })
         p.addView(menuRow(this, Icons.LOCK, L.t("lockApp"), if (AppLock.on(this)) "✓ " + L.t("lockAppOn") else null) { closeDrawer(); toggleAppLock() })
         if (Pin.saved(this) != null) p.addView(menuRow(this, Icons.KEY, L.t("changePin")) { closeDrawer(); Pin.change(this) { toast(L.t("pinChanged")) } })
+        if (Bio.available(this)) p.addView(menuRow(this, MoreIcons.SHIELD, L.t("bioTitle"), if (Bio.enabled(this)) "✓ " + L.t("bioOn") else L.t("bioOff")) {
+            closeDrawer(); val on = !Bio.enabled(this); Bio.setEnabled(this, on); toast(L.t(if (on) "bioOn" else "bioOff"))
+        })
         p.addView(sep())
         val ver = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (_: Exception) { "" }
         p.addView(tv(L.t("devBy") + "\n" + L.t("version", "v" to (ver ?: "")), 12.5f, T.muted).apply { setPadding(dp(14), dp(8), dp(8), 0) })
@@ -773,6 +776,7 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == PICK_FILE && resultCode == RESULT_OK) data?.data?.let { askPassword(it) }
+        if (requestCode == REQ_AUTO_DIR && resultCode == RESULT_OK) data?.data?.let { autoBackupPass(it) }
         if (requestCode == REQ_SAVE_BK && resultCode == RESULT_OK) data?.data?.let { u ->
             val f = backupFile ?: return@let
             Thread {
@@ -790,12 +794,121 @@ class MainActivity : Activity() {
 
     private fun handleIntent(i: Intent?) {
         i ?: return
+        // 🏠 desde el widget
+        i.getStringExtra(NotesWidget.EXTRA_OPEN)?.let { id -> i.removeExtra(NotesWidget.EXTRA_OPEN); Store.load { Store.meta(id)?.takeIf { !it.deleted }?.let { open(it) } }; return }
+        if (i.getBooleanExtra(NotesWidget.EXTRA_NEW, false)) { i.removeExtra(NotesWidget.EXTRA_NEW); Store.load { newNote("text") }; return }
+        // 📥 algo que te mandaron desde otra app (texto, enlace o fotos)
+        if (i.action == Intent.ACTION_SEND || i.action == Intent.ACTION_SEND_MULTIPLE) {
+            val type = i.type ?: ""
+            val streams = ArrayList<Uri>()
+            if (i.action == Intent.ACTION_SEND_MULTIPLE) {
+                @Suppress("DEPRECATION") (i.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM))?.let { streams.addAll(it) }
+            } else (if (android.os.Build.VERSION.SDK_INT >= 33) i.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java) else @Suppress("DEPRECATION") i.getParcelableExtra(Intent.EXTRA_STREAM))?.let { streams.add(it) }
+            val text = i.getStringExtra(Intent.EXTRA_TEXT)
+            if (type.startsWith("image/") || (streams.isEmpty() && !text.isNullOrBlank())) {
+                val subj = i.getStringExtra(Intent.EXTRA_SUBJECT)
+                i.action = null
+                Store.load { root.postDelayed({ shareIn(text, subj, if (type.startsWith("image/")) streams else emptyList()) }, 300) }
+                return
+            }
+        }
         val uri: Uri? = when (i.action) {
             Intent.ACTION_SEND -> if (android.os.Build.VERSION.SDK_INT >= 33) i.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java) else @Suppress("DEPRECATION") i.getParcelableExtra(Intent.EXTRA_STREAM)
             Intent.ACTION_VIEW -> i.data
             else -> null
         }
         if (uri != null) { i.action = null; Store.load { askPassword(uri) } }
+    }
+
+    /* ---------- 📥 guardar en una nota lo que llega de otra app ---------- */
+    private fun shareIn(text: String?, subj: String?, images: List<Uri>) {
+        val what = listOfNotNull(text?.trim()?.takeIf { it.isNotEmpty() }?.let { "“" + it.take(80) + (if (it.length > 80) "…" else "") + "”" }, if (images.isNotEmpty()) "📷 × ${images.size}" else null).joinToString("  ")
+        val sh = Sheet(this, "📥 " + L.t("shareInTitle"), what)
+        sh.quick(MoreIcons.PLUS, L.t("shareInNew"), Sheet.GREEN) { shareInto(null, text, subj, images) }
+        val recent = Store.notes.filter { !it.deleted && !it.locked }.sortedWith(compareByDescending<NoteMeta> { it.pinned }.thenByDescending { it.updated }).take(8)
+        if (recent.isNotEmpty()) sh.custom(tv(L.t("shareInAdd").uppercase(L.locale), 13f, T.muted, true).apply { letterSpacing = 0.1f; setPadding(dp(14), dp(10), dp(14), dp(6)) })
+        for (n in recent) sh.item(MoreIcons.PEN, n.title.ifBlank { L.t("untitled") }, Sheet.SKY, dateText(n.updated)) { shareInto(n, text, subj, images) }
+        sh.show()
+    }
+
+    private fun shareInto(target: NoteMeta?, text: String?, subj: String?, images: List<Uri>) {
+        toast(L.t("shareInSaving"))
+        val app = applicationContext
+        Thread {
+            val blocks = ArrayList<Block>()
+            val t = text?.trim().orEmpty()
+            if (t.isNotEmpty()) {
+                // si es un enlace, se guarda como enlace que se puede tocar
+                val url = Regex("^https?://\\S+$").matches(t)
+                blocks.add(Block.Text(mutableListOf(if (url) Run(t, St(href = t, u = true)) else Run(t))))
+            }
+            for (u in images) {
+                val r = try { Photos.import(app, u) } catch (_: Throwable) { null } ?: continue
+                val pct = if (images.size > 1) 48f else 70f
+                blocks.add(Block.Img(r.file, pct, "", (100f - pct) / 2, 0f, r.w, r.h, "", 0f, r.taken))
+            }
+            if (blocks.isEmpty()) { runOnUiThread { toast(L.t("photoFail")) }; return@Thread }
+            val m: NoteMeta = if (target == null) {
+                val title = subj?.trim()?.takeIf { it.isNotEmpty() && it != t } ?: ""
+                val r = arrayOfNulls<NoteMeta>(1)
+                val l = java.util.concurrent.CountDownLatch(1)
+                runOnUiThread { r[0] = Store.createNote(title.take(120), blocks); l.countDown() }
+                l.await(); r[0]!!
+            } else {
+                val (body, _) = Store.readBody(target.id)
+                val all = blocksFromJson(body); all.addAll(blocks)
+                val nb = normalize(all)
+                runOnUiThread { target.updated = System.currentTimeMillis(); Store.fillMeta(target, nb); Store.saveNote(target, blocksJson(nb)); Store.changed() }
+                target
+            }
+            runOnUiThread {
+                toast(L.t("shareInDone"))
+                startActivity(Intent(this, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id))
+            }
+        }.start()
+    }
+
+    /* ---------- 💾 respaldo automático ---------- */
+    private fun autoBackupMenu() {
+        if (AutoBackup.on(this)) {
+            val last = AutoBackup.last(this)
+            Sheet(this, "🔁 " + L.t("autoBk"), L.t("autoBkOnSub", "d" to (if (last == 0L) L.t("backupNever") else dateText(last))))
+                .quick(Icons.CHECK, L.t("autoBkNow"), Sheet.GREEN) {
+                    toast(L.t("bkWorking"))
+                    Thread { val ok = AutoBackup.run(applicationContext); runOnUiThread { toast(L.t(if (ok) "autoBkDone" else "vFail")) } }.start()
+                }
+                .quick(Icons.CLOSE, L.t("autoBkOff"), Sheet.RED) { AutoBackup.disable(this); toast(L.t("autoBkOffDone")) }
+                .custom(tv(L.t("autoBkHint"), 13.5f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(18), dp(4), dp(18), dp(10)) })
+                .show()
+            return
+        }
+        dialog().setTitle("🔁 " + L.t("autoBk")).setMessage(L.t("autoBkExplain"))
+            .setPositiveButton(L.t("autoBkPick")) { _, _ ->
+                try { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_AUTO_DIR) } catch (_: Exception) { toast(L.t("cantOpen")) }
+            }.setNegativeButton(L.t("cancel"), null).show()
+    }
+
+    private fun autoBackupPass(dir: Uri) {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        fun field(h: String) = EditText(this).apply {
+            hint = h; isSingleLine = true
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD; typeface = android.graphics.Typeface.DEFAULT
+        }
+        val p1 = field(L.t("vPassNew")); val p2 = field(L.t("vPassAgain"))
+        box.addView(p1); box.addView(p2, lp(MATCH, WRAP).apply { topMargin = dp(8) })
+        box.addView(tv("⚠️ " + L.t("backupPassWarn"), 12.5f, T.muted).apply { setPadding(dp(4), dp(10), dp(4), 0) })
+        dialog().setTitle(L.t("autoBkPassTitle")).setView(box).setPositiveButton(L.t("ok")) { _, _ ->
+            val a = p1.text.toString()
+            when {
+                a.length < 6 -> toast(L.t("vShort"))
+                a != p2.text.toString() -> toast(L.t("vMismatch"))
+                else -> {
+                    AutoBackup.enable(this, dir, a)
+                    toast(L.t("bkWorking"))
+                    Thread { val ok = AutoBackup.run(applicationContext); runOnUiThread { toast(L.t(if (ok) "autoBkReady" else "vFail")) } }.start()
+                }
+            }
+        }.setNegativeButton(L.t("cancel"), null).show()
     }
 
     /* ---------- 💾 respaldo ---------- */
@@ -808,6 +921,7 @@ class MainActivity : Activity() {
         Sheet(this, "💾 " + L.t("backup"), lastBackupText())
             .quick(Icons.CHECK, L.t("backupMake"), Sheet.GREEN) { askBackupPass() }
             .quick(MoreIcons.RESTORE, L.t("backupRestore"), Sheet.BLUE) { pickFile() }
+            .quick(MoreIcons.HISTORY, L.t("autoBk"), Sheet.VIOLET, on = AutoBackup.on(this)) { autoBackupMenu() }
             .custom(tv(L.t("backupHint"), 13.5f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(18), dp(4), dp(18), dp(10)) })
             .show()
     }
@@ -1065,7 +1179,7 @@ class MainActivity : Activity() {
                     Thumbs.load(th, dp(220)) { bm -> if (h.id == want) h.img.setImageBitmap(bm) }
                 } else h.img.visibility = View.GONE
             }
-            h.date.text = dateText(n.updated)
+            h.date.text = if (n.deleted) "🗑️ " + L.t("trashDaysLeft", "n" to Store.daysLeft(n)) else dateText(n.updated)
             h.icons.removeAllViews()
             if (n.checkTotal > 0 && !n.locked) h.icons.addView(tv("✓ " + L.t("progress", "d" to n.checkDone, "t" to n.checkTotal), 12f, if (n.checkDone == n.checkTotal) 0xFF30D158.toInt() else T.faint).apply { setPadding(0, 0, dp(6), 0) })
             fun ic(k: Int, c: Int = T.faint) = h.icons.addView(IconView(this@MainActivity, k, 6.5f).apply { color = c; isClickable = false }, lp(dp(18), dp(18)))

@@ -173,7 +173,7 @@ object PinPad {
      * [title] arriba. [onDone] recibe los 4 números; si devuelve false (PIN equivocado),
      * las bolitas tiemblan y se borran para volver a intentar.
      */
-    fun show(ctx: Context, title: String, sub: String? = null, onCancel: (() -> Unit)? = null, onDone: (String) -> Boolean) {
+    fun show(ctx: Context, title: String, sub: String? = null, onBio: (() -> Unit)? = null, onCancel: (() -> Unit)? = null, onDone: (String) -> Boolean) {
         val d = GlassDialog(ctx)
         val dp = { v: Int -> ctx.dp(v) }
         val root = FrameLayout(ctx).apply { setBackgroundColor(if (T.light) 0x66000000 else 0xA6000000.toInt()) }
@@ -237,9 +237,14 @@ object PinPad {
             for (c in 0 until 3) {
                 val k = keys[r * 3 + c]
                 val v: View = when {
+                    k.isEmpty() && onBio != null -> FingerView(ctx).apply { color = 0xFF4FC3F7.toInt() }
                     k.isEmpty() -> View(ctx)
                     k == "<" -> IconView(ctx, Icons.DELETE, 11f).apply { color = T.text }
                     else -> ctx.tv(k, 30f, T.text, true).apply { gravity = Gravity.CENTER }
+                }
+                if (k.isEmpty() && onBio != null) {
+                    v.background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(tw(0x40)), Glass.make(ctx, 40f), roundBg(Color.WHITE, dp(40).toFloat()))
+                    v.setOnClickListener { Bio.ask(ctx, title) { lock.animate().rotation(-12f).scaleX(1.15f).scaleY(1.15f).setDuration(160).withEndAction { d.dismiss() }.start(); onBio() } }
                 }
                 if (k.isNotEmpty()) {
                     v.background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(tw(0x40)), Glass.make(ctx, 40f), roundBg(Color.WHITE, dp(40).toFloat()))
@@ -265,5 +270,7 @@ object PinPad {
         d.show()
         // el candado se mueve un poquito al entrar
         lock.rotation = -20f; lock.animate().rotation(0f).setDuration(600).setInterpolator(OvershootInterpolator(3f)).start()
+        // 👆 si se puede, la huella se pide sola
+        if (onBio != null) card.postDelayed({ if (d.isShowing) Bio.ask(ctx, title) { lock.animate().rotation(-12f).scaleX(1.15f).scaleY(1.15f).setDuration(160).withEndAction { d.dismiss() }.start(); onBio() } }, 450)
     }
 }

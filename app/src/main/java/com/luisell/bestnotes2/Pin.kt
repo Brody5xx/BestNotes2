@@ -29,7 +29,7 @@ object Pin {
     fun check(ctx: Context, onOk: () -> Unit) {
         val h = saved(ctx)
         if (h == null) { create(ctx, onOk); return }
-        PinPad.show(ctx, L.t("pinToUnlock")) { v -> val ok = hash(v) == h; if (ok) ctx.mainLooperPost { onOk() }; ok }
+        PinPad.show(ctx, L.t("pinToUnlock"), onBio = if (Bio.use(ctx)) ({ ctx.mainLooperPost { onOk() } }) else null) { v -> val ok = hash(v) == h; if (ok) ctx.mainLooperPost { onOk() }; ok }
     }
 
     /** Cambiar el PIN: primero el actual, luego el nuevo (dos veces). */
