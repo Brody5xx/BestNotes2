@@ -222,11 +222,13 @@ class GlowBorder(private val d: Float, private val radiusDp: Float, private val 
         p.strokeWidth = 1.4f * d; p.color = 0xFF4FC3F7.toInt()
         r.set(b.left + pad, b.top + pad, b.right - pad, b.bottom - pad)
         c.drawRoundRect(r, rad, rad, p)
-        // el camino de la orilla (se mide una sola vez por tamaño)
+        // el camino de la orilla: se mide una sola vez por tamaño, en "coordenadas de la foto"
+        // (así, cuando mueves la foto, las líneas blancas se van con ella)
         if (b.width() != lastW || b.height() != lastH) {
-            edge.reset(); edge.addRoundRect(r, rad, rad, Path.Direction.CW)
+            edge.reset(); edge.addRoundRect(RectF(pad, pad, b.width() - pad, b.height() - pad), rad, rad, Path.Direction.CW)
             pm.setPath(edge, true); len = pm.length; lastW = b.width(); lastH = b.height()
         }
+        c.save(); c.translate(b.left.toFloat(), b.top.toFloat())
         // ✨ dos líneas blancas que van trazando la orilla, una frente a la otra, con cola que se apaga
         val tail = len * 0.16f
         val steps = 24
@@ -247,6 +249,7 @@ class GlowBorder(private val d: Float, private val radiusDp: Float, private val 
             p.strokeWidth = 5f * d; p.color = 0x55E1F5FE
             c.drawPath(seg, p)
         }
+        c.restore()
     }
 
     /** Agrega a [seg] el pedazo de la orilla entre [a] y [b] (da la vuelta si hace falta). */

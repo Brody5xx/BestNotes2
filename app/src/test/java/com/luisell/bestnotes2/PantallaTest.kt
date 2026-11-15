@@ -391,4 +391,22 @@ class PantallaTest {
         assertTrue(html.contains("Ticket"))
         assertTrue(Export.text(items).contains("☐"))
     }
+
+    /** El destello (las líneas blancas) se mueve junto con la foto. */
+    @org.robolectric.annotation.GraphicsMode(org.robolectric.annotation.GraphicsMode.Mode.NATIVE)
+    @Test fun destelloSigueALaFoto() {
+        val g = GlowBorder(3f, 12f)
+        fun whiteBox(l: Int, t: Int): android.graphics.Rect {
+            g.setBounds(l, t, l + 300, t + 400)
+            val bm = android.graphics.Bitmap.createBitmap(1200, 1200, android.graphics.Bitmap.Config.ARGB_8888)
+            g.draw(android.graphics.Canvas(bm))
+            var x0 = 9999; var y0 = 9999; var x1 = -1; var y1 = -1
+            for (y in 0 until 1200 step 2) for (x in 0 until 1200 step 2) { val c = bm.getPixel(x, y); if ((c ushr 24) > 200 && (c and 0xFF) > 230 && (c shr 16 and 0xFF) > 230) { x0 = minOf(x0, x); y0 = minOf(y0, y); x1 = maxOf(x1, x); y1 = maxOf(y1, y) } }
+            return android.graphics.Rect(x0, y0, x1, y1)
+        }
+        val a = whiteBox(50, 50)
+        val b = whiteBox(700, 600)          // la misma foto, movida
+        org.junit.Assert.assertTrue("debe haber líneas blancas", a.right > 0)
+        org.junit.Assert.assertTrue("las líneas blancas deben estar dentro de la foto movida: $b", b.left >= 700 && b.top >= 600 && b.right <= 1000 && b.bottom <= 1000)
+    }
 }
