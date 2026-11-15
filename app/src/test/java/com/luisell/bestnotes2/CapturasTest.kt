@@ -282,4 +282,22 @@ class CapturasTest {
             File("/tmp/capturas/44_widget.png").outputStream().use { out.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
         } catch (e: Throwable) { e.printStackTrace() }
     }
+
+    @Test fun capturasFotoGirada() {
+        if (System.getenv("CAPTURAS") == null) return
+        var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
+        val f = File(ctx.cacheDir, "r.json"); f.writeText(javaClass.classLoader!!.getResource("respaldo.json")!!.readText())
+        Backup.importFile(ctx, Uri.fromFile(f), "prueba") {}
+        ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n1")).setup().visible().get()
+        waitIo(); idle(); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        fun <T> find(x: View, c: Class<T>): T? { if (c.isInstance(x)) return c.cast(x); if (x is android.view.ViewGroup) for (k in 0 until x.childCount) find(x.getChildAt(k), c)?.let { return it }; return null }
+        val ed = find(act.window.decorView, EditorView::class.java)!!
+        val foto = ed.views.filterIsInstance<FotoView>().first()
+        ed.selectImage(foto); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(800))
+        for ((deg, name) in listOf(30f to "50_girada30", 90f to "51_girada90")) {
+            foto.setRot(deg); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(900))
+            shot(act.window.decorView, name)
+        }
+    }
 }

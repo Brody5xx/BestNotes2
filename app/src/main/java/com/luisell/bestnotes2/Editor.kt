@@ -630,22 +630,48 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         else img.drawable?.let { d -> if (d.intrinsicWidth > 0) d.intrinsicHeight.toFloat() / d.intrinsicWidth else 0.75f } ?: 0.75f
     private fun side() = liveSide ?: block.side
 
+    /** El tamaño que ocupa la foto ya girada (ancho, alto). */
+    private fun rotBox(pw: Int, ph: Int): Pair<Int, Int> {
+        val a = Math.toRadians(block.rot.toDouble()); val c = Math.abs(Math.cos(a)); val s = Math.abs(Math.sin(a))
+        return (pw * c + ph * s).toInt() to (pw * s + ph * c).toInt()
+    }
+
+    /** Mientras giras con dos dedos, el panel de abajo se actualiza (sin hacerlo mil veces). */
+    private var panelPending = false
+    private fun panelLater() {
+        if (panelPending) return
+        panelPending = true
+        flow.postDelayed({ panelPending = false; if (selected) ed.host.onImageChanged(this) }, 140)
+    }
+
     /** La fila: acomoda la foto y el texto (al lado o debajo) cada vez que algo cambia. */
     private val flow = object : ViewGroup(ctx) {
         // el brillo se pinta ENCIMA de la foto (y un poquito por fuera)
-        override fun dispatchDraw(canvas: android.graphics.Canvas) { super.dispatchDraw(canvas); glow?.draw(canvas) }
+        override fun dispatchDraw(canvas: android.graphics.Canvas) {
+            super.dispatchDraw(canvas)
+            val g = glow ?: return
+            // el brillo gira junto con la foto
+            canvas.save()
+            canvas.rotate(box.rotation, (box.left + box.right) / 2f, (box.top + box.bottom) / 2f + box.translationY)
+            g.draw(canvas)
+            canvas.restore()
+        }
         override fun verifyDrawable(who: android.graphics.drawable.Drawable) = who === glow || super.verifyDrawable(who)
         override fun onMeasure(ws: Int, hs: Int) {
             val W = MeasureSpec.getSize(ws)
-            val pw = (W * block.pct / 100f).toInt().coerceIn(dp(40), W)
-            val ph = (pw * ratio()).toInt()
+            var pw = (W * block.pct / 100f).toInt().coerceIn(dp(40), W)
+            var ph = (pw * ratio()).toInt()
+            // girada ocupa más lugar: si no cabe a lo ancho, se ve un poquito más chica
+            val (bw0, _) = rotBox(pw, ph)
+            if (bw0 > W) { val k = W.toFloat() / bw0; pw = (pw * k).toInt().coerceAtLeast(dp(30)); ph = (pw * ratio()).toInt() }
             box.measure(MeasureSpec.makeMeasureSpec(pw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(ph, MeasureSpec.EXACTLY))
+            val (bw, bh) = rotBox(pw, ph)
             val top = dp(block.y.toInt())
-            var h = top + ph
+            var h = top + bh
             val gap = dp(12)
             if (edit.visibility != View.GONE) {
                 if (side().isNotEmpty()) {
-                    edit.measure(MeasureSpec.makeMeasureSpec(maxOf(dp(60), W - pw - gap), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+                    edit.measure(MeasureSpec.makeMeasureSpec(maxOf(dp(60), W - bw - gap), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
                     h = maxOf(h, edit.measuredHeight)
                 } else {
                     edit.measure(MeasureSpec.makeMeasureSpec(W, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
@@ -657,21 +683,23 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         }
         override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
             val W = r - l; val pw = box.measuredWidth; val ph = box.measuredHeight
+            val (bw, bh) = rotBox(pw, ph)
+            val ox = (bw - pw) / 2; val oy = (bh - ph) / 2       // lo que sobresale al estar girada
             val top = dp(block.y.toInt())
             val left = when {
                 dragLeft >= 0 -> dragLeft.toInt()
-                side() == "l" -> 0
-                side() == "r" -> W - pw
+                side() == "l" -> ox
+                side() == "r" -> W - pw - ox
                 else -> (W * block.x / 100f).toInt()
-            }.coerceIn(0, maxOf(0, W - pw))
-            box.layout(left, top, left + pw, top + ph)
+            }.coerceIn(minOf(ox, maxOf(0, W - pw - ox)), maxOf(ox, W - pw - ox))
+            box.layout(left, top + oy, left + pw, top + oy + ph)
             placeGlow()
             if (edit.visibility != View.GONE) {
                 val gap = dp(12)
                 when (side()) {
-                    "l" -> { val x = left + pw + gap; edit.layout(x, 0, x + edit.measuredWidth, edit.measuredHeight) }
-                    "r" -> { val x = maxOf(0, left - gap - edit.measuredWidth); edit.layout(x, 0, x + edit.measuredWidth, edit.measuredHeight) }
-                    else -> { val y = top + ph + gap / 2; edit.layout(0, y, W, y + edit.measuredHeight) }
+                    "l" -> { val x = left + pw + ox + gap; edit.layout(x, 0, x + edit.measuredWidth, edit.measuredHeight) }
+                    "r" -> { val x = maxOf(0, left - ox - gap - edit.measuredWidth); edit.layout(x, 0, x + edit.measuredWidth, edit.measuredHeight) }
+                    else -> { val y = top + bh + gap / 2; edit.layout(0, y, W, y + edit.measuredHeight) }
                 }
             }
         }
@@ -769,7 +797,9 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
 
     fun setRot(r: Float) {
         block.rot = r
-        box.animate().rotation(r).setDuration(200).setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+        flow.requestLayout()
+        box.animate().rotation(r).setDuration(200).setInterpolator(android.view.animation.DecelerateInterpolator())
+            .setUpdateListener { flow.invalidate() }.start()
         ed.host.onDirty(); ed.host.onImageChanged(this)
     }
 
@@ -842,7 +872,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                         if (Math.abs(r) < 4) r = 0f                 // se endereza sola cerca de 0°
                         block.rot = r; box.rotation = r
                         moved = true
-                        flow.requestLayout()
+                        flow.requestLayout(); flow.invalidate(); panelLater()
                         ed.host.showGuides(-1f, -1f, "", "${block.pct.toInt()}%  ↻ ${r.toInt()}°")
                         return true
                     }
@@ -851,14 +881,15 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                     if (!moved && Math.abs(dx) < slop && Math.abs(dy) < slop) return true
                     moved = true
                     val W = flow.width.toFloat(); val pw = box.width.toFloat()
+                    val ox = (rotBox(box.width, box.height).first - box.width) / 2f    // girada sobresale un poco
                     // a los lados, "pegando" en la orilla izquierda, el centro y la orilla derecha
-                    var left = (baseLeft + dx).coerceIn(0f, maxOf(0f, W - pw))
+                    var left = (baseLeft + dx).coerceIn(minOf(ox, W - pw - ox).coerceAtLeast(0f), maxOf(ox, W - pw - ox))
                     snap = ""
                     val near = dp(14).toFloat()
                     when {
-                        left < near -> { left = 0f; snap = "l" }
+                        left < ox + near -> { left = ox; snap = "l" }
                         Math.abs(left - (W - pw) / 2) < near -> { left = (W - pw) / 2; snap = "c" }
-                        left > W - pw - near -> { left = W - pw; snap = "r" }
+                        left > W - pw - ox - near -> { left = W - pw - ox; snap = "r" }
                     }
                     // el texto se acomoda al lado EN VIVO cuando la foto toca una orilla
                     val want = when { snap == "l" && block.pct <= 75 -> "l"; snap == "r" && block.pct <= 75 -> "r"; else -> "" }
