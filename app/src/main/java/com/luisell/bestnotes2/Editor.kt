@@ -681,7 +681,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         root.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6); bottomMargin = dp(6) }
         flow.clipChildren = false
         img.scaleType = ImageView.ScaleType.CENTER_CROP
-        box.background = roundBg(0x10FFFFFF, dp(12).toFloat())
+        box.background = roundBg(tw(0x10), dp(12).toFloat())
         box.clipToOutline = true
         box.addView(img, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         // Sello: franja oscura abajo con la fecha, la hora y el sitio
@@ -749,7 +749,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
     /** El botón "Anclar" debajo de la foto. */
     private fun showAnchor() {
         anchorPill?.let { root.removeView(it) }
-        val t = ctx.tv((if (block.pin) "⚓ " + L.t("anchored") else "⚓ " + L.t("imgPin")), 14f, if (block.pin) 0xFF16161A.toInt() else T.text, true)
+        val t = ctx.tv((if (block.pin) "⚓ " + L.t("anchored") else "⚓ " + L.t("imgPin")), 14f, if (block.pin) T.onPill else T.text, true)
         t.setPadding(dp(16), dp(7), dp(16), dp(7))
         if (block.pin) t.pressBg(T.text, 18f) else t.background = Glass.make(ctx, 18f)
         t.setOnClickListener { setPin(!block.pin) }
@@ -940,7 +940,7 @@ class MediaView(val ed: EditorView, override val block: Block.Media) : BlockView
         row.setPadding(ctx.dp(8), ctx.dp(6), ctx.dp(6), ctx.dp(6))
         row.background = roundBg(T.card, ctx.dp(18).toFloat(), T.border, ctx.dp(1))
         row.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = ctx.dp(6); bottomMargin = ctx.dp(6) }
-        play.color = 0xFF16161A.toInt(); play.pressBg(T.text, 20f)
+        play.color = T.onPill; play.pressBg(T.text, 20f)
         play.setOnClickListener { AudioPlayer.toggle(block.file) }
         row.addView(play, lp(ctx.dp(40), ctx.dp(40)))
         val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }

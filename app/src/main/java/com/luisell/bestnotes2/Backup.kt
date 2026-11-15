@@ -248,7 +248,7 @@ object Backup {
                             val id = f.optString("id"); if (id.isEmpty()) continue
                             Store.inTransaction { db ->
                                 val v = android.content.ContentValues().apply {
-                                    put("id", id); put("name", f.optString("name")); put("color", HtmlImport.cssColor(f.optString("color"))); put("ord", k)
+                                    put("id", id); put("name", f.optString("name")); put("color", (f.opt("color") as? Number)?.toInt() ?: HtmlImport.cssColor(f.optString("color"))); put("ord", k)
                                 }
                                 db.insertWithOnConflict("folders", null, v, android.database.sqlite.SQLiteDatabase.CONFLICT_IGNORE)
                             }
@@ -259,6 +259,28 @@ object Backup {
                         while (r.hasNext()) {
                             val id = r.nextName()
                             if (r.peek() == JsonToken.STRING) saveDataUri(r.nextString())?.let { walls[id] = it } else r.skipValue()
+                        }
+                        r.endObject()
+                    }
+                    "media" -> {
+                        // 📦 respaldo de Best Notes 2: las fotos, audios y videos van aparte
+                        r.beginObject()
+                        while (r.hasNext()) {
+                            val name = r.nextName()
+                            val f = File(Store.mediaDir, name)
+                            if (!Regex("^[\\w.\\-]+$").matches(name) || (f.exists() && f.length() > 0)) { r.skipValue(); continue }
+                            val b64 = try { r.nextString() } catch (_: OutOfMemoryError) { sum.missing++; continue }
+                            try { val t = File(Store.mediaDir, "$name.tmp"); t.writeBytes(Base64.decode(b64, Base64.DEFAULT)); t.renameTo(f) } catch (_: Throwable) { sum.missing++ }
+                        }
+                        r.endObject()
+                    }
+                    "files" -> {
+                        // 🕘 versiones y 📖 registros de cada nota
+                        r.beginObject()
+                        while (r.hasNext()) {
+                            val name = r.nextName(); val txt = r.nextString()
+                            if (!Regex("^(historial|registro)/[\\w.\\-]+\\.json$").matches(name)) continue
+                            val f = File(ctx.filesDir, name); if (!f.exists()) { f.parentFile?.mkdirs(); f.writeText(txt) }
                         }
                         r.endObject()
                     }
@@ -304,6 +326,134 @@ object Backup {
         return sum
     }
 
+    /** Una nota de un respaldo de Best Notes 2 (tal cual, sin convertir). */
+    private fun importBn2(id: String, b: JSONObject): Boolean {
+        val m = NoteMeta(id)
+        m.title = b.optString("title"); m.titleColor = b.optInt("titleColor"); m.color = b.optInt("color")
+        m.folder = b.optString("folder").ifEmpty { null }; m.fav = b.optBoolean("fav"); m.pinned = b.optBoolean("pinned")
+        m.deleted = b.optBoolean("deleted"); m.deletedAt = b.optLong("deletedAt"); m.locked = b.optBoolean("locked")
+        m.kind = b.optString("kind", "text"); m.created = b.optLong("created"); m.updated = b.optLong("updated")
+        val body = b.optString("body", "[]"); val extra = b.optString("extra").ifEmpty { null }
+        val exo = try { JSONObject(extra ?: "{}") } catch (_: Exception) { JSONObject() }
+        Store.fillMeta(m, blocksFromJson(body), exo.optJSONArray("tr")?.let { runsFromJson(it) }, exo.optJSONArray("ink"))
+        Store.inTransaction { db ->
+            db.insertWithOnConflict("notes", null, Store.rowValues(m, body, extra), android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE)
+        }
+        return true
+    }
+
+    /* =========================================================
+       💾 CREAR UN RESPALDO de Best Notes 2 (mismo cifrado que Best Notes)
+       ========================================================= */
+    fun exportFile(ctx: Context, password: String, out: File, onProgress: (String) -> Unit) {
+        val plain = File(ctx.cacheDir, "respaldo_plano.tmp")
+        val ctFile = File(ctx.cacheDir, "respaldo_ct.tmp")
+        try {
+            // 1) todo en JSON (por pedazos)
+            java.io.BufferedWriter(java.io.OutputStreamWriter(FileOutputStream(plain), Charsets.UTF_8), 1 shl 16).use { w ->
+                fun str(s: String) = JSONObject.quote(s)
+                w.write("{\"v\":1,\"bn2\":1,\"made\":${System.currentTimeMillis()},")
+                // notas
+                w.write("\"notes\":[")
+                val used = HashSet<String>()
+                val re = Regex("\"(?:f|wall)\":\"([^\"]+)\"")
+                var first = true; var n = 0
+                val ids = Store.notes.map { it.id }
+                for (id in ids) {
+                    val m = Store.meta(id) ?: continue
+                    val (body, extra) = Store.readBody(id)
+                    listOf(body, extra).forEach { t -> t?.let { re.findAll(it).forEach { x -> used.add(x.groupValues[1]) } } }
+                    val b = JSONObject().put("title", m.title).put("titleColor", m.titleColor).put("color", m.color).put("folder", m.folder ?: "")
+                        .put("fav", m.fav).put("pinned", m.pinned).put("deleted", m.deleted).put("deletedAt", m.deletedAt).put("locked", m.locked)
+                        .put("kind", m.kind).put("created", m.created).put("updated", m.updated).put("body", body ?: "[]").put("extra", extra ?: "")
+                    if (!first) w.write(",")
+                    first = false
+                    w.write(JSONObject().put("id", id).put("updated", m.updated).put("title", m.title).put("bn2", b).toString())
+                    if (++n % 10 == 0) onProgress(L.t("bkNotes", "n" to n))
+                }
+                w.write("],")
+                // carpetas
+                val fa = JSONArray()
+                for (f in Store.folders) fa.put(JSONObject().put("id", f.id).put("name", f.name).put("color", f.color))
+                w.write("\"folders\":" + fa + ",")
+                // versiones y registros (y las fotos que usan)
+                w.write("\"files\":{")
+                var ff = true
+                for (dir in listOf("historial", "registro")) for (f in File(ctx.filesDir, dir).listFiles() ?: emptyArray()) {
+                    if (!f.name.endsWith(".json")) continue
+                    val txt = f.readText()
+                    Regex("\\\\?\"(?:f|wall)\\\\?\":\\\\?\"([^\"\\\\]+)").findAll(txt).forEach { used.add(it.groupValues[1]) }
+                    Regex("\\\\u0001([^\"\\\\]+)").findAll(txt).forEach { used.add(it.groupValues[1]) }
+                    if (!ff) w.write(","); ff = false
+                    w.write(str("$dir/${f.name}") + ":" + str(txt))
+                }
+                w.write("},")
+                // ajustes, calculadora y bóveda
+                val p = ctx.getSharedPreferences("ajustes", 0)
+                val st = JSONObject()
+                p.getString("pinHash", null)?.let { st.put("pinHash", it) }
+                w.write("\"settings\":$st,")
+                p.getString("calcState", null)?.let { w.write("\"calc\":$it,") }
+                val vd = File(ctx.filesDir, "boveda")
+                if (File(vd, "meta.json").exists()) {
+                    w.write("\"vault\":{")
+                    var fv = true
+                    for (f in vd.listFiles() ?: emptyArray()) {
+                        if (!f.isFile || f.name.endsWith(".tmp")) continue
+                        if (!fv) w.write(","); fv = false
+                        if (f.name.endsWith(".bin")) {                     // base64 (sin comillas): va directo
+                            w.write(str(f.name) + ":\""); f.reader().use { r -> r.copyTo(w) }; w.write("\"")
+                        } else w.write(str(f.name) + ":" + str(f.readText()))
+                    }
+                    w.write("},")
+                }
+                // fotos, audios y videos (al final, por pedazos)
+                w.write("\"media\":{")
+                var fm = true; var k = 0
+                for (name in used) {
+                    val f = File(Store.mediaDir, name)
+                    if (!f.isFile) continue
+                    if (!fm) w.write(","); fm = false
+                    w.write(str(name) + ":\""); w.flush()
+                    // base64 directo al archivo (sin cargar todo el video en la memoria)
+                    val bo = object : java.io.OutputStream() {
+                        override fun write(b: Int) { w.write(b) }
+                        override fun write(b: ByteArray, off: Int, len: Int) { for (i in off until off + len) w.write(b[i].toInt()) }
+                    }
+                    android.util.Base64OutputStream(bo, Base64.NO_WRAP or Base64.NO_CLOSE).use { b64 -> f.inputStream().use { it.copyTo(b64, 1 shl 16) } }
+                    w.write("\"")
+                    if (++k % 5 == 0) onProgress(L.t("bkMedia", "n" to k))
+                }
+                w.write("}}")
+            }
+            // 2) cifrar (ChaCha20 + sello), igual que Best Notes
+            onProgress(L.t("bkLocking"))
+            val rnd = java.security.SecureRandom()
+            val salt = ByteArray(16).also { rnd.nextBytes(it) }; val nonce = ByteArray(12).also { rnd.nextBytes(it) }
+            val keys = pbkdf2(password.toByteArray(Charsets.UTF_8), salt, 40000, 2)
+            val mac = hmac(keys.copyOfRange(32, 64)); mac.update("mis-notas-v1".toByteArray()); mac.update(salt); mac.update(nonce)
+            val cha = ChaCha(keys.copyOfRange(0, 32), nonce)
+            FileOutputStream(ctFile).use { o ->
+                plain.inputStream().use { i ->
+                    val buf = ByteArray(1 shl 16)
+                    while (true) { val n = i.read(buf); if (n < 0) break; cha.xor(buf, 0, n); mac.update(buf, 0, n); o.write(buf, 0, n) }
+                }
+            }
+            plain.delete()
+            val tag = mac.doFinal()
+            fun b64(x: ByteArray) = Base64.encodeToString(x, Base64.NO_WRAP)
+            val head = JSONObject().put("app", "mis-notas").put("v", 1).put("kdf", "pbkdf2-sha256").put("iter", 40000)
+                .put("cipher", "chacha20+hmac-sha256").put("from", "Best Notes 2")
+                .put("created", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(java.util.Date()))
+                .put("salt", b64(salt)).put("nonce", b64(nonce)).put("tag", b64(tag)).toString()
+            FileOutputStream(out).use { o ->
+                o.write((head.dropLast(1) + ",\"data\":\"").toByteArray())
+                android.util.Base64OutputStream(object : java.io.FilterOutputStream(o) { override fun close() { flush() } }, Base64.NO_WRAP).use { b -> ctFile.inputStream().use { it.copyTo(b, 1 shl 16) } }
+                o.write("\"}".toByteArray())
+            }
+        } finally { plain.delete(); ctFile.delete() }
+    }
+
     /** Texto de un campo, o "" si no viene o viene vacío (null). */
     private fun JSONObject.str(k: String): String = if (isNull(k)) "" else optString(k, "")
 
@@ -312,6 +462,7 @@ object Backup {
         val updated = o.optDouble("updated", 0.0).toLong()
         val have = existing[id]
         if (have != null && have >= updated) return false               // la de aquí es igual o más nueva
+        o.optJSONObject("bn2")?.let { b -> return importBn2(id, b) }
         val conv = HtmlImport.convert(o.str("content"), o.optBoolean("html", true), ::saveDataUri)
         sum.missing += conv.missing
         val m = NoteMeta(id)
@@ -325,7 +476,7 @@ object Backup {
         m.kind = o.str("kind").ifEmpty { "text" }
         m.created = o.optDouble("created", updated.toDouble()).toLong()
         m.updated = if (updated > 0) updated else System.currentTimeMillis()
-        Store.fillMeta(m, conv.blocks)
+        Store.fillMeta(m, conv.blocks, null, o.optJSONArray("ink"))
         val extra = JSONObject()
         o.optJSONArray("ink")?.let { if (it.length() > 0) extra.put("ink", it) }
         if (o.optBoolean("histLocked")) extra.put("histLocked", true)

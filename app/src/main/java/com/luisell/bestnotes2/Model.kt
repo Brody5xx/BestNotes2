@@ -234,6 +234,7 @@ class NoteMeta(
 ) {
     /** La vista previa ya leída (para no leer el JSON cada vez). */
     @Volatile var pvCache: Pair<List<Run>?, List<Block>>? = null
+    @Volatile var inkCache: List<Stroke>? = null
     /** Texto para buscar: sin acentos y en minúsculas (se calcula una vez). */
     @Volatile var folded: String? = null
 }
@@ -257,8 +258,23 @@ fun runsTake(runs: List<Run>, max: Int): MutableList<Run> {
 }
 
 /** La vista previa de la tarjeta: el título con estilos y los primeros bloques (cortos). */
-fun previewJson(titleRuns: List<Run>?, blocks: List<Block>): String {
+fun previewJson(titleRuns: List<Run>?, blocks: List<Block>, ink: org.json.JSONArray? = null): String {
     val o = org.json.JSONObject()
+    // ✏️ el dibujo (con menos puntos, para que la tarjeta vaya rápido)
+    if (ink != null && ink.length() > 0) {
+        var total = 0
+        for (k in 0 until ink.length()) total += ink.optJSONObject(k)?.optJSONArray("p")?.length() ?: 0
+        val step = maxOf(1, total / 1500)
+        val small = org.json.JSONArray()
+        for (k in 0 until minOf(ink.length(), 400)) {
+            val st = ink.optJSONObject(k) ?: continue
+            val pa = st.optJSONArray("p") ?: continue
+            val np = org.json.JSONArray()
+            for (q in 0 until pa.length()) if (q % step == 0 || q == pa.length() - 1) np.put(pa.get(q))
+            small.put(org.json.JSONObject(st.toString()).put("p", np))
+        }
+        o.put("ink", small)
+    }
     if (titleRuns != null && titleRuns.any { !it.st.isPlain() }) o.put("t", runsJson(titleRuns))
     val a = org.json.JSONArray(); var chars = 0; var imgs = 0; var media = 0
     for (b in blocks) {
@@ -282,6 +298,9 @@ fun previewJson(titleRuns: List<Run>?, blocks: List<Block>): String {
     o.put("b", a)
     return o.toString()
 }
+
+/** El dibujo de la vista previa (o null). */
+fun previewInk(pv: String): org.json.JSONArray? = try { org.json.JSONObject(pv).optJSONArray("ink") } catch (_: Exception) { null }
 
 /** Lee la vista previa: (título con estilos o null, bloques). */
 fun previewParse(pv: String): Pair<List<Run>?, List<Block>> = try {

@@ -29,7 +29,7 @@ object Glass {
 /** 🖼️ Los fondos de pantalla de la app. */
 object Wall {
     /** [id, nombre ES, nombre EN, colores] (los degradados son inventados, oscuros para que se lea bien). */
-    val GRADS: List<List<Any>> = listOf(
+    private val DARK: List<List<Any>> = listOf(
         listOf("aurora", "Aurora", "Aurora", intArrayOf(0xFF0F2027.toInt(), 0xFF203A43.toInt(), 0xFF2C5364.toInt())),
         listOf("violeta", "Violeta", "Violet", intArrayOf(0xFF140C2B.toInt(), 0xFF3A1C71.toInt(), 0xFF5B2A86.toInt())),
         listOf("oceano", "Océano", "Ocean", intArrayOf(0xFF000428.toInt(), 0xFF003366.toInt(), 0xFF004E92.toInt())),
@@ -37,18 +37,37 @@ object Wall {
         listOf("atardecer", "Atardecer", "Sunset", intArrayOf(0xFF2B1055.toInt(), 0xFF7A2E3B.toInt(), 0xFF3A1C1C.toInt())),
         listOf("noche", "Noche", "Night", intArrayOf(0xFF000000.toInt(), 0xFF141416.toInt(), 0xFF1C1C1E.toInt())),
     )
+    /** ☀️ Fondos del modo claro (suaves, para que se lea la letra oscura). */
+    private val LIGHT: List<List<Any>> = listOf(
+        listOf("nube", "Nube", "Cloud", intArrayOf(0xFFF7F8FA.toInt(), 0xFFECEFF4.toInt(), 0xFFE2E6EE.toInt())),
+        listOf("cielo", "Cielo", "Sky", intArrayOf(0xFFF0F7FF.toInt(), 0xFFDCEBFB.toInt(), 0xFFC9DEF7.toInt())),
+        listOf("menta", "Menta", "Mint", intArrayOf(0xFFF1FBF6.toInt(), 0xFFDDF3E8.toInt(), 0xFFC8EBD9.toInt())),
+        listOf("durazno", "Durazno", "Peach", intArrayOf(0xFFFFF6F0.toInt(), 0xFFFDE4D5.toInt(), 0xFFF9D2BE.toInt())),
+        listOf("lavanda", "Lavanda", "Lavender", intArrayOf(0xFFF7F4FF.toInt(), 0xFFE9E2FB.toInt(), 0xFFDCD1F6.toInt())),
+        listOf("arena", "Arena", "Sand", intArrayOf(0xFFFBF8F1.toInt(), 0xFFF1EADB.toInt(), 0xFFE6DCC6.toInt())),
+    )
+    val GRADS: List<List<Any>> get() = if (T.light) LIGHT else DARK
+    /** El primer fondo (el de siempre) en cada modo. */
+    fun defaultId() = if (T.light) "nube" else "best"
+    /** Un degradado por su nombre (de cualquier modo). */
+    fun grad(id: String): Drawable? = (DARK + LIGHT).firstOrNull { it[0] == id }?.let { android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, it[3] as IntArray) }
     private var cacheKey = ""
     private var cacheBmp: android.graphics.Bitmap? = null
 
-    fun current(ctx: Context): String = ctx.getSharedPreferences("ajustes", 0).getString("wall", "best") ?: "best"
+    fun current(ctx: Context): String {
+        val p = ctx.getSharedPreferences("ajustes", 0)
+        val w = p.getString(if (T.light) "wallLight" else "wall", defaultId()) ?: defaultId()
+        // un fondo del otro modo no sirve aquí
+        return if (w == "photo" || w == "best" && !T.light || GRADS.any { it[0] == w }) w else defaultId()
+    }
     fun blur(ctx: Context): Boolean = ctx.getSharedPreferences("ajustes", 0).getBoolean("wallBlur", true)
     fun photoFile(ctx: Context) = java.io.File(ctx.filesDir, "fondo_app.jpg")
 
-    fun set(ctx: Context, id: String) { ctx.getSharedPreferences("ajustes", 0).edit().putString("wall", id).apply(); cacheKey = "" }
+    fun set(ctx: Context, id: String) { ctx.getSharedPreferences("ajustes", 0).edit().putString(if (T.light) "wallLight" else "wall", id).apply(); cacheKey = "" }
     fun setBlur(ctx: Context, on: Boolean) { ctx.getSharedPreferences("ajustes", 0).edit().putBoolean("wallBlur", on).apply(); cacheKey = "" }
 
     fun drawable(ctx: Context, id: String = current(ctx)): Drawable {
-        GRADS.firstOrNull { (it[0] as String) == id }?.let {
+        (DARK + LIGHT).firstOrNull { (it[0] as String) == id }?.let {
             return android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, it[3] as IntArray)
         }
         val key = id + blur(ctx) + (if (id == "photo") photoFile(ctx).lastModified() else 0L)
@@ -60,7 +79,7 @@ object Wall {
         val bd = BitmapDrawable(ctx.resources, cacheBmp).apply { isFilterBitmap = true; setDither(true) }
         if (id != "photo") return bd
         // tu foto se oscurece un poco para que las letras blancas se lean
-        return android.graphics.drawable.LayerDrawable(arrayOf(CoverDrawable(cacheBmp!!), android.graphics.drawable.ColorDrawable(0x73000000)))
+        return android.graphics.drawable.LayerDrawable(arrayOf(CoverDrawable(cacheBmp!!), android.graphics.drawable.ColorDrawable(if (T.light) 0x99FFFFFF.toInt() else 0x73000000)))
     }
 
     /** Tu foto: más chiquita (rápida) y, si quieres, difuminada. */
@@ -116,7 +135,7 @@ class GlassDrawable(
         c.save(); c.clipPath(clip)
         // relleno
         p.shader = null; p.style = Paint.Style.FILL
-        p.color = if (strong) 0xD9262628.toInt() else 0x0DFFFFFF
+        p.color = if (T.light) (if (strong) 0xEBFFFFFF.toInt() else 0x99FFFFFF.toInt()) else if (strong) 0xD9262628.toInt() else 0x0DFFFFFF
         c.drawRect(r, p)
         if (tint != 0) {
             p.color = (tint and 0xFFFFFF) or 0x29000000          // el color de la nota, suavecito (16%)
@@ -129,12 +148,12 @@ class GlassDrawable(
         // luz arriba y sombra abajo
         p.shader = LinearGradient(0f, r.top, 0f, r.top + 6 * d, 0x38FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
         c.drawRect(r.left, r.top, r.right, r.top + 6 * d, p)
-        p.shader = LinearGradient(0f, r.bottom - 6 * d, 0f, r.bottom, 0x00000000, 0x1F000000, Shader.TileMode.CLAMP)
+        p.shader = LinearGradient(0f, r.bottom - 6 * d, 0f, r.bottom, 0x00000000, if (T.light) 0x0F000000 else 0x1F000000, Shader.TileMode.CLAMP)
         c.drawRect(r.left, r.bottom - 6 * d, r.right, r.bottom, p)
         p.shader = null
         // brillo interno pegado al borde (efecto lente)
         p.style = Paint.Style.STROKE
-        p.strokeWidth = 2.5f * d; p.color = 0x24FFFFFF
+        p.strokeWidth = 2.5f * d; p.color = if (T.light) 0x80FFFFFF.toInt() else 0x24FFFFFF
         c.drawRoundRect(r, rad, rad, p)
         if (bar && tint != 0) {
             p.style = Paint.Style.FILL; p.color = tint or 0xFF000000.toInt()
@@ -145,7 +164,7 @@ class GlassDrawable(
         p.style = Paint.Style.STROKE
         p.strokeWidth = if (selected) 2.5f * d else 1f * d
         p.shader = if (selected) null else LinearGradient(r.left, r.top, r.right, r.bottom,
-            intArrayOf(0x8CFFFFFF.toInt(), 0x1FFFFFFF, 0x14FFFFFF, 0x66FFFFFF), floatArrayOf(0f, 0.35f, 0.65f, 1f), Shader.TileMode.CLAMP)
+            if (T.light) intArrayOf(0x33000000, 0x14000000, 0x0F000000, 0x26000000) else intArrayOf(0x8CFFFFFF.toInt(), 0x1FFFFFFF, 0x14FFFFFF, 0x66FFFFFF), floatArrayOf(0f, 0.35f, 0.65f, 1f), Shader.TileMode.CLAMP)
         p.color = if (selected) T.accent else 0xFFFFFFFF.toInt()
         c.drawRoundRect(r, rad, rad, p)
         p.shader = null

@@ -72,10 +72,11 @@ object Store {
             }
             list.forEach { it.folded = fold(it.title + "\n" + it.plain) }
             // notas de antes sin vista previa: se hace una sola vez
-            for (m in list) if (m.pv == null) try {
+            val redo = appCtx?.getSharedPreferences("ajustes", 0)?.getInt("pvVer", 0) ?: 0
+            for (m in list) if (m.pv == null || redo < 2) try {
                 val (body, ex) = readBody(m.id)
-                val tr = try { org.json.JSONObject(ex ?: "{}").optJSONArray("tr")?.let { runsFromJson(it) } } catch (_: Exception) { null }
-                m.pv = previewJson(tr, blocksFromJson(body))
+                val exo = try { org.json.JSONObject(ex ?: "{}") } catch (_: Exception) { org.json.JSONObject() }
+                m.pv = previewJson(exo.optJSONArray("tr")?.let { runsFromJson(it) }, blocksFromJson(body), exo.optJSONArray("ink"))
                 db.execSQL("UPDATE notes SET pv=? WHERE id=?", arrayOf(m.pv, m.id))
             } catch (_: Exception) {}
             main.post {
@@ -112,8 +113,8 @@ object Store {
     }
 
     /** Llena los datos de la lista a partir de los bloques. */
-    fun fillMeta(m: NoteMeta, blocks: List<Block>, titleRuns: List<Run>? = null) {
-        m.pv = previewJson(titleRuns, blocks); m.pvCache = null
+    fun fillMeta(m: NoteMeta, blocks: List<Block>, titleRuns: List<Run>? = null, ink: org.json.JSONArray? = null) {
+        m.pv = previewJson(titleRuns, blocks, ink); m.pvCache = null; m.inkCache = null
         m.plain = blocksPlain(blocks)
         m.thumb = blocks.firstOrNull { it is Block.Img }?.let { (it as Block.Img).file }
             ?: blocks.firstOrNull { it is Block.Media && it.kind == "video" }?.let { MediaFiles.thumbName((it as Block.Media).file) }

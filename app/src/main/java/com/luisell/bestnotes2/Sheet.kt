@@ -93,7 +93,7 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
         txt.addView(act.tv(label, 16f, if (danger) RED else T.text, false))
         if (!sub.isNullOrEmpty()) txt.addView(act.tv(sub, 12.5f, T.muted).apply { maxLines = 2 })
         row.addView(txt, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        if (!danger) row.addView(IconView(act, Icons.CHEVRON, 6f).apply { this.color = 0x55FFFFFF; isClickable = false }, LinearLayout.LayoutParams(dp(18f), dp(18f)))
+        if (!danger) row.addView(IconView(act, Icons.CHEVRON, 6f).apply { this.color = tw(0x55); isClickable = false }, LinearLayout.LayoutParams(dp(18f), dp(18f)))
         row.setOnClickListener { v ->
             v.animate().scaleX(0.97f).scaleY(0.97f).setDuration(70).withEndAction { v.animate().scaleX(1f).scaleY(1f).setDuration(120).start() }.start()
             dismiss(action)
@@ -103,7 +103,7 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
     }
 
     /** Una línea suave para separar grupos. */
-    fun divider(): Sheet { rows.add(View(act).apply { setBackgroundColor(0x14FFFFFF); tag = "div" }); return this }
+    fun divider(): Sheet { rows.add(View(act).apply { setBackgroundColor(tw(0x14)); tag = "div" }); return this }
 
     /** Algo fijo abajo del panel (siempre se ve, aunque la lista sea larga). */
     fun footer(v: View): Sheet { footer = v; return this }
@@ -126,13 +126,13 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
         panel = LinearLayout(act).apply {
             orientation = LinearLayout.VERTICAL
             // vidrio sobre un fondo oscuro (para que no se mezcle con lo de atrás)
-            background = android.graphics.drawable.LayerDrawable(arrayOf(roundBg(0xE61C1C20.toInt(), dp(30f).toFloat()), Glass.make(act, 30f, strong = true)))
+            background = android.graphics.drawable.LayerDrawable(arrayOf(roundBg(if (T.light) 0xF5F7F7FA.toInt() else 0xE61C1C20.toInt(), dp(30f).toFloat()), Glass.make(act, 30f, strong = true)))
             setPadding(dp(8f), dp(8f), dp(8f), dp(14f))
             isClickable = true; elevation = dp(16f).toFloat()
         }
         // manija para deslizar
         val head = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(0, dp(2f), 0, dp(6f)) }
-        head.addView(View(act).apply { background = roundBg(0x59FFFFFF, dp(3f).toFloat()) }, LinearLayout.LayoutParams(dp(40f), dp(5f)))
+        head.addView(View(act).apply { background = roundBg(tw(0x59), dp(3f).toFloat()) }, LinearLayout.LayoutParams(dp(40f), dp(5f)))
         if (title != null) {
             head.addView(act.tv(title, 19f, T.text, true).apply {
                 gravity = Gravity.CENTER; setPadding(dp(16f), dp(10f), dp(16f), 0); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
@@ -142,8 +142,8 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
         val headBox = FrameLayout(act)
         headBox.addView(head, FrameLayout.LayoutParams(MATCH, WRAP))
         doneLabel?.let { lbl ->
-            headBox.addView(act.tv(lbl, 15f, 0xFF161618.toInt(), true).apply {
-                setPadding(dp(16f), dp(8f), dp(16f), dp(8f)); pressBg(0xFFFFFFFF.toInt(), 20f)
+            headBox.addView(act.tv(lbl, 15f, T.onPill, true).apply {
+                setPadding(dp(16f), dp(8f), dp(16f), dp(8f)); pressBg(T.pill, 20f)
                 setOnClickListener { v -> v.animate().scaleX(0.9f).scaleY(0.9f).setDuration(70).withEndAction { v.animate().scaleX(1f).scaleY(1f).setDuration(150).start() }.start(); doneAct?.invoke() }
             }, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.END or Gravity.TOP).apply { setMargins(0, dp(12f), dp(8f), 0) })
         }
@@ -154,7 +154,7 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
             val qr = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(4f), dp(8f), dp(4f), dp(10f)) }
             for (q in quick) qr.addView(q, LinearLayout.LayoutParams(0, WRAP, 1f))
             panel.addView(qr)
-            panel.addView(View(act).apply { setBackgroundColor(0x14FFFFFF) }, LinearLayout.LayoutParams(MATCH, dp(1f)).apply { setMargins(dp(14f), 0, dp(14f), dp(4f)) })
+            panel.addView(View(act).apply { setBackgroundColor(tw(0x14)) }, LinearLayout.LayoutParams(MATCH, dp(1f)).apply { setMargins(dp(14f), 0, dp(14f), dp(4f)) })
         }
         val list = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
         for (r in rows) {

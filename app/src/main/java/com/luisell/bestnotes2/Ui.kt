@@ -25,18 +25,23 @@ import android.widget.Toast
    ============================================================ */
 
 object T {
-    const val bg = 0xFF161618.toInt()
-    const val card = 0x14FFFFFF
-    const val cardStrong = 0xFF26262A.toInt()
-    const val border = 0x24FFFFFF
-    const val text = 0xFFFFFFFF.toInt()
-    const val muted = 0xADFFFFFF.toInt()
-    const val faint = 0x66FFFFFF
+    /** ☀️ Modo claro (se escoge en Apariencia). */
+    @JvmStatic var light = false
+    val bg get() = if (light) 0xFFF2F2F7.toInt() else 0xFF161618.toInt()
+    val card get() = if (light) 0x0F000000 else 0x14FFFFFF
+    val cardStrong get() = if (light) 0xFFFFFFFF.toInt() else 0xFF26262A.toInt()
+    val border get() = if (light) 0x1F000000 else 0x24FFFFFF
+    val text get() = if (light) 0xFF1C1C1E.toInt() else 0xFFFFFFFF.toInt()
+    val muted get() = if (light) 0x99000000.toInt() else 0xADFFFFFF.toInt()
+    val faint get() = if (light) 0x59000000 else 0x66FFFFFF
     const val accent = 0xFF8B7CFF.toInt()
     /** Violeta de la búsqueda iluminada (como en Best Notes). */
-    const val search = 0x998B5CF6.toInt()
+    val search get() = if (light) 0x668B5CF6 else 0x998B5CF6.toInt()
     const val danger = 0xFFFF6B6B.toInt()
-    const val sheet = 0xFF202024.toInt()
+    val sheet get() = if (light) 0xFFF7F7FA.toInt() else 0xFF202024.toInt()
+    /** Botón "fuerte" (blanco en oscuro, negro en claro) y su letra. */
+    val pill get() = if (light) 0xFF1C1C1E.toInt() else 0xFFFFFFFF.toInt()
+    val onPill get() = if (light) 0xFFFFFFFF.toInt() else 0xFF161618.toInt()
 
     /** Colores para notas y carpetas (los mismos de Best Notes). */
     val noteColors = intArrayOf(
@@ -72,7 +77,7 @@ fun View.pressBg(color: Int, radiusDp: Float, stroke: Int = 0) {
     val r = context.dp(radiusDp).toFloat()
     val content = roundBg(color, r, stroke, if (stroke != 0) context.dp(1) else 0)
     val mask = roundBg(Color.WHITE, r)
-    background = RippleDrawable(ColorStateList.valueOf(0x33FFFFFF), content, mask)
+    background = RippleDrawable(ColorStateList.valueOf(tw(0x33)), content, mask)
 }
 
 fun Context.tv(text: CharSequence = "", sizeSp: Float = 16f, color: Int = T.text, bold: Boolean = false): TextView =
@@ -88,9 +93,12 @@ fun Context.iconBtn(kind: Int, sizeDp: Float = 11f, color: Int = T.text, onClick
         this.color = color
         layoutParams = LinearLayout.LayoutParams(dp(44), dp(44))
         val r = dp(22).toFloat()
-        background = RippleDrawable(ColorStateList.valueOf(0x33FFFFFF), null, roundBg(Color.WHITE, r))
+        background = RippleDrawable(ColorStateList.valueOf(tw(0x33)), null, roundBg(Color.WHITE, r))
         setOnClickListener(onClick)
     }
+
+/** Un blanco transparente (o negro transparente en modo claro), para fondos y rayitas. */
+fun tw(a: Int): Int = if (T.light) ((a * 0.75f).toInt() shl 24) else (a shl 24) or 0xFFFFFF
 
 fun lp(w: Int, h: Int, weight: Float = 0f) = LinearLayout.LayoutParams(w, h, weight)
 const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
@@ -98,7 +106,7 @@ const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
 
 fun Context.toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 
-fun Context.dialog(): AlertDialog.Builder = AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+fun Context.dialog(): AlertDialog.Builder = AlertDialog.Builder(this, if (T.light) android.R.style.Theme_Material_Light_Dialog_Alert else android.R.style.Theme_Material_Dialog_Alert)
 
 fun Context.confirm(title: String, msg: String?, okText: String, danger: Boolean = false, onOk: () -> Unit) {
     val d = dialog().setTitle(title).setMessage(msg).setPositiveButton(okText) { _, _ -> onOk() }
@@ -159,9 +167,10 @@ fun Context.colorRow(colors: IntArray, withNone: Boolean, selected: Int, onPick:
 fun Activity.edgeToEdge(root: View, windowBg: Boolean = true) {
     // El fondo de vidrio de Best Notes se ve también detrás de la barra de arriba
     window.statusBarColor = android.graphics.Color.TRANSPARENT
-    window.navigationBarColor = 0xFF1F1F1F.toInt()
+    window.navigationBarColor = if (T.light) 0xFFF2F2F7.toInt() else 0xFF1F1F1F.toInt()
     @Suppress("DEPRECATION")
-    window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+    window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+        (if (T.light) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or (if (android.os.Build.VERSION.SDK_INT >= 26) View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0) else 0)
     root.background = null
     root.fitsSystemWindows = true
     if (windowBg) window.setBackgroundDrawable(Glass.background(this))       // el fondo escogido en ☀️ Apariencia
@@ -172,7 +181,7 @@ fun Context.glassBtn(kind: Int, sizeDp: Float = 10f, color: Int = T.text, onClic
     IconView(this, kind, sizeDp).apply {
         this.color = color
         layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply { marginStart = dp(3); marginEnd = dp(3) }
-        background = RippleDrawable(ColorStateList.valueOf(0x33FFFFFF), Glass.make(context, 22f), roundBg(Color.WHITE, dp(22).toFloat()))
+        background = RippleDrawable(ColorStateList.valueOf(tw(0x33)), Glass.make(context, 22f), roundBg(Color.WHITE, dp(22).toFloat()))
         setOnClickListener { it.animate().scaleX(0.9f).scaleY(0.9f).setDuration(70).withEndAction { it.animate().scaleX(1f).scaleY(1f).setDuration(120).start() }.start(); onClick(it) }
     }
 

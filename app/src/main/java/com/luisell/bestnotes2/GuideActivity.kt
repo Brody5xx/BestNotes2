@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     private class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-14" to ("Parte 4c-3: respaldo con contraseña, plantillas, modo claro, 39 idiomas (traducidos con la IA), dibujos en las tarjetas de inicio y «Borrar todo el texto»" to
+            "Part 4c-3: password backup, templates, light mode, 39 languages (translated by the AI), drawings on home cards and “Clear all the text”"),
         "2026-11-14" to ("El título se pinta letra por letra (como el texto) y la pantalla de inicio muestra la nota como es: colores, contorno, tamaños, listas, fotos, notas de voz y videos" to
             "The title can be styled letter by letter (like the text) and the home screen shows the note as it is: colors, outline, sizes, lists, photos, voice notes and videos"),
         "2026-11-14" to ("El título ya se puede pintar desde el panel de estilo: color, resaltar, contorno y tachado" to
@@ -313,12 +315,40 @@ class GuideActivity : Activity() {
                 "Below you see the word, why it's wrong and suggestions: tap one to change it, or “Ignore”. ‹ › to move.",
                 "The frame-with-mountains button puts a photo or a gradient behind the note's text.",
             )),
-        Sec(MoreIcons.INFO,
-            "Lo que viene" to listOf(
-                "Respaldo, plantillas, modo claro y más idiomas.",
+        Sec(Icons.BOX,
+            "Respaldo" to listOf(
+                "☰ → Respaldo → Crear respaldo. Pon una contraseña (mínimo 6) y apúntala.",
+                "Se guarda TODO: notas, fotos, audios, videos, dibujos, versiones, registro, calculadora y bóveda.",
+                "Luego «Guardar» (en el teléfono) o «Compartir» (Drive, correo…). Guárdalo fuera del teléfono.",
+                "Para recuperarlo: ☰ → Respaldo → Restaurar, y la misma contraseña. Si una nota ya está, se queda la más nueva.",
             ),
-            "Coming next" to listOf(
-                "Backup, templates, light mode and more languages.",
+            "Backup" to listOf(
+                "☰ → Backup → Create backup. Set a password (at least 6) and write it down.",
+                "EVERYTHING is saved: notes, photos, audio, videos, drawings, versions, log, calculator and vault.",
+                "Then “Save” (on the phone) or “Share” (Drive, email…). Keep it outside the phone.",
+                "To get it back: ☰ → Backup → Restore, and the same password. If a note is already there, the newest stays.",
+            )),
+        Sec(Icons.REPORT,
+            "Plantillas" to listOf(
+                "En una nota: ⋮ → Plantillas (o 🖼️ → Plantillas). Desde el inicio: ☰ → Nueva desde plantilla.",
+                "Hay reporte de trabajo, checklist de instalación, lista de materiales, reunión, compras, diario e idea.",
+                "Si la nota está vacía, la plantilla la llena; si ya tiene algo, se agrega al final.",
+                "«Guardar esta nota como plantilla» para hacer las tuyas.",
+            ),
+            "Templates" to listOf(
+                "In a note: ⋮ → Templates (or 🖼️ → Templates). From home: ☰ → New from template.",
+                "There are work report, installation checklist, materials list, meeting, shopping, journal and idea.",
+                "If the note is empty, the template fills it; if it already has something, it's added at the end.",
+                "“Save this note as a template” to make your own.",
+            )),
+        Sec(MoreIcons.MOON,
+            "Modo claro e idiomas" to listOf(
+                "☀️ Apariencia → Oscuro o Claro. Cada modo tiene sus propios fondos.",
+                "☰ → Idioma: 39 idiomas. Español e inglés vienen listos; los demás los traduce la IA gratis una sola vez (1 a 4 minutos con internet).",
+            ),
+            "Light mode and languages" to listOf(
+                "☀️ Appearance → Dark or Light. Each mode has its own backgrounds.",
+                "☰ → Language: 39 languages. Spanish and English come ready; the free AI translates the others only once (1 to 4 minutes with internet).",
             )),
     )
 

@@ -91,4 +91,14 @@ class PruebasTest {
         assertEquals("1.5ᴇ12", Formula.fmt(1.5e12))
         assertEquals("−4", Formula.fmt(-4.0))
     }
+
+    @Test fun vistaPreviaConDibujo() {
+        val ink = org.json.JSONArray().put(JSONObject().put("t", "pen").put("c", "#ff0000").put("w", 0.01).put("p", org.json.JSONArray().put(org.json.JSONArray().put(0.1).put(0.1)).put(org.json.JSONArray().put(0.5).put(0.3))))
+        val pv = previewJson(null, listOf(Block.Text(mutableListOf(Run("hola")))), ink)
+        assertTrue(previewInk(pv)!!.length() == 1)
+        assertEquals("hola", runsPlain((previewParse(pv).second[0] as Block.Text).runs))
+        // plantillas: todas traen algo
+        L.javaClass
+        assertTrue(Templates.builtIn().all { it.blocks().isNotEmpty() })
+    }
 }

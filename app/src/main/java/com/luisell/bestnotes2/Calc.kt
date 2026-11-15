@@ -261,13 +261,13 @@ class CalcActivity : Activity() {
     }
 
     private fun pill(text: String, onClick: () -> Unit) = tv(text, 13f, T.text, true).apply {
-        setPadding(dp(14), dp(7), dp(14), dp(7)); pressBg(0x1AFFFFFF, 16f, T.border); setOnClickListener { onClick() }
+        setPadding(dp(14), dp(7), dp(14), dp(7)); pressBg(tw(0x1A), 16f, T.border); setOnClickListener { onClick() }
     }
 
     private fun syncAng() {
         angBtn.text = if (Formula.deg) "DEG" else "RAD"
-        if (Formula.deg) { angBtn.setTextColor(0xFF161618.toInt()); angBtn.pressBg(0xFFFFFFFF.toInt(), 16f) }
-        else { angBtn.setTextColor(T.text); angBtn.pressBg(0x1AFFFFFF, 16f, T.border) }
+        if (Formula.deg) { angBtn.setTextColor(T.onPill); angBtn.pressBg(T.pill, 16f) }
+        else { angBtn.setTextColor(T.text); angBtn.pressBg(tw(0x1A), 16f, T.border) }
     }
 
     private fun setTab(t: String) {
@@ -275,8 +275,8 @@ class CalcActivity : Activity() {
         for (i in 0 until tabsRow.childCount) {
             val b = tabsRow.getChildAt(i) as TextView
             val sel = b.tag == t
-            b.background = if (sel) roundBg(0xFFFFFFFF.toInt(), dp(16).toFloat()) else null
-            b.setTextColor(if (sel) 0xFF161618.toInt() else T.text)
+            b.background = if (sel) roundBg(T.pill, dp(16).toFloat()) else null
+            b.setTextColor(if (sel) T.onPill else T.text)
         }
         for ((k, v) in views) v.visibility = if (k == t) View.VISIBLE else View.GONE
         pad.visibility = if (t == "calc" || t == "y") View.VISIBLE else View.GONE
@@ -363,7 +363,7 @@ class CalcActivity : Activity() {
                 gravity = Gravity.END; setPadding(0, 0, 0, dp(6))
                 setOnClickListener { if (r != err) { setActive(input); insert(r.replace('−', '-'), true) } }
             })
-            histBox.addView(View(this).apply { setBackgroundColor(0x12FFFFFF) }, lp(MATCH, dp(1)))
+            histBox.addView(View(this).apply { setBackgroundColor(tw(0x12)) }, lp(MATCH, dp(1)))
         }
         histScroll.post { histScroll.fullScroll(View.FOCUS_DOWN) }
     }
@@ -382,7 +382,7 @@ class CalcActivity : Activity() {
 
     private fun setActive(e: EditText) {
         active = e
-        for (y in yInputs) y.background = if (y === e) roundBg(0x14FFFFFF, dp(12).toFloat(), 0x55FFFFFF, dp(1)) else roundBg(0x0AFFFFFF, dp(12).toFloat())
+        for (y in yInputs) y.background = if (y === e) roundBg(tw(0x14), dp(12).toFloat(), tw(0x55), dp(1)) else roundBg(0x0AFFFFFF, dp(12).toFloat())
         e.requestFocus()
         e.setSelection(e.text.length.coerceAtLeast(0).let { minOf(it, e.selectionEnd.takeIf { s -> s >= 0 } ?: it) })
     }
@@ -457,7 +457,7 @@ class CalcActivity : Activity() {
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             for (c in 0 until 5) {
                 val k = KEYS[r * 5 + c]
-                val bg = when (k[4]) { "num" -> 0x26FFFFFF; "op" -> 0x40FFFFFF; "clr" -> 0x40FF6B6B; "ent" -> 0xFFFFFFFF.toInt(); "sec" -> 0x408B7CFF; else -> 0x14FFFFFF }
+                val bg = when (k[4]) { "num" -> tw(0x26); "op" -> tw(0x40); "clr" -> 0x40FF6B6B; "ent" -> T.pill; "sec" -> 0x408B7CFF; else -> tw(0x14) }
                 val cell = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
                     pressBg(bg, 14f)
@@ -466,7 +466,7 @@ class CalcActivity : Activity() {
                 val small = tv(k[2], 10f, 0xFFB9AEFF.toInt()).apply { gravity = Gravity.CENTER }
                 if (k[2].isEmpty()) small.visibility = View.GONE
                 cell.addView(small)
-                cell.addView(tv(k[0], if (k[0].length > 3) 13f else 17f, if (k[4] == "ent") 0xFF161618.toInt() else T.text, k[4] != "").apply { gravity = Gravity.CENTER })
+                cell.addView(tv(k[0], if (k[0].length > 3) 13f else 17f, if (k[4] == "ent") T.onPill else T.text, k[4] != "").apply { gravity = Gravity.CENTER })
                 row.addView(cell, lp(0, dp(44), 1f).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) })
                 keyViews.add(cell to k)
             }
@@ -505,7 +505,7 @@ class CalcActivity : Activity() {
         for (i in 0 until 4) {
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             val tog = tv("Y${i + 1}", 15f, COLORS[i], true).apply { gravity = Gravity.CENTER; setPadding(dp(10), dp(6), dp(10), dp(6)) }
-            fun paintTog() { tog.background = roundBg(if (on[i]) COLORS[i] and 0x33FFFFFF else 0, dp(12).toFloat(), COLORS[i], dp(2)); tog.alpha = if (on[i]) 1f else 0.45f }
+            fun paintTog() { tog.background = roundBg(if (on[i]) COLORS[i] and tw(0x33) else 0, dp(12).toFloat(), COLORS[i], dp(2)); tog.alpha = if (on[i]) 1f else 0.45f }
             paintTog()
             tog.setOnClickListener { on[i] = !on[i]; paintTog(); save() }
             row.addView(tog, lp(dp(54), WRAP))
@@ -554,11 +554,11 @@ class CalcActivity : Activity() {
     inner class GraphView : View(this@CalcActivity) {
         var cx = 0.0; var cy = 0.0; var sc = 0.0
         private var trace = false; private var traceFi = 0; private var traceX = 0.0
-        private val grid = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x14FFFFFF; strokeWidth = dp(1).toFloat() }
+        private val grid = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tw(0x14); strokeWidth = dp(1).toFloat() }
         private val axis = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x8CFFFFFF.toInt(); strokeWidth = dp(1.4f).toFloat() }
         private val num = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x8CFFFFFF.toInt(); textSize = dp(11).toFloat() }
         private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = dp(2.4f).toFloat(); strokeJoin = Paint.Join.ROUND }
-        private val dash = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x59FFFFFF; strokeWidth = dp(1).toFloat(); pathEffect = DashPathEffect(floatArrayOf(dp(4).toFloat(), dp(4).toFloat()), 0f) }
+        private val dash = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tw(0x59); strokeWidth = dp(1).toFloat(); pathEffect = DashPathEffect(floatArrayOf(dp(4).toFloat(), dp(4).toFloat()), 0f) }
         private val dot = Paint(Paint.ANTI_ALIAS_FLAG)
         private val info = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = T.text; textSize = dp(14).toFloat() }
         private val path = Path()
@@ -674,7 +674,7 @@ class CalcActivity : Activity() {
             val e = EditText(this).apply {
                 setText(v); setTextColor(T.text); setTextSize(TypedValue.COMPLEX_UNIT_SP, 21f); isSingleLine = true
                 inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
-                background = roundBg(0x33000000, dp(18).toFloat(), 0x40FFFFFF, dp(1)); setPadding(dp(14), dp(10), dp(14), dp(10))
+                background = roundBg(0x33000000, dp(18).toFloat(), tw(0x40), dp(1)); setPadding(dp(14), dp(10), dp(14), dp(10))
                 addTextChangedListener(object : TextWatcher {
                     override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                     override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -705,11 +705,11 @@ class CalcActivity : Activity() {
         // fila: x a la izquierda, las Y en el medio, "1 × n" a la derecha
         fun row(x: String, ys: List<Pair<String, Int>>, mul: String, head: Boolean) {
             val r = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), 0, dp(8), 0); minimumHeight = dp(52) }
-            r.addView(tv(x, 18f, if (head) T.text else 0xE6FFFFFF.toInt(), head), lp(0, WRAP, 1f))
+            r.addView(tv(x, 18f, T.text, head), lp(0, WRAP, 1f))
             for ((t, c) in ys) r.addView(tv(t, 18f, c, head).apply { gravity = Gravity.CENTER }, lp(0, WRAP, 1.2f))
             r.addView(tv(mul, 18f, if (head) T.text else T.muted, head).apply { gravity = Gravity.END }, lp(0, WRAP, 1.3f))
             table.addView(r)
-            table.addView(View(this).apply { setBackgroundColor(0x1FFFFFFF) }, lp(MATCH, dp(1)))
+            table.addView(View(this).apply { setBackgroundColor(tw(0x1F)) }, lp(MATCH, dp(1)))
         }
         row("x", fs.map { "Y${it.first + 1}" to COLORS[it.first] }, pre + "n", true)
         for (k in 0 until 60) {
@@ -863,7 +863,7 @@ class CalcActivity : Activity() {
                 if (s.isNotEmpty() && !c.lowercase().contains(s) && !cname(c).lowercase().contains(s)) continue
                 list.addView(tv("${flag(c)}   $c   ${cname(c)}", 16f, T.text, c == sel).apply {
                     setPadding(dp(10), dp(12), dp(10), dp(12))
-                    if (c == sel) background = roundBg(0x1AFFFFFF, dp(12).toFloat())
+                    if (c == sel) background = roundBg(tw(0x1A), dp(12).toFloat())
                     setOnClickListener { fxState().put(which, c); fxRender(); save(); dlg.dismiss() }
                 })
             }
@@ -930,11 +930,11 @@ class CalcActivity : Activity() {
         hDays.removeAllViews()
         for (i in 0..6) {
             val d = hrs().optJSONObject("$i") ?: JSONObject()
-            val card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(8), dp(8), dp(8)); background = roundBg(0x10FFFFFF, dp(16).toFloat(), T.border, dp(1)) }
+            val card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(8), dp(8), dp(8)); background = roundBg(tw(0x10), dp(16).toFloat(), T.border, dp(1)) }
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             row.addView(tv(dayName(i), 15f, T.text, true), lp(dp(48), WRAP))
             fun timeBtn(f: String, label: String) = tv(d.optString(f).let { if (it.isEmpty()) label else fmtT(it) }, 14f, if (d.optString(f).isEmpty()) T.faint else T.text, true).apply {
-                gravity = Gravity.CENTER; setPadding(dp(8), dp(8), dp(8), dp(8)); pressBg(0x1AFFFFFF, 12f, T.border)
+                gravity = Gravity.CENTER; setPadding(dp(8), dp(8), dp(8), dp(8)); pressBg(tw(0x1A), 12f, T.border)
                 setOnClickListener {
                     val cur = mins(d.optString(f)) ?: if (f == "s") 8 * 60 else 17 * 60
                     TimePickerDialog(this@CalcActivity, android.R.style.Theme_Material_Dialog_Alert, { _, h, m ->
@@ -952,7 +952,7 @@ class CalcActivity : Activity() {
             val brk = EditText(this).apply {
                 setText(d.optString("b").takeIf { it != "0" } ?: ""); hint = "0"; setTextColor(T.text); setHintTextColor(T.faint)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f); inputType = InputType.TYPE_CLASS_NUMBER
-                background = roundBg(0x1AFFFFFF, dp(10).toFloat()); setPadding(dp(8), dp(4), dp(8), dp(4))
+                background = roundBg(tw(0x1A), dp(10).toFloat()); setPadding(dp(8), dp(4), dp(8), dp(4))
                 addTextChangedListener(object : TextWatcher {
                     override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                     override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}

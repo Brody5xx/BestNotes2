@@ -235,7 +235,7 @@ class NoteActivity : Activity(), EditorView.Host {
         val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), dp(4), dp(6), dp(4)) }
         bar = grid
         fun rowL() = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        fun sep(r: LinearLayout) = r.addView(View(this).apply { setBackgroundColor(0x33FFFFFF) }, lp(dp(1), dp(30)).apply { marginStart = dp(2); marginEnd = dp(2) })
+        fun sep(r: LinearLayout) = r.addView(View(this).apply { setBackgroundColor(tw(0x33)) }, lp(dp(1), dp(30)).apply { marginStart = dp(2); marginEnd = dp(2) })
         fun tool(r: LinearLayout, key: String, icon: Int, size: Float = 10.5f, act: () -> Unit) {
             val b = iconBtn(icon, size) { v -> pop(v); act() }
             toolBtns[key] = b; r.addView(b, lp(0, dp(48), 1f))
@@ -255,7 +255,7 @@ class NoteActivity : Activity(), EditorView.Host {
         // Aa 17 ▾
         val sizeCell = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
-            background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x33FFFFFF), null, roundBg(Color.WHITE, dp(22).toFloat()))
+            background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(tw(0x33)), null, roundBg(Color.WHITE, dp(22).toFloat()))
             setOnClickListener { pop(it); pickSize() }
         }
         sizeCell.addView(tv("Aa", 17f, T.muted))
@@ -267,7 +267,7 @@ class NoteActivity : Activity(), EditorView.Host {
         // ⚪ ▾ (el color de la letra)
         val colorCell = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
-            background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x33FFFFFF), null, roundBg(Color.WHITE, dp(22).toFloat()))
+            background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(tw(0x33)), null, roundBg(Color.WHITE, dp(22).toFloat()))
             setOnClickListener { pop(colorDot); colorMenu() }
         }
         colorDot = View(this).apply { background = roundBg(T.text, dp(14).toFloat(), 0x55000000, dp(1)) }
@@ -420,7 +420,7 @@ class NoteActivity : Activity(), EditorView.Host {
 
     override fun onFocusEdit(e: RichEdit?) {
         val st = e?.currentStyle() ?: St.PLAIN
-        fun on(k: String, v: Boolean) { toolBtns[k]?.background = if (v) roundBg(0x33FFFFFF, dp(22).toFloat()) else android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x33FFFFFF), null, roundBg(Color.WHITE, dp(22).toFloat())) }
+        fun on(k: String, v: Boolean) { toolBtns[k]?.background = if (v) roundBg(tw(0x33), dp(22).toFloat()) else android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(tw(0x33)), null, roundBg(Color.WHITE, dp(22).toFloat())) }
         on("b", st.b); on("i", st.i); on("u", st.u)
         on("hi", st.bg != 0)
         val kind = e?.let { ed -> editor.views.firstOrNull { it.edits().contains(ed) }?.block as? Block.ListB }?.kind
@@ -454,7 +454,7 @@ class NoteActivity : Activity(), EditorView.Host {
         extraObj.remove("tOl"); extraObj.remove("tBg"); extraObj.remove("tS")
         if (tRuns.any { !it.st.isPlain() }) extraObj.put("tr", runsJson(tRuns)) else extraObj.remove("tr")
         meta.titleColor = tRuns.firstOrNull { it.text.isNotBlank() }?.st?.color ?: 0
-        Store.fillMeta(meta, editor.blocks, tRuns)
+        Store.fillMeta(meta, editor.blocks, tRuns, extraObj.optJSONArray("ink"))
         extra = if (extraObj.length() > 0) extraObj.toString() else null
         Store.saveNote(meta, blocksJson(editor.blocks), extra, keepExtra = false)
         isNew = false
@@ -818,7 +818,7 @@ class NoteActivity : Activity(), EditorView.Host {
         // 2) ángulos
         val r2 = row().apply { setPadding(dp(2), dp(6), dp(2), dp(4)) }
         val angles = ArrayList<TextView>()
-        fun paintAngles() { for (t in angles) { val on = Math.round(b.rot) == t.tag as Int; t.setTextColor(0xFFFFFFFF.toInt()); t.pressBg(if (on) 0xFFFF3B30.toInt() else 0, 20f, if (on) 0 else 0x40FFFFFF) } }
+        fun paintAngles() { for (t in angles) { val on = Math.round(b.rot) == t.tag as Int; t.setTextColor(if (on) 0xFFFFFFFF.toInt() else T.text); t.pressBg(if (on) 0xFFFF3B30.toInt() else 0, 20f, if (on) 0 else tw(0x40)) } }
         for (deg in intArrayOf(0, 15, 30, 45, 60, 75, 90, -15, -30, -45, -60, -75, -90)) {
             val t = tv("$deg°", 15f, T.text, true).apply {
                 tag = deg; gravity = Gravity.CENTER; setPadding(dp(14), dp(9), dp(14), dp(9))
@@ -833,7 +833,7 @@ class NoteActivity : Activity(), EditorView.Host {
         val r3 = row().apply { setPadding(dp(8), dp(2), dp(8), 0) }
         r3.addView(tv("↻ ${Math.round(b.rot)}°", 14f, T.muted, true).apply { minWidth = dp(50) })
         fun round(t: String, a: () -> Unit) = tv(t, 22f, T.text).apply {
-            gravity = Gravity.CENTER; background = roundBg(0, dp(22).toFloat(), 0x40FFFFFF, dp(1)); setOnClickListener { pop(it); a() }
+            gravity = Gravity.CENTER; background = roundBg(0, dp(22).toFloat(), tw(0x40), dp(1)); setOnClickListener { pop(it); a() }
         }
         r3.addView(round("−") { f.setPct(b.pct - 5) }, lp(dp(44), dp(44)))
         val pctTv = tv("${b.pct.toInt()}%", 15f, T.text, true).apply { minWidth = dp(52); gravity = Gravity.END }
@@ -872,7 +872,7 @@ class NoteActivity : Activity(), EditorView.Host {
         wallImg.visibility = View.VISIBLE
         if (w.startsWith("g:")) {
             wallImg.clearColorFilter()
-            wallImg.setImageDrawable(Wall.GRADS.firstOrNull { it[0] == w.substring(2) }?.let { android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, it[3] as IntArray) })
+            wallImg.setImageDrawable(Wall.grad(w.substring(2)))
             return
         }
         wallImg.setColorFilter(0x59000000, android.graphics.PorterDuff.Mode.SRC_ATOP)
@@ -945,7 +945,7 @@ class NoteActivity : Activity(), EditorView.Host {
 
     private fun paintDrawBar() {
         if (drawBar == null) return
-        for (k in listOf("pen", "hl", "eraser")) drawBtns[k]?.background = if (ink.tool == k) roundBg(0x33FFFFFF, dp(22).toFloat()) else null
+        for (k in listOf("pen", "hl", "eraser")) drawBtns[k]?.background = if (ink.tool == k) roundBg(tw(0x33), dp(22).toFloat()) else null
         drawBtns["color"]?.invalidate()
         drawBtns["undo"]?.alpha = if (ink.canUndo()) 1f else 0.35f
         drawBtns["redo"]?.alpha = if (ink.canRedo()) 1f else 0.35f
@@ -1225,6 +1225,7 @@ class NoteActivity : Activity(), EditorView.Host {
         sh.item(MoreIcons.MIC, L.t("dictate"), Sheet.GREEN, L.t("dictateSub")) { startDictation() }
         sh.item(MoreIcons.HISTORY, L.t("history"), Sheet.TEAL, L.t("historySub")) { openHistory() }
         sh.item(Icons.SPELL, L.t("spellCheck"), Sheet.SKY, L.t("spellCheckSub")) { startSpell() }
+        sh.item(Icons.REPORT, L.t("templates"), Sheet.BLUE, L.t("templatesSub")) { openTemplates() }
         sh.divider()
         sh.item(MoreIcons.PALETTE, L.t("titleColor"), Sheet.PINK) { title.requestFocus(); pickColor("color") }
         sh.item(MoreIcons.WALLPAPER, L.t("noteWall"), Sheet.ORANGE, L.t("noteWallSub")) { wallMenu() }
@@ -1232,6 +1233,16 @@ class NoteActivity : Activity(), EditorView.Host {
         sh.item(Icons.LOCK, L.t(if (meta.locked) "unlock" else "lockPin"), Sheet.GRAY) { toggleLock() }
         sh.item(MoreIcons.INFO, L.t("info"), Sheet.GRAY) { info() }
         sh.divider()
+        sh.item(Icons.DELETE, L.t("clearAll"), danger = true) {
+            confirm(L.t("clearAll"), L.t("clearAllMsg"), L.t("del"), true) {
+                if (snapPending) snapshot()
+                muting = true
+                editor.setBlocks(mutableListOf(Block.Text()))
+                ink.set(emptyList()); extraObj.remove("ink"); fitInk()
+                muting = false
+                dirty = true; onDirty(); snapshot(); hint("🧹 " + L.t("cleared"))
+            }
+        }
         sh.item(Icons.TRASH, L.t("moveTrash"), danger = true) {
             if (isNew && isEmptyNote()) { finish(); return@item }
             meta.deleted = true; meta.deletedAt = System.currentTimeMillis(); Store.saveMeta(meta); Store.changed()
@@ -1289,6 +1300,31 @@ class NoteActivity : Activity(), EditorView.Host {
         ).setPositiveButton(L.t("ok"), null).show()
     }
 
+    /* ---------- 📋 plantillas ---------- */
+    private fun openTemplates() {
+        templateSheet({ t -> useTemplate(t) }) {
+            askText(L.t("tplSave"), title.text.toString(), L.t("tplName")) { name ->
+                if (name.isBlank()) return@askText
+                editor.flushAll(); Templates.saveMine(this, name.trim(), title.text.toString(), editor.blocks); toast(L.t("tplSaved"))
+            }
+        }
+    }
+
+    private fun useTemplate(t: Templates.Tpl) {
+        if (snapPending) snapshot()
+        editor.flushAll()
+        val add = t.blocks()
+        muting = true
+        if (isEmptyNote()) {
+            if (title.text.isBlank()) title.setText(t.title)
+            editor.setBlocks(normalize(add))
+        } else editor.setBlocks(normalize((editor.blocks + add).toMutableList()))
+        muting = false
+        dirty = true; onDirty(); snapshot()
+        root.alpha = 0.4f; root.animate().alpha(1f).setDuration(400).start()
+        hint("📋 " + t.name)
+    }
+
     /* ---------- 🖼️ insertar (foto, video, audio, IA) ---------- */
     private fun insertMenu() {
         Sheet(this, L.t("insert"))
@@ -1299,6 +1335,7 @@ class NoteActivity : Activity(), EditorView.Host {
             .item(Icons.STAR, "✨ " + L.t("ai"), Sheet.VIOLET, L.t("aiFree")) { aiMenu() }
             .item(MoreIcons.TEXT_T, L.t("dictate"), Sheet.GREEN, L.t("dictateSub")) { startDictation() }
             .item(MoreIcons.PEN, L.t("newDraw"), Sheet.TEAL) { setDrawMode(true) }
+            .item(Icons.REPORT, L.t("templates"), Sheet.BLUE, L.t("templatesSub")) { openTemplates() }
             .show()
     }
 
@@ -1335,7 +1372,7 @@ class NoteActivity : Activity(), EditorView.Host {
             val inner = View(this).apply { background = if (c == 0) roundBg(0, dp(16).toFloat(), 0x99FFFFFF.toInt(), dp(2)) else roundBg(c, dp(16).toFloat(), 0x40000000, dp(1)) }
             v.addView(inner, android.widget.FrameLayout.LayoutParams(dp(32), dp(32), Gravity.CENTER))
             if (c == 0) v.addView(tv("∅", 15f, T.text, true).apply { gravity = Gravity.CENTER }, android.widget.FrameLayout.LayoutParams(dp(32), dp(32), Gravity.CENTER))
-            if (on) v.background = roundBg(0, dp(21).toFloat(), 0xFFFFFFFF.toInt(), dp(2))
+            if (on) v.background = roundBg(0, dp(21).toFloat(), T.text, dp(2))
             v.setOnClickListener { pop(inner); a(it) }
             row.addView(v, lp(dp(42), dp(42)).apply { marginEnd = dp(4) })
         }
@@ -1357,7 +1394,7 @@ class NoteActivity : Activity(), EditorView.Host {
         fun pill(icon: Int, label: String, on: Boolean, color: Int, a: () -> Unit) {
             val v = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(dp(8), dp(9), dp(8), dp(9))
-                background = if (on) roundBg((color and 0xFFFFFF) or 0x40000000, dp(20).toFloat(), color, dp(1)) else roundBg(0x14FFFFFF, dp(20).toFloat(), 0x26FFFFFF, dp(1))
+                background = if (on) roundBg((color and 0xFFFFFF) or 0x40000000, dp(20).toFloat(), color, dp(1)) else roundBg(tw(0x14), dp(20).toFloat(), tw(0x26), dp(1))
                 setOnClickListener { pop(it); a() }
             }
             v.addView(IconView(this, icon, 7.5f).apply { this.color = if (on) color else T.text; isClickable = false }, lp(dp(22), dp(22)))
@@ -1400,7 +1437,7 @@ class NoteActivity : Activity(), EditorView.Host {
             val cell = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
             val th = View(this).apply {
                 background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, g[3] as IntArray).apply {
-                    cornerRadius = dp(14).toFloat(); if (id == cur) setStroke(dp(3), 0xFF4FC3F7.toInt()) else setStroke(dp(1), 0x33FFFFFF)
+                    cornerRadius = dp(14).toFloat(); if (id == cur) setStroke(dp(3), 0xFF4FC3F7.toInt()) else setStroke(dp(1), tw(0x33))
                 }
             }
             cell.addView(th, lp(dp(62), dp(90)))
@@ -1450,8 +1487,8 @@ class NoteActivity : Activity(), EditorView.Host {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12), dp(12), dp(12), dp(12))
             background = Glass.make(this@NoteActivity, 20f)
         }
-        val ic = FrameLayout(this).apply { background = roundBg(0xFFFFFFFF.toInt(), dp(24).toFloat()) }
-        ic.addView(IconView(this, Icons.BOOK, 9.5f).apply { color = 0xFF161618.toInt(); isClickable = false }, FrameLayout.LayoutParams(dp(48), dp(48)))
+        val ic = FrameLayout(this).apply { background = roundBg(T.pill, dp(24).toFloat()) }
+        ic.addView(IconView(this, Icons.BOOK, 9.5f).apply { color = T.onPill; isClickable = false }, FrameLayout.LayoutParams(dp(48), dp(48)))
         logCard.addView(ic, lp(dp(48), dp(48)))
         val lt = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), 0, dp(6), 0) }
         lt.addView(tv(L.t("record"), 17f, T.text, true))
@@ -1463,10 +1500,10 @@ class NoteActivity : Activity(), EditorView.Host {
         // guardar ahora
         val saveBtn = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(dp(14), dp(14), dp(14), dp(14))
-            pressBg(0xFFFFFFFF.toInt(), 24f)
+            pressBg(T.pill, 24f)
         }
-        saveBtn.addView(IconView(this, Icons.CHECK, 8.5f).apply { color = 0xFF161618.toInt(); isClickable = false }, lp(dp(22), dp(22)))
-        saveBtn.addView(tv(L.t("saveVersionNow"), 16f, 0xFF161618.toInt(), true).apply { setPadding(dp(8), 0, 0, 0) })
+        saveBtn.addView(IconView(this, Icons.CHECK, 8.5f).apply { color = T.onPill; isClickable = false }, lp(dp(22), dp(22)))
+        saveBtn.addView(tv(L.t("saveVersionNow"), 16f, T.onPill, true).apply { setPadding(dp(8), 0, 0, 0) })
         saveBtn.setOnClickListener {
             pop(it)
             val v = Versions.make(title.text.toString(), blocksJson(editor.blocks), extraObj.opt("ink"), auto = false)
@@ -1487,7 +1524,7 @@ class NoteActivity : Activity(), EditorView.Host {
             txt.addView(tv(df.format(Date(v.optLong("at"))) + (if (i == 0) "  ·  " + L.t("latest") else ""), 14f, T.text, true))
             txt.addView(tv(Versions.preview(v).ifEmpty { L.t("emptyNote") }, 12.5f, T.muted).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END })
             card.addView(txt, lp(0, WRAP, 1f))
-            card.addView(IconView(this, Icons.CHEVRON, 6f).apply { color = 0x55FFFFFF; isClickable = false }, lp(dp(18), dp(18)))
+            card.addView(IconView(this, Icons.CHEVRON, 6f).apply { color = tw(0x55); isClickable = false }, lp(dp(18), dp(18)))
             card.setOnClickListener { pop(it); Sheet.closeTop(this); Store.main.postDelayed({ viewVersion(v) }, 300) }
             sh.custom(FrameLayout(this).apply { setPadding(dp(6), 0, dp(6), dp(8)); addView(card) })
         }
@@ -1495,7 +1532,7 @@ class NoteActivity : Activity(), EditorView.Host {
         val sw = android.widget.Switch(this).apply {
             text = "🔒  " + L.t("protectHist"); setTextColor(T.text); textSize = 15.5f; isChecked = histLocked(); setPadding(dp(14), dp(12), dp(14), dp(8))
             thumbTintList = android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0xFFFFFFFF.toInt(), 0xFFBDBDBD.toInt()))
-            trackTintList = android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0xFF4FC3F7.toInt(), 0x55FFFFFF))
+            trackTintList = android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0xFF4FC3F7.toInt(), tw(0x55)))
             setOnCheckedChangeListener { b, on ->
                 if (on) {
                     val go = { extraObj.put("histLocked", true); dirty = true; save(); hint(L.t("histWithPin")) }
@@ -1523,7 +1560,7 @@ class NoteActivity : Activity(), EditorView.Host {
         if (log.isEmpty()) box.addView(tv(L.t("recEmpty"), 15f, T.muted).apply { gravity = Gravity.CENTER })
         for (e in log) {
             if (e.startsWith(NoteLog.IMG)) {
-                val iv = android.widget.ImageView(this).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP; clipToOutline = true; background = roundBg(0x1AFFFFFF, dp(12).toFloat()) }
+                val iv = android.widget.ImageView(this).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP; clipToOutline = true; background = roundBg(tw(0x1A), dp(12).toFloat()) }
                 Thumbs.load(e.substring(1), dp(300)) { bm -> if (bm != null) iv.setImageBitmap(bm) else iv.visibility = View.GONE }
                 box.addView(iv, lp(MATCH, dp(130)).apply { topMargin = dp(4); bottomMargin = dp(6) })
             } else box.addView(tv(e, 15.5f, T.text).apply { setPadding(0, dp(3), 0, dp(3)) })
@@ -1598,7 +1635,7 @@ class NoteActivity : Activity(), EditorView.Host {
         if (spell != null) return
         editor.selectImage(null)
         editor.flushAll()
-        spellBtn.color = 0xFF161618.toInt(); spellBtn.background = roundBg(0xFFFFFFFF.toInt(), dp(20).toFloat())
+        spellBtn.color = T.onPill; spellBtn.background = roundBg(T.pill, dp(20).toFloat())
         val p = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(12), dp(12), dp(12)) }
         spell = p
         formatBar.visibility = View.GONE
@@ -1610,7 +1647,7 @@ class NoteActivity : Activity(), EditorView.Host {
         val starts = ArrayList<Int>(); val sb = StringBuilder()
         for (e in edits) { starts.add(sb.length); sb.append(e.text.toString()).append("\n\n") }
         val text = sb.toString()
-        val lang = if (L.lang == "es") "es" else "en-US"
+        val lang = when (L.lang) { "es" -> "es"; "en" -> "en-US"; "pt" -> "pt-BR"; "zh-Hans", "zh-Hant" -> "zh-CN"; else -> L.lang }
         Thread {
             val res = try {
                 val c = java.net.URL("https://api.languagetool.org/v2/check").openConnection() as java.net.HttpURLConnection
@@ -1665,8 +1702,8 @@ class NoteActivity : Activity(), EditorView.Host {
         val sugRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, 0) }
         if (er.sugs.isEmpty()) sugRow.addView(tv(L.t("spellNoSug"), 14f, T.muted))
         for ((i, sug) in er.sugs.withIndex()) {
-            val chip = tv(sug, 16f, 0xFF161618.toInt(), true).apply {
-                setPadding(dp(16), dp(9), dp(16), dp(9)); pressBg(0xFFFFFFFF.toInt(), 20f)
+            val chip = tv(sug, 16f, T.onPill, true).apply {
+                setPadding(dp(16), dp(9), dp(16), dp(9)); pressBg(T.pill, 20f)
                 setOnClickListener { pop(it); fixSpErr(er, sug) }
                 scaleX = 0.6f; scaleY = 0.6f; alpha = 0f
                 animate().scaleX(1f).scaleY(1f).alpha(1f).setStartDelay(i * 50L).setDuration(300).setInterpolator(android.view.animation.OvershootInterpolator(2.5f)).start()

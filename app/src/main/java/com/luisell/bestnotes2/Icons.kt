@@ -1152,7 +1152,7 @@ object Icons {
 /** Botón con un ícono de [Icons] (para las barras y paneles). */
 @SuppressLint("ViewConstructor")
 class IconView(context: Context, var kind: Int, private val sizeDp: Float = 10f) : View(context) {
-    var color: Int = 0xFFFFFFFF.toInt()
+    var color: Int = T.text
         set(v) { field = v; invalidate() }
     /** Color de fondo detrás del ícono (solo lo usan algunos íconos). */
     var bgColor: Int = 0

@@ -355,4 +355,27 @@ class PantallaTest {
         // y la tarjeta de inicio también
         assertTrue(Store.meta("n1")!!.pv!!.contains("\"t\""))
     }
+
+    @Test fun respaldoIdaYVuelta() {
+        importar()
+        val n1 = Store.meta("n1")!!
+        val (body0, _) = Store.readBody("n1")
+        val foto = Regex("\"f\":\"([^\"]+)\"").find(body0!!)!!.groupValues[1]
+        File(ctx.filesDir, "historial").mkdirs(); File(ctx.filesDir, "historial/n1.json").writeText("[]")
+        val out = File(ctx.cacheDir, "bk.json")
+        Backup.exportFile(ctx, "secreta1", out) {}
+        assertTrue(out.length() > 100)
+        // se borra la nota y su foto, y se vuelve a traer del respaldo
+        Store.deleteForever(listOf("n1")); waitIo()
+        File(Store.mediaDir, foto).delete()
+        reload()
+        assertEquals(null, Store.meta("n1"))
+        try { Backup.importFile(ctx, Uri.fromFile(out), "otra") {}; fail("debía fallar") } catch (_: Backup.WrongPassword) {}
+        Backup.importFile(ctx, Uri.fromFile(out), "secreta1") {}
+        reload()
+        val back = Store.meta("n1")!!
+        assertEquals(n1.title, back.title)
+        assertEquals(body0, Store.readBody("n1").first)
+        assertTrue("la foto volvió", File(Store.mediaDir, foto).length() > 0)
+    }
 }

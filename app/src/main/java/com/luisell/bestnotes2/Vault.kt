@@ -243,8 +243,8 @@ class VaultActivity : Activity() {
         background = roundBg(0x2E000000, dp(14).toFloat(), T.border, dp(1)); setPadding(dp(14), dp(12), dp(14), dp(12))
     }
 
-    private fun bigBtn(text: String, onClick: () -> Unit) = tv(text, 16f, 0xFF161618.toInt(), true).apply {
-        gravity = Gravity.CENTER; setPadding(dp(16), dp(14), dp(16), dp(14)); pressBg(0xFFFFFFFF.toInt(), 22f)
+    private fun bigBtn(text: String, onClick: () -> Unit) = tv(text, 16f, T.onPill, true).apply {
+        gravity = Gravity.CENTER; setPadding(dp(16), dp(14), dp(16), dp(14)); pressBg(T.pill, 22f)
         setOnClickListener { onClick() }
     }
 
@@ -338,8 +338,8 @@ class VaultActivity : Activity() {
         val sv = ScrollView(this)
         listBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(4), dp(14), dp(100)) }
         sv.addView(listBox); col.addView(sv, lp(MATCH, 0, 1f))
-        val fab = tv("+", 30f, 0xFF161618.toInt(), true).apply {
-            gravity = Gravity.CENTER; pressBg(0xFFFFFFFF.toInt(), 30f); elevation = dp(6).toFloat()
+        val fab = tv("+", 30f, T.onPill, true).apply {
+            gravity = Gravity.CENTER; pressBg(T.pill, 30f); elevation = dp(6).toFloat()
             setOnClickListener { addMenu() }
         }
         root.addView(fab, FrameLayout.LayoutParams(dp(60), dp(60), Gravity.END or Gravity.BOTTOM).apply { setMargins(0, 0, dp(20), dp(28)) })
@@ -354,9 +354,9 @@ class VaultActivity : Activity() {
         val all = list()
         fun chip(id: String, label: String) {
             val on = filter == id
-            chips.addView(tv(label, 13f, if (on) 0xFF161618.toInt() else T.text, true).apply {
+            chips.addView(tv(label, 13f, if (on) T.onPill else T.text, true).apply {
                 setPadding(dp(14), dp(7), dp(14), dp(7))
-                background = if (on) roundBg(0xFFFFFFFF.toInt(), dp(16).toFloat()) else roundBg(0x14FFFFFF, dp(16).toFloat(), T.border, dp(1))
+                background = if (on) roundBg(T.pill, dp(16).toFloat()) else roundBg(tw(0x14), dp(16).toFloat(), T.border, dp(1))
                 setOnClickListener { filter = id; drawList() }
             }, lp(WRAP, WRAP).apply { marginEnd = dp(6) })
         }
@@ -509,7 +509,7 @@ class VaultActivity : Activity() {
             box.addView(tv("📎 " + f.optString("name") + " · " + size(f.optLong("size")), 13f, T.muted).apply { setPadding(dp(4), dp(12), 0, dp(4)) })
             val acts = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             acts.addView(bigBtn(L.t(if (type == "photo") "vView" else "vOpenFile")) { openMedia(it0, false) }, lp(0, WRAP, 1f).apply { marginEnd = dp(6) })
-            acts.addView(tv(L.t("share"), 15f, T.text, true).apply { gravity = Gravity.CENTER; setPadding(dp(10), dp(14), dp(10), dp(14)); pressBg(0x1AFFFFFF, 22f, T.border); setOnClickListener { openMedia(it0, true) } }, lp(0, WRAP, 1f))
+            acts.addView(tv(L.t("share"), 15f, T.text, true).apply { gravity = Gravity.CENTER; setPadding(dp(10), dp(14), dp(10), dp(14)); pressBg(tw(0x1A), 22f, T.border); setOnClickListener { openMedia(it0, true) } }, lp(0, WRAP, 1f))
             box.addView(acts, lp(MATCH, WRAP).apply { topMargin = dp(6) })
         }
         val title = (if (isNew) L.t("vNew") + " · " else "") + L.t(typeOf(type).third)

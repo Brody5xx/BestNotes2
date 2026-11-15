@@ -55,7 +55,7 @@ fun Activity.aiDialog(title: String, jobs: List<AiJob>, actions: List<AiAction>,
                     card.addView(TextView(a).apply { text = out; setTextColor(T.text); textSize = 15.5f; setTextIsSelectable(true); setLineSpacing(0f, 1.15f) })
                     val row = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, 0) }
                     val hs = android.widget.HorizontalScrollView(a).apply { isHorizontalScrollBarEnabled = false; addView(row) }
-                    for (ac in actions) row.addView(tv(ac.label, 13.5f, if (ac.primary) 0xFF16161A.toInt() else T.text, true).apply {
+                    for (ac in actions) row.addView(tv(ac.label, 13.5f, if (ac.primary) T.onPill else T.text, true).apply {
                         setPadding(dp(14), dp(8), dp(14), dp(8)); pressBg(if (ac.primary) T.text else T.cardStrong, 16f, T.border)
                         setOnClickListener { d.dismiss(); ac.act(out) }
                     }, lp(WRAP, WRAP).apply { marginEnd = dp(6) })

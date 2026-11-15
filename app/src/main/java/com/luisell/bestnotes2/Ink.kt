@@ -203,3 +203,23 @@ class InkView(ctx: Context) : View(ctx) {
         cleared = ArrayList(strokes); strokes.clear(); redo.clear(); invalidate(); onChange?.invoke()
     }
 }
+
+
+/** ✏️ El dibujo en chiquito (para la tarjeta de la pantalla de inicio). */
+class InkThumb(ctx: Context, private val strokes: List<Stroke>) : View(ctx) {
+    override fun onMeasure(w: Int, h: Int) {
+        val W = MeasureSpec.getSize(w).toFloat()
+        val bottom = Stroke.bottom(strokes, W)
+        val maxH = (170 * resources.displayMetrics.density)
+        setMeasuredDimension(W.toInt(), minOf(bottom, maxH).toInt().coerceAtLeast((24 * resources.displayMetrics.density).toInt()))
+    }
+    override fun onDraw(c: Canvas) {
+        val W = width.toFloat(); if (W <= 0) return
+        val bottom = Stroke.bottom(strokes, W)
+        val sc = if (bottom > height) height / bottom else 1f
+        val sv = c.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)
+        c.translate((W - W * sc) / 2, 0f); c.scale(sc, sc)
+        for (s in strokes) Stroke.draw(c, s, W)
+        c.restoreToCount(sv)
+    }
+}

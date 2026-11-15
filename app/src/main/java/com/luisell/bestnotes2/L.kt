@@ -21,7 +21,31 @@ object L {
     var is24 = false
         private set
 
+    /** Textos de otros idiomas (traducidos con la IA y guardados en el teléfono). */
+    private var extra: Map<String, String> = emptyMap()
+    private var dir: java.io.File? = null
+
+    /** 🌍 Los idiomas (como en Best Notes). es y en vienen en la app; los demás los traduce la IA una sola vez. */
+    val LANGS = listOf(
+        "es" to "🇪🇸 Español", "en" to "🇺🇸 English", "pt" to "🇧🇷 Português", "fr" to "🇫🇷 Français", "de" to "🇩🇪 Deutsch",
+        "it" to "🇮🇹 Italiano", "ca" to "🇦🇩 Català", "nl" to "🇳🇱 Nederlands", "sv" to "🇸🇪 Svenska", "nb" to "🇳🇴 Norsk",
+        "da" to "🇩🇰 Dansk", "fi" to "🇫🇮 Suomi", "pl" to "🇵🇱 Polski", "cs" to "🇨🇿 Čeština", "sk" to "🇸🇰 Slovenčina",
+        "hu" to "🇭🇺 Magyar", "ro" to "🇷🇴 Română", "hr" to "🇭🇷 Hrvatski", "el" to "🇬🇷 Ελληνικά", "bg" to "🇧🇬 Български",
+        "ru" to "🇷🇺 Русский", "uk" to "🇺🇦 Українська", "tr" to "🇹🇷 Türkçe", "ar" to "🇸🇦 العربية", "he" to "🇮🇱 עברית",
+        "fa" to "🇮🇷 فارسی", "ur" to "🇵🇰 اردو", "hi" to "🇮🇳 हिन्दी", "bn" to "🇧🇩 বাংলা", "id" to "🇮🇩 Bahasa Indonesia",
+        "ms" to "🇲🇾 Bahasa Melayu", "fil" to "🇵🇭 Filipino", "vi" to "🇻🇳 Tiếng Việt", "th" to "🇹🇭 ไทย", "ko" to "🇰🇷 한국어",
+        "ja" to "🇯🇵 日本語", "zh-Hans" to "🇨🇳 简体中文", "zh-Hant" to "🇹🇼 繁體中文", "sw" to "🇰🇪 Kiswahili",
+    )
+    fun langFile(code: String) = dir?.let { java.io.File(it, "$code.json") }
+    fun hasLang(code: String) = code == "es" || code == "en" || (langFile(code)?.let { it.exists() && it.length() > 1000 } ?: false)
+    fun enMap(): Map<String, String> = EN
+    private fun loadExtra(code: String): Map<String, String> = try {
+        val o = org.json.JSONObject(langFile(code)?.readText() ?: "{}")
+        o.keys().asSequence().associateWith { o.getString(it) }
+    } catch (_: Exception) { emptyMap() }
+
     fun init(ctx: Context) {
+        dir = java.io.File(ctx.filesDir, "idiomas").apply { mkdirs() }
         val p = ctx.getSharedPreferences("ajustes", 0)
         choice = p.getString("lang", "auto") ?: "auto"
         hourFmt = p.getString("hourFmt", "auto") ?: "auto"
@@ -51,13 +75,15 @@ object L {
     }
 
     private fun apply() {
-        lang = if (choice == "auto") (if (Locale.getDefault().language == "es") "es" else "en") else choice
+        val dev = Locale.getDefault().let { if (it.language == "zh") (if (it.script == "Hant" || it.country in setOf("TW", "HK", "MO")) "zh-Hant" else "zh-Hans") else it.language }
+        lang = if (choice == "auto") (if (dev == "es") "es" else if (dev != "en" && hasLang(dev)) dev else "en") else choice
+        extra = if (lang == "es" || lang == "en") emptyMap() else loadExtra(lang)
     }
 
-    val locale: Locale get() = if (lang == "es") Locale("es") else Locale.US
+    val locale: Locale get() = when (lang) { "es" -> Locale("es"); "en" -> Locale.US; else -> Locale.forLanguageTag(lang) }
 
     fun t(k: String, vararg args: Pair<String, Any>): String {
-        var s = (if (lang == "es") ES[k] else EN[k]) ?: ES[k] ?: k
+        var s = (if (lang == "es") ES[k] else extra[k] ?: EN[k]) ?: ES[k] ?: k
         for ((a, b) in args) s = s.replace("{$a}", b.toString())
         return s
     }
@@ -83,7 +109,7 @@ object L {
         "language" to "Idioma", "langAuto" to "Automático (idioma del teléfono)",
         "guide" to "Guía de la app", "guideSub" to "Todo lo que hace la app, explicado", "nNotes" to "{n} notas", "nNotes1" to "1 nota", "devBy" to "Developer: Luisell Peña Rodríguez", "version" to "Versión {v}",
         "import" to "Importar de Best Notes", "importSub" to "El archivo de «Exportar todo para Best Notes 2»",
-        "importPass" to "Contraseña del archivo", "importPassHint" to "La que pusiste al exportar en Best Notes",
+        "importPass" to "Contraseña del archivo", "importPassHint" to "La que pusiste al crear el archivo",
         "importing" to "Importando tus notas…", "importStep" to "{a} de {b} notas",
         "importDone" to "Listo: {n} notas importadas ({u} nuevas o actualizadas)",
         "importWrongPass" to "Contraseña incorrecta. Prueba otra vez.", "importBadFile" to "Este archivo no es un respaldo de Best Notes.",
@@ -212,6 +238,23 @@ object L {
         "appearanceSub" to "Escoge el fondo de tu app",
         "outlineShort" to "Contorno", "colorHint" to "Toca el cuadro, la barra o una bolita", "colorsFavEmpty" to "Guarda aquí tus colores preferidos",
         "titleStyle" to "Estilo del título",
+        // 💾 respaldo
+        "backup" to "Respaldo", "backupNever" to "Todavía no has hecho uno", "backupLast" to "Último: {d}",
+        "backupMake" to "Crear respaldo", "backupRestore" to "Restaurar",
+        "backupHint" to "Guarda TODO (notas, fotos, audios, videos, versiones, registro, calculadora y bóveda) en un archivo con contraseña. Guárdalo en Drive o en tu correo para no perder nada si cambias de teléfono.",
+        "backupPassWarn" to "Sin esta contraseña no se puede abrir el respaldo. Apúntala en un lugar seguro.",
+        "bkWorking" to "Preparando el respaldo…", "bkNotes" to "Guardando notas… {n}", "bkMedia" to "Guardando fotos y videos… {n}", "bkLocking" to "Poniéndole candado…",
+        "backupReady" to "Respaldo listo", "backupSave" to "Guardar", "backupSaved" to "Respaldo guardado ✅",
+        "backupKeep" to "Guárdalo fuera del teléfono (Drive, correo…). Para recuperarlo: ☰ → Respaldo → Restaurar.",
+        "templates" to "Plantillas", "templatesSub" to "Notas listas para llenar", "tplMine" to "Tuya", "tplManage" to "Borrar plantillas mías",
+        "tplManageSub" to "Toca una para borrarla", "tplDelete" to "¿Borrar esta plantilla?", "tplDeleted" to "Plantilla borrada",
+        "tplSave" to "Guardar esta nota como plantilla", "tplSaveSub" to "Para usarla otra vez", "tplName" to "Nombre de la plantilla",
+        "tplSaved" to "Plantilla guardada ⭐", "tplNew" to "Nueva desde plantilla",
+        "clearAll" to "Borrar todo el texto", "clearAllSub" to "La nota queda vacía (se puede deshacer)", "clearAllMsg" to "Se borra todo lo que hay dentro de la nota. Puedes deshacerlo con ↶ y queda en el 📖 Registro.", "cleared" to "Nota vaciada",
+        "themeDark" to "Oscuro", "themeLight" to "Claro",
+        "langSub" to "Español e inglés vienen listos; los demás los traduce la IA", "langAi" to "Se traduce con la IA (una vez)",
+        "langAiMsg" to "La IA gratis va a traducir la app a este idioma. Tarda de 1 a 4 minutos y necesita internet (solo esta vez).", "langAiGo" to "Traducir",
+        "langAiWorking" to "Traduciendo…", "langAiFail" to "No se pudo terminar. Revisa el internet e inténtalo otra vez (sigue donde quedó).",
     )
 
     private val EN = mapOf(
@@ -235,7 +278,7 @@ object L {
         "language" to "Language", "langAuto" to "Automatic (phone language)",
         "guide" to "App guide", "guideSub" to "Everything the app does, explained", "nNotes" to "{n} notes", "nNotes1" to "1 note", "devBy" to "Developer: Luisell Peña Rodríguez", "version" to "Version {v}",
         "import" to "Import from Best Notes", "importSub" to "The file from “Export everything to Best Notes 2”",
-        "importPass" to "File password", "importPassHint" to "The one you used when exporting in Best Notes",
+        "importPass" to "File password", "importPassHint" to "The one you used when creating the file",
         "importing" to "Importing your notes…", "importStep" to "{a} of {b} notes",
         "importDone" to "Done: {n} notes imported ({u} new or updated)",
         "importWrongPass" to "Wrong password. Try again.", "importBadFile" to "This file is not a Best Notes backup.",
@@ -360,5 +403,21 @@ object L {
         "appearanceSub" to "Pick your app background",
         "outlineShort" to "Outline", "colorHint" to "Tap the square, the bar or a dot", "colorsFavEmpty" to "Keep your favorite colors here",
         "titleStyle" to "Title style",
+        "backup" to "Backup", "backupNever" to "You haven't made one yet", "backupLast" to "Last: {d}",
+        "backupMake" to "Create backup", "backupRestore" to "Restore",
+        "backupHint" to "Saves EVERYTHING (notes, photos, audio, videos, versions, log, calculator and vault) in a file with a password. Keep it in Drive or your email so you don't lose anything if you change phones.",
+        "backupPassWarn" to "Without this password the backup can't be opened. Write it down somewhere safe.",
+        "bkWorking" to "Preparing the backup…", "bkNotes" to "Saving notes… {n}", "bkMedia" to "Saving photos and videos… {n}", "bkLocking" to "Locking it…",
+        "backupReady" to "Backup ready", "backupSave" to "Save", "backupSaved" to "Backup saved ✅",
+        "backupKeep" to "Keep it outside the phone (Drive, email…). To get it back: ☰ → Backup → Restore.",
+        "templates" to "Templates", "templatesSub" to "Notes ready to fill in", "tplMine" to "Yours", "tplManage" to "Delete my templates",
+        "tplManageSub" to "Tap one to delete it", "tplDelete" to "Delete this template?", "tplDeleted" to "Template deleted",
+        "tplSave" to "Save this note as a template", "tplSaveSub" to "To use it again", "tplName" to "Template name",
+        "tplSaved" to "Template saved ⭐", "tplNew" to "New from template",
+        "clearAll" to "Clear all the text", "clearAllSub" to "The note becomes empty (can be undone)", "clearAllMsg" to "Everything inside the note is deleted. You can undo it with ↶ and it stays in the 📖 Log.", "cleared" to "Note cleared",
+        "themeDark" to "Dark", "themeLight" to "Light",
+        "langSub" to "Spanish and English come ready; the AI translates the others", "langAi" to "Translated by the AI (once)",
+        "langAiMsg" to "The free AI will translate the app into this language. It takes 1 to 4 minutes and needs internet (only this time).", "langAiGo" to "Translate",
+        "langAiWorking" to "Translating…", "langAiFail" to "Couldn't finish. Check your internet and try again (it continues where it stopped).",
     )
 }

@@ -19,6 +19,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
+import java.io.File
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -53,7 +54,7 @@ class MainActivity : Activity() {
     private var drawer: View? = null
     private val listener: () -> Unit = { refresh() }
 
-    companion object { const val PICK_FILE = 41; const val REQ_WALL = 42 }
+    companion object { const val PICK_FILE = 41; const val REQ_WALL = 42; const val REQ_SAVE_BK = 43 }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -132,7 +133,7 @@ class MainActivity : Activity() {
         fabs.addView(pen, lp(dp(52), dp(52)).apply { marginEnd = dp(12) })
         fabs.addView(ck, lp(dp(52), dp(52)).apply { marginEnd = dp(12) })
         val fab = IconView(this, MoreIcons.PLUS, 12f).apply {
-            color = 0xFF16161A.toInt(); pressBg(T.text, 30f); elevation = dp(8).toFloat()
+            color = T.onPill; pressBg(T.text, 30f); elevation = dp(8).toFloat()
             setOnClickListener { pop(it); newNote("text", it) }
             contentDescription = L.t("newNote")
         }
@@ -334,7 +335,7 @@ class MainActivity : Activity() {
         val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(2), dp(4), dp(10)) }
         top.addView(android.widget.ImageView(this).apply { setImageResource(R.mipmap.ic_launcher); clipToOutline = true; background = roundBg(0, dp(10).toFloat()) }, lp(dp(40), dp(40)))
         top.addView(tv("BEST\nNOTES 2", 15f, T.text, true).apply { letterSpacing = 0.18f; setPadding(dp(10), 0, 0, 0); setLineSpacing(0f, 0.9f) }, lp(0, WRAP, 1f))
-        top.addView(tv(L.t("done"), 14f, 0xFF16161A.toInt(), true).apply { setPadding(dp(16), dp(8), dp(16), dp(8)); pressBg(T.text, 18f); setOnClickListener { closeDrawer() } })
+        top.addView(tv(L.t("done"), 14f, T.onPill, true).apply { setPadding(dp(16), dp(8), dp(16), dp(8)); pressBg(T.text, 18f); setOnClickListener { closeDrawer() } })
         p.addView(top)
         // Tarjeta blanca de la guía (como "App guide")
         val guide = LinearLayout(this).apply {
@@ -350,14 +351,14 @@ class MainActivity : Activity() {
         fun nav(icon: Int, label: String, v: String, n: Int, dot: Int = 0) {
             val r = menuRow(this, icon, label, null, T.text, dot) { view = v; selected.clear(); closeDrawer(); refresh(); list.scrollToPosition(0) }
             (r as LinearLayout).addView(tv(if (n > 0) "$n" else "", 13f, T.muted))
-            if (view == v) r.background = roundBg(0x1FFFFFFF, dp(14).toFloat())
+            if (view == v) r.background = roundBg(tw(0x1F), dp(14).toFloat())
             p.addView(r)
         }
         nav(Icons.NOTEBOOK, L.t("all"), "all", count { !it.deleted })
         nav(MoreIcons.STAR5, L.t("fav"), "fav", count { !it.deleted && it.fav })
         p.addView(menuRow(this, MoreIcons.CHECKBOX, L.t("pending"), L.t("pendingHint")) { closeDrawer(); startActivity(Intent(this, PendingActivity::class.java)) }.also { r ->
             val n = Store.notes.filter { !it.deleted && !it.locked }.sumOf { maxOf(0, it.checkTotal - it.checkDone) }
-            if (n > 0) (r as LinearLayout).addView(tv("$n", 13f, 0xFF16161A.toInt(), true).apply { gravity = Gravity.CENTER; minWidth = dp(24); setPadding(dp(7), dp(2), dp(7), dp(2)); background = roundBg(T.text, dp(12).toFloat()) })
+            if (n > 0) (r as LinearLayout).addView(tv("$n", 13f, T.onPill, true).apply { gravity = Gravity.CENTER; minWidth = dp(24); setPadding(dp(7), dp(2), dp(7), dp(2)); background = roundBg(T.text, dp(12).toFloat()) })
         })
         p.addView(menuRow(this, MoreIcons.SHIELD, L.t("vault"), L.t("vaultHint")) { closeDrawer(); startActivity(Intent(this, VaultActivity::class.java)) })
         p.addView(menuRow(this, Icons.CALC, L.t("calc"), L.t("calcSub")) { closeDrawer(); startActivity(Intent(this, CalcActivity::class.java)) })
@@ -380,6 +381,11 @@ class MainActivity : Activity() {
         p.addView(sep())
         nav(Icons.TRASH, L.t("trash"), "trash", count { it.deleted })
         p.addView(sep())
+        p.addView(menuRow(this, Icons.REPORT, L.t("tplNew"), L.t("templatesSub")) { closeDrawer(); templateSheet({ t ->
+            val m = Store.createNote(t.title, t.blocks(), view.takeIf { it.startsWith("f:") }?.substring(2))
+            startActivity(Intent(this, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id))
+        }) })
+        p.addView(menuRow(this, Icons.BOX, L.t("backup"), lastBackupText()) { closeDrawer(); backupMenu() })
         p.addView(menuRow(this, MoreIcons.IMPORT, L.t("import"), L.t("importSub")) { closeDrawer(); pickFile() })
         p.addView(menuRow(this, Icons.GLOBE, L.t("language"), when (L.choice) { "es" -> "Español"; "en" -> "English"; else -> L.t("langAuto") }) { closeDrawer(); pickLang() })
         p.addView(menuRow(this, Icons.CLOCK, L.t("hourFmt"), when (L.hourFmt) { "12" -> "12 h (3:00 PM)"; "24" -> "24 h (15:00)"; else -> L.t("hourAuto") }) { closeDrawer(); pickHourFmt() })
@@ -428,9 +434,19 @@ class MainActivity : Activity() {
     /* ---------- ☀️ Apariencia: el fondo de la app (panel bonito) ---------- */
     private fun appearance() {
         val cur = Wall.current(this)
-        val opts = listOf("best" to "Best Notes") + Wall.GRADS.map { it[0] as String to (if (L.lang == "es") it[1] else it[2]) as String } +
+        val opts = (if (T.light) emptyList() else listOf("best" to "Best Notes")) + Wall.GRADS.map { it[0] as String to (if (L.lang == "es") it[1] else it[2]) as String } +
             ("photo" to L.t("wallPhoto"))
         val sh = Sheet(this, "☀️ " + L.t("appearance"), L.t("appearanceSub"))
+        // 🌙 oscuro / ☀️ claro
+        fun setTheme(light: Boolean) {
+            if (T.light == light) return
+            prefs.edit().putString("theme", if (light) "light" else "dark").apply()
+            T.light = light
+            Sheet.closeTop(this)
+            Store.main.postDelayed({ recreate() }, 280)
+        }
+        sh.quick(MoreIcons.MOON, L.t("themeDark"), 0xFF8B7CFF.toInt(), !T.light, keepOpen = true) { setTheme(false) }
+        sh.quick(MoreIcons.SUN, L.t("themeLight"), 0xFFFFB74D.toInt(), T.light, keepOpen = true) { setTheme(true) }
         val grid = android.widget.GridLayout(this).apply { columnCount = 3; setPadding(dp(6), dp(2), dp(6), dp(4)) }
         val cell = (resources.displayMetrics.widthPixels - dp(16 + 16 + 12 + 36 + 14)) / 3
         val marks = HashMap<String, View>()
@@ -442,13 +458,13 @@ class MainActivity : Activity() {
                 m.animate().scaleX(if (on) 1f else 0f).scaleY(if (on) 1f else 0f).alpha(if (on) 1f else 0f).setDuration(260)
                     .setInterpolator(android.view.animation.OvershootInterpolator(2.5f)).start()
                 names[id]?.setTextColor(if (on) 0xFF4FC3F7.toInt() else T.muted)
-                (m.parent as? View)?.foreground = if (on) roundBg(0, dp(18).toFloat(), 0xFF4FC3F7.toInt(), dp(3)) else roundBg(0, dp(18).toFloat(), 0x26FFFFFF, dp(1))
+                (m.parent as? View)?.foreground = if (on) roundBg(0, dp(18).toFloat(), 0xFF4FC3F7.toInt(), dp(3)) else roundBg(0, dp(18).toFloat(), tw(0x26), dp(1))
             }
         }
         for ((id, name) in opts) {
             val v = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(6), dp(4), dp(6), dp(10)) }
             val th = FrameLayout(this).apply {
-                background = if (id == "photo" && !Wall.photoFile(this@MainActivity).exists()) roundBg(0x1AFFFFFF, dp(18).toFloat())
+                background = if (id == "photo" && !Wall.photoFile(this@MainActivity).exists()) roundBg(tw(0x1A), dp(18).toFloat())
                     else Wall.drawable(this@MainActivity, id)
                 clipToOutline = true; outlineProvider = object : android.view.ViewOutlineProvider() {
                     override fun getOutline(view: View, o: android.graphics.Outline) { o.setRoundRect(0, 0, view.width, view.height, dp(18).toFloat()) }
@@ -460,8 +476,8 @@ class MainActivity : Activity() {
             for (k in 0 until 2) {
                 val card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), dp(6), dp(6), dp(6)); background = Glass.make(this@MainActivity, 9f) }
                 card.addView(View(this).apply { background = roundBg(0xB3FFFFFF.toInt(), dp(2).toFloat()) }, lp((cell * 0.45f).toInt(), dp(4)))
-                card.addView(View(this).apply { background = roundBg(0x59FFFFFF, dp(2).toFloat()) }, lp((cell * 0.6f).toInt(), dp(3)).apply { topMargin = dp(5) })
-                card.addView(View(this).apply { background = roundBg(0x59FFFFFF, dp(2).toFloat()) }, lp((cell * 0.35f).toInt(), dp(3)).apply { topMargin = dp(4) })
+                card.addView(View(this).apply { background = roundBg(tw(0x59), dp(2).toFloat()) }, lp((cell * 0.6f).toInt(), dp(3)).apply { topMargin = dp(5) })
+                card.addView(View(this).apply { background = roundBg(tw(0x59), dp(2).toFloat()) }, lp((cell * 0.35f).toInt(), dp(3)).apply { topMargin = dp(4) })
                 mini.addView(card, lp(MATCH, WRAP).apply { bottomMargin = dp(6) })
             }
             if (id == "photo" && !Wall.photoFile(this).exists()) th.addView(tv("🖼️", 28f).apply { gravity = Gravity.CENTER }, FrameLayout.LayoutParams(MATCH, MATCH))
@@ -485,11 +501,10 @@ class MainActivity : Activity() {
         val sw = android.widget.Switch(this).apply {
             text = "✨  " + L.t("wallBlur"); setTextColor(T.text); textSize = 15.5f; isChecked = Wall.blur(this@MainActivity); setPadding(dp(14), dp(10), dp(14), dp(6))
             thumbTintList = android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0xFFFFFFFF.toInt(), 0xFFBDBDBD.toInt()))
-            trackTintList = android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0xFF4FC3F7.toInt(), 0x55FFFFFF))
+            trackTintList = android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0xFF4FC3F7.toInt(), tw(0x55)))
             setOnCheckedChangeListener { _, on -> Wall.setBlur(this@MainActivity, on); if (Wall.current(this@MainActivity) == "photo") fadeWall() }
         }
         sh.custom(sw)
-        sh.custom(tv("🌙 " + L.t("lightSoon"), 12.5f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(14), dp(8), dp(14), dp(4)) })
         sh.show()
         grid.post { paint() }
     }
@@ -625,11 +640,36 @@ class MainActivity : Activity() {
     }
 
     private fun pickLang() {
-        val keys = arrayOf("auto", "es", "en")
-        val sh = Sheet(this, "🌐 " + L.t("language"))
-        val labels = arrayOf(L.t("langAuto"), "Español", "English")
-        for (i in 0..2) sh.quick(Icons.GLOBE, labels[i], intArrayOf(Sheet.GRAY, Sheet.ORANGE, Sheet.BLUE)[i], keys[i] == L.choice) { L.set(this, keys[i]); recreate() }
+        val sh = Sheet(this, "🌍 " + L.t("language"), L.t("langSub"))
+        sh.item(Icons.GLOBE, L.t("langAuto"), Sheet.GRAY, if (L.choice == "auto") "✓" else null) { L.set(this, "auto"); recreate() }
+        for ((code, name) in L.LANGS) {
+            val ready = L.hasLang(code)
+            val sub = when { L.choice == code -> "✓"; ready -> null; else -> "✨ " + L.t("langAi") }
+            sh.item(Icons.GLOBE, name, if (ready) Sheet.SKY else Sheet.VIOLET, sub) {
+                if (ready) { L.set(this, code); recreate() } else translateLang(code, name)
+            }
+        }
         sh.show()
+    }
+
+    /** Traduce la app a otro idioma con la IA (una sola vez). */
+    private fun translateLang(code: String, name: String) {
+        confirm(name, L.t("langAiMsg"), L.t("langAiGo")) {
+            val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(24), dp(20), dp(24), dp(10)) }
+            val bar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100 }
+            box.addView(tv("✨ " + name, 17f, T.text, true).apply { gravity = Gravity.CENTER; setPadding(0, 0, 0, dp(12)) })
+            box.addView(bar, lp(MATCH, WRAP))
+            val pct = tv(L.t("langAiWorking"), 14f, T.muted).apply { gravity = Gravity.CENTER; setPadding(0, dp(10), 0, 0) }
+            box.addView(pct)
+            val d = dialog().setView(box).setCancelable(false).show()
+            Thread {
+                val ok = try { Langs.translate(code) { p -> runOnUiThread { bar.progress = p; pct.text = L.t("langAiWorking") + "  $p%" } } } catch (_: Exception) { false }
+                runOnUiThread {
+                    d.dismiss()
+                    if (ok) { L.set(this, code); recreate() } else toast(L.t("langAiFail"))
+                }
+            }.start()
+        }
     }
 
     /* ---------- importar de Best Notes ---------- */
@@ -642,6 +682,13 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == PICK_FILE && resultCode == RESULT_OK) data?.data?.let { askPassword(it) }
+        if (requestCode == REQ_SAVE_BK && resultCode == RESULT_OK) data?.data?.let { u ->
+            val f = backupFile ?: return@let
+            Thread {
+                val ok = try { contentResolver.openOutputStream(u)!!.use { o -> f.inputStream().use { it.copyTo(o, 1 shl 16) } }; true } catch (_: Exception) { false }
+                runOnUiThread { toast(L.t(if (ok) "backupSaved" else "vFail")) }
+            }.start()
+        }
         if (requestCode == REQ_WALL && resultCode == RESULT_OK) data?.data?.let { u ->
             Thread {
                 val ok = try { contentResolver.openInputStream(u)!!.use { inp -> Wall.photoFile(this).outputStream().use { inp.copyTo(it) } }; true } catch (_: Exception) { false }
@@ -658,6 +705,72 @@ class MainActivity : Activity() {
             else -> null
         }
         if (uri != null) { i.action = null; Store.load { askPassword(uri) } }
+    }
+
+    /* ---------- 💾 respaldo ---------- */
+    private fun lastBackupText(): String {
+        val t = prefs.getLong("lastBackup", 0L)
+        return if (t == 0L) L.t("backupNever") else L.t("backupLast", "d" to dateText(t))
+    }
+
+    private fun backupMenu() {
+        Sheet(this, "💾 " + L.t("backup"), lastBackupText())
+            .quick(Icons.CHECK, L.t("backupMake"), Sheet.GREEN) { askBackupPass() }
+            .quick(MoreIcons.RESTORE, L.t("backupRestore"), Sheet.BLUE) { pickFile() }
+            .custom(tv(L.t("backupHint"), 13.5f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(18), dp(4), dp(18), dp(10)) })
+            .show()
+    }
+
+    private fun askBackupPass() {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(8), dp(22), 0) }
+        fun field(h: String) = EditText(this).apply {
+            hint = h; setTextColor(T.text); setHintTextColor(T.faint); isSingleLine = true
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD; typeface = android.graphics.Typeface.DEFAULT
+        }
+        val p1 = field(L.t("vPassNew")); val p2 = field(L.t("vPassAgain"))
+        box.addView(p1); box.addView(p2)
+        box.addView(tv("⚠️ " + L.t("backupPassWarn"), 12.5f, T.muted).apply { setPadding(0, dp(10), 0, 0) })
+        dialog().setTitle(L.t("backupMake")).setView(box).setPositiveButton(L.t("ok")) { _, _ ->
+            val a = p1.text.toString()
+            when {
+                a.length < 6 -> toast(L.t("vShort"))
+                a != p2.text.toString() -> toast(L.t("vMismatch"))
+                else -> makeBackup(a)
+            }
+        }.setNegativeButton(L.t("cancel"), null).show()
+    }
+
+    private var backupFile: File? = null
+
+    private fun makeBackup(pass: String) {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(24), dp(20), dp(24), dp(10)) }
+        box.addView(ProgressBar(this))
+        val step = tv(L.t("bkWorking"), 15f, T.text).apply { gravity = Gravity.CENTER; setPadding(0, dp(12), 0, 0) }
+        box.addView(step)
+        val d = dialog().setView(box).setCancelable(false).show()
+        val name = "BestNotes2_respaldo_" + java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date()) + ".json"
+        val out = File(File(cacheDir, "respaldo").apply { mkdirs(); listFiles()?.forEach { it.delete() } }, name)
+        Thread {
+            val ok = try { Backup.exportFile(this, pass, out) { m -> runOnUiThread { step.text = m } }; true } catch (_: Throwable) { false }
+            runOnUiThread {
+                d.dismiss()
+                if (!ok) { toast(L.t("vFail")); return@runOnUiThread }
+                backupFile = out
+                prefs.edit().putLong("lastBackup", System.currentTimeMillis()).apply()
+                val size = out.length()
+                Sheet(this, "✅ " + L.t("backupReady"), name + " · " + (if (size > 1048576) String.format(L.locale, "%.1f MB", size / 1048576.0) else "${size / 1024} KB"))
+                    .quick(MoreIcons.IMPORT, L.t("backupSave"), Sheet.GREEN) {
+                        val i = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/json").putExtra(Intent.EXTRA_TITLE, name)
+                        try { startActivityForResult(i, REQ_SAVE_BK) } catch (_: Exception) { toast(L.t("cantOpen")) }
+                    }
+                    .quick(Icons.SEND, L.t("share"), Sheet.BLUE) {
+                        val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.archivos", out)
+                        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("application/json").putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), null))
+                    }
+                    .custom(tv(L.t("backupKeep"), 13.5f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(18), dp(4), dp(18), dp(10)) })
+                    .show()
+            }
+        }.start()
     }
 
     private fun askPassword(uri: Uri) {
@@ -778,7 +891,7 @@ class MainActivity : Activity() {
         val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         head.addView(IconView(this, MoreIcons.CHECKBOX, 8.5f).apply { color = 0xFF30D158.toInt(); isClickable = false }, lp(dp(26), dp(26)))
         head.addView(tv(L.t("pending"), 17f, T.text, true).apply { setPadding(dp(8), 0, dp(8), 0) })
-        head.addView(tv("${todo.size}", 13f, 0xFF16161A.toInt(), true).apply { gravity = Gravity.CENTER; minWidth = dp(24); setPadding(dp(7), dp(2), dp(7), dp(2)); background = roundBg(T.text, dp(12).toFloat()) })
+        head.addView(tv("${todo.size}", 13f, T.onPill, true).apply { gravity = Gravity.CENTER; minWidth = dp(24); setPadding(dp(7), dp(2), dp(7), dp(2)); background = roundBg(T.text, dp(12).toFloat()) })
         head.addView(tv(if (open) "  ▴" else "  ▾", 16f, T.muted), lp(0, WRAP, 1f))
         head.addView(tv(L.t("seeAll") + " ›", 14f, T.muted, true).apply { setPadding(dp(8), dp(6), 0, dp(6)); setOnClickListener { startActivity(Intent(this@MainActivity, PendingActivity::class.java)) } })
         head.setOnClickListener { prefs.edit().putBoolean("homeTodoOpen", !open).apply(); adapter.notifyItemChanged(0) }
@@ -854,7 +967,7 @@ class MainActivity : Activity() {
                 val th = n.thumb
                 if (th != null) {
                     h.img.visibility = View.VISIBLE
-                    h.img.background = roundBg(0x10FFFFFF, dp(12).toFloat())
+                    h.img.background = roundBg(tw(0x10), dp(12).toFloat())
                     h.img.setImageDrawable(null)
                     h.img.layoutParams.height = dp(if (grid) 120 else 150)
                     val want = n.id
@@ -884,10 +997,13 @@ class MainActivity : Activity() {
     /** Arma la nota en chiquito dentro de la tarjeta. */
     private fun fillPreview(h: VH, n: NoteMeta, blocks: List<Block>, grid: Boolean) {
         val box = h.content
+        // ✏️ el dibujo de la nota (va primero, porque está encima de todo)
+        val ink = n.inkCache ?: (n.pv?.let { previewInk(it) }?.let { Stroke.listFrom(it) } ?: emptyList<Stroke>()).also { n.inkCache = it }
+        if (ink.isNotEmpty()) box.addView(InkThumb(this, ink).apply { background = roundBg(tw(0x0D), dp(12).toFloat()) }, lp(MATCH, WRAP).apply { topMargin = dp(6) })
         var lines = if (grid) 10 else 4
         val sc = 14.5f / 17f
         fun rich(runs: List<Run>, max: Int): RichView = RichView(this).apply {
-            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14.5f); setTextColor(0xD9FFFFFF.toInt()); setLineSpacing(0f, 1.08f)
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14.5f); setTextColor((T.text and 0xFFFFFF) or 0xD9000000.toInt()); setLineSpacing(0f, 1.08f)
             maxLines = maxOf(1, max); ellipsize = TextUtils.TruncateAt.END; setPadding(0, dp(1), dp(3), dp(1))
             setRuns(runs, sc)
         }
@@ -919,7 +1035,7 @@ class MainActivity : Activity() {
                     }
                 }
                 is Block.Img -> {
-                    val iv = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; clipToOutline = true; background = roundBg(0x10FFFFFF, dp(12).toFloat()) }
+                    val iv = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; clipToOutline = true; background = roundBg(tw(0x10), dp(12).toFloat()) }
                     box.addView(iv, lp(MATCH, dp(if (grid) 120 else 150)).apply { topMargin = dp(6); bottomMargin = dp(2) })
                     val want = n.id
                     Thumbs.load(b.file, dp(220)) { bm -> if (h.id == want) iv.setImageBitmap(bm) }
@@ -934,7 +1050,7 @@ class MainActivity : Activity() {
                         val want = n.id
                         Thumbs.load(MediaFiles.thumbName(b.file), dp(220)) { bm -> if (h.id == want && bm != null) iv.setImageBitmap(bm) }
                         val play = FrameLayout(this).apply { background = roundBg(0xE6FFFFFF.toInt(), dp(20).toFloat()) }
-                        play.addView(IconView(this, MoreIcons.PLAY, 8f).apply { color = 0xFF161618.toInt(); isClickable = false }, FrameLayout.LayoutParams(dp(40), dp(40)))
+                        play.addView(IconView(this, MoreIcons.PLAY, 8f).apply { color = T.onPill; isClickable = false }, FrameLayout.LayoutParams(dp(40), dp(40)))
                         fr.addView(play, FrameLayout.LayoutParams(dp(40), dp(40), Gravity.CENTER))
                         if (b.dur > 0) fr.addView(tv(MediaFiles.timeText(b.dur), 11.5f, Color.WHITE, true).apply {
                             setPadding(dp(7), dp(2), dp(7), dp(2)); background = roundBg(0x99000000.toInt(), dp(8).toFloat())
@@ -945,10 +1061,10 @@ class MainActivity : Activity() {
                         // 🎙️ nota de voz: una pastillita como el reproductor
                         val pill = LinearLayout(this).apply {
                             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(6), dp(12), dp(6))
-                            background = roundBg(0x1AFFFFFF, dp(20).toFloat(), 0x26FFFFFF, dp(1))
+                            background = roundBg(tw(0x1A), dp(20).toFloat(), tw(0x26), dp(1))
                         }
-                        val play = FrameLayout(this).apply { background = roundBg(0xFFFFFFFF.toInt(), dp(14).toFloat()) }
-                        play.addView(IconView(this, MoreIcons.PLAY, 6f).apply { color = 0xFF161618.toInt(); isClickable = false }, FrameLayout.LayoutParams(dp(28), dp(28)))
+                        val play = FrameLayout(this).apply { background = roundBg(T.pill, dp(14).toFloat()) }
+                        play.addView(IconView(this, MoreIcons.PLAY, 6f).apply { color = T.onPill; isClickable = false }, FrameLayout.LayoutParams(dp(28), dp(28)))
                         pill.addView(play, lp(dp(28), dp(28)))
                         // ondita
                         val wave = object : View(this) {

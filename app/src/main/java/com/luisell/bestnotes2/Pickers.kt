@@ -96,7 +96,7 @@ fun Context.pickColor(title: String, current: Int, presets: IntArray, onLive: ((
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(10), dp(6), dp(10), dp(6)) }
         for (c in colors) {
             val v = View(this).apply {
-                background = roundBg(c or 0xFF000000.toInt(), dp(19).toFloat(), 0x40FFFFFF, dp(1))
+                background = roundBg(c or 0xFF000000.toInt(), dp(19).toFloat(), tw(0x40), dp(1))
                 setOnClickListener { pickDot(c, it) }
                 if (onLong != null) setOnLongClickListener { onLong(c); true }
             }
@@ -130,11 +130,11 @@ fun Context.pickColor(title: String, current: Int, presets: IntArray, onLive: ((
     // botones fijos abajo (siempre se ven): Sin color · ✓ Listo
     val btns = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(10), dp(12), dp(10), dp(2)) }
     btns.addView(tv(L.t("noColor"), 15.5f, T.text, true).apply {
-        gravity = Gravity.CENTER; setPadding(dp(10), dp(13), dp(10), dp(13)); pressBg(0, 24f, 0x55FFFFFF)
+        gravity = Gravity.CENTER; setPadding(dp(10), dp(13), dp(10), dp(13)); pressBg(0, 24f, tw(0x55))
         setOnClickListener { decided = true; sheet.dismiss { onPick(0) } }
     }, lp(0, WRAP, 1f).apply { marginEnd = dp(10) })
-    btns.addView(tv("✓  " + L.t("done"), 16f, 0xFF161618.toInt(), true).apply {
-        gravity = Gravity.CENTER; setPadding(dp(10), dp(13), dp(10), dp(13)); pressBg(0xFFFFFFFF.toInt(), 24f)
+    btns.addView(tv("✓  " + L.t("done"), 16f, T.onPill, true).apply {
+        gravity = Gravity.CENTER; setPadding(dp(10), dp(13), dp(10), dp(13)); pressBg(T.pill, 24f)
         setOnClickListener { decided = true; val c = now(); addRecentColor(ctx, c); sheet.dismiss { onPick(c) } }
     }, lp(0, WRAP, 1.4f))
 
@@ -235,7 +235,7 @@ fun Context.pickSize(current: Int, onPick: (Int) -> Unit) {
     val chips = android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
     val cr = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, dp(4)) }
     for (z in T.sizes) cr.addView(tv("$z", 14f, T.text).apply {
-        setPadding(dp(16), dp(9), dp(16), dp(9)); pressBg(0x1AFFFFFF, 18f, 0x33FFFFFF)
+        setPadding(dp(16), dp(9), dp(16), dp(9)); pressBg(tw(0x1A), 18f, tw(0x33))
         setOnClickListener { v -> size = z; paint(); v.animate().scaleX(0.85f).scaleY(0.85f).setDuration(70).withEndAction { v.animate().scaleX(1f).scaleY(1f).setDuration(220).setInterpolator(android.view.animation.OvershootInterpolator(3f)).start() }.start() }
     }, lp(WRAP, WRAP).apply { marginEnd = dp(6) })
     chips.addView(cr); col.addView(chips)
@@ -244,11 +244,11 @@ fun Context.pickSize(current: Int, onPick: (Int) -> Unit) {
     lateinit var sheet: Sheet
     val btns = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(16), 0, dp(4)) }
     btns.addView(tv(L.t("sizeNormal"), 15.5f, T.text, true).apply {
-        gravity = Gravity.CENTER; setPadding(dp(10), dp(13), dp(10), dp(13)); pressBg(0, 24f, 0x55FFFFFF)
+        gravity = Gravity.CENTER; setPadding(dp(10), dp(13), dp(10), dp(13)); pressBg(0, 24f, tw(0x55))
         setOnClickListener { sheet.dismiss { onPick(0) } }
     }, lp(0, WRAP, 1f).apply { marginEnd = dp(10) })
-    btns.addView(tv("✓  " + L.t("done"), 16f, 0xFF161618.toInt(), true).apply {
-        gravity = Gravity.CENTER; setPadding(dp(10), dp(13), dp(10), dp(13)); pressBg(0xFFFFFFFF.toInt(), 24f)
+    btns.addView(tv("✓  " + L.t("done"), 16f, T.onPill, true).apply {
+        gravity = Gravity.CENTER; setPadding(dp(10), dp(13), dp(10), dp(13)); pressBg(T.pill, 24f)
         setOnClickListener { sheet.dismiss { onPick(if (size == T.baseSize) 0 else size) } }
     }, lp(0, WRAP, 1.4f))
     btns.setPadding(dp(14), dp(12), dp(14), dp(2))

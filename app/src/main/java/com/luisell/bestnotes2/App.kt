@@ -7,6 +7,7 @@ class App : Application() {
         super.onCreate()
         Store.init(this)
         L.init(this)
+        T.light = getSharedPreferences("ajustes", 0).getString("theme", "dark") == "light"
         AppLock.install(this)
         Reminders.channel(this)
         Store.load { }          // la lista se empieza a cargar desde el primer momento

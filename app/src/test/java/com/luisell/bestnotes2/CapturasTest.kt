@@ -153,4 +153,33 @@ class CapturasTest {
         val va = Robolectric.buildActivity(VaultActivity::class.java).setup().visible().get(); idle()
         shot(va.window.decorView, "9_boveda")
     }
+
+    @Test fun capturasClaro() {
+        if (System.getenv("CAPTURAS") == null) return
+        var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
+        val f = File(ctx.cacheDir, "r.json"); f.writeText(javaClass.classLoader!!.getResource("respaldo.json")!!.readText())
+        Backup.importFile(ctx, Uri.fromFile(f), "prueba") {}
+        ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
+        T.light = true
+        try {
+            val main = Robolectric.buildActivity(MainActivity::class.java).setup().visible().get()
+            waitIo(); idle(); Thread.sleep(200); waitIo(); idle()
+            shot(main.window.decorView, "20_claro_inicio")
+            MainActivity::class.java.getDeclaredMethod("appearance").apply { isAccessible = true }.invoke(main)
+            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
+            shot(main.window.decorView, "21_claro_apariencia")
+            val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n1")).setup().visible().get()
+            waitIo(); idle(); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+            shot(act.window.decorView, "22_claro_nota")
+            NoteActivity::class.java.getDeclaredMethod("options").apply { isAccessible = true }.invoke(act)
+            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
+            shot(act.window.decorView, "23_claro_menu")
+            Sheet.closeTop(act); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+            NoteActivity::class.java.getDeclaredMethod("openTemplates").apply { isAccessible = true }.invoke(act)
+            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
+            shot(act.window.decorView, "24_claro_plantillas")
+            val ca = Robolectric.buildActivity(CalcActivity::class.java).setup().visible().get(); idle()
+            shot(ca.window.decorView, "25_claro_calc")
+        } finally { T.light = false }
+    }
 }
