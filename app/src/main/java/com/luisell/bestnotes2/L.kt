@@ -211,6 +211,7 @@ object L {
         "recEmpty" to "Todavía no hay nada. Empieza a escribir y se guarda solo.",
         "appearanceSub" to "Escoge el fondo de tu app",
         "outlineShort" to "Contorno", "colorHint" to "Toca el cuadro, la barra o una bolita", "colorsFavEmpty" to "Guarda aquí tus colores preferidos",
+        "titleStyle" to "Estilo del título",
     )
 
     private val EN = mapOf(
@@ -358,5 +359,6 @@ object L {
         "recEmpty" to "Nothing yet. Start writing and it saves by itself.",
         "appearanceSub" to "Pick your app background",
         "outlineShort" to "Outline", "colorHint" to "Tap the square, the bar or a dot", "colorsFavEmpty" to "Keep your favorite colors here",
+        "titleStyle" to "Title style",
     )
 }

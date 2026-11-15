@@ -311,3 +311,40 @@ class RichEdit(ctx: Context) : EditText(ctx) {
         return super.onTextContextMenuItem(id)
     }
 }
+
+/**
+ * El TÍTULO de la nota: texto simple, pero con color, resaltado, contorno
+ * y tachado para todo el título (se guarda en la nota).
+ */
+class TitleEdit(ctx: Context) : EditText(ctx) {
+    var outline = 0
+        set(v) { field = v; invalidate() }
+    var hilite = 0
+        set(v) { field = v; applyHi() }
+    var strike = false
+        set(v) { field = v; paintFlags = if (v) paintFlags or android.graphics.Paint.STRIKE_THRU_TEXT_FLAG else paintFlags and android.graphics.Paint.STRIKE_THRU_TEXT_FLAG.inv(); invalidate() }
+
+    private class TitleHi(c: Int) : android.text.style.BackgroundColorSpan(c)
+
+    /** El resaltado cubre todo el título (también lo que escribas después). */
+    fun applyHi() {
+        val e = text ?: return
+        e.getSpans(0, e.length, TitleHi::class.java).forEach { e.removeSpan(it) }
+        if (hilite != 0) e.setSpan(TitleHi(hilite), 0, e.length, android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE)
+    }
+
+    override fun onDraw(c: android.graphics.Canvas) {
+        val lay = layout
+        if (outline != 0 && lay != null && !text.isNullOrEmpty()) {
+            // primero el borde de color, luego la letra normal encima
+            val p = paint; val oc = p.color; val os = p.style; val ow = p.strokeWidth
+            p.style = android.graphics.Paint.Style.STROKE; p.strokeJoin = android.graphics.Paint.Join.ROUND
+            p.strokeWidth = textSize * 0.16f; p.color = outline
+            c.save(); c.translate(compoundPaddingLeft.toFloat(), extendedPaddingTop.toFloat())
+            lay.draw(c)
+            c.restore()
+            p.style = os; p.color = oc; p.strokeWidth = ow
+        }
+        super.onDraw(c)
+    }
+}
