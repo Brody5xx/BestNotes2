@@ -229,7 +229,11 @@ class NoteMeta(
     var checkTotal: Int = 0,
     var checkDone: Int = 0,
     var hasMedia: Boolean = false,
+    /** Vista previa para la tarjeta: título con estilos + los primeros bloques (JSON). */
+    var pv: String? = null,
 ) {
+    /** La vista previa ya leída (para no leer el JSON cada vez). */
+    @Volatile var pvCache: Pair<List<Run>?, List<Block>>? = null
     /** Texto para buscar: sin acentos y en minúsculas (se calcula una vez). */
     @Volatile var folded: String? = null
 }
@@ -243,3 +247,44 @@ fun tagsOf(text: String): Set<String> = TAG_RE.findAll(text).map { it.groupValue
 
 fun newId(): String = java.lang.Long.toString(System.currentTimeMillis(), 36) +
     java.lang.Long.toString((Math.random() * 1679616).toLong(), 36)
+
+
+/** Corta los pedacitos de texto a [max] letras (conservando los estilos). */
+fun runsTake(runs: List<Run>, max: Int): MutableList<Run> {
+    val out = ArrayList<Run>(); var n = 0
+    for (r in runs) { if (n >= max) break; val t = r.text.take(max - n); out.add(Run(t, r.st)); n += t.length }
+    return out
+}
+
+/** La vista previa de la tarjeta: el título con estilos y los primeros bloques (cortos). */
+fun previewJson(titleRuns: List<Run>?, blocks: List<Block>): String {
+    val o = org.json.JSONObject()
+    if (titleRuns != null && titleRuns.any { !it.st.isPlain() }) o.put("t", runsJson(titleRuns))
+    val a = org.json.JSONArray(); var chars = 0; var imgs = 0; var media = 0
+    for (b in blocks) {
+        if (a.length() >= 10 || chars > 900) break
+        when (b) {
+            is Block.Text -> {
+                val txt = runsPlain(b.runs); if (txt.isBlank()) continue
+                val r = runsTake(b.runs, 500); chars += minOf(500, txt.length)
+                a.put(Block.Text(r).toJson())
+            }
+            is Block.ListB -> {
+                val l = Block.ListB(b.kind, b.items.filter { runsPlain(it.runs).isNotBlank() }.sortedBy { if (b.kind == "check" && it.done) 1 else 0 }
+                    .take(8).map { Item(runsTake(it.runs, 120), it.done) }.toMutableList())
+                if (l.items.isEmpty()) continue
+                chars += l.items.sumOf { runsPlain(it.runs).length }; a.put(l.toJson())
+            }
+            is Block.Img -> if (imgs++ < 2) a.put(Block.Img(b.file, beside = runsTake(b.beside, 200)).toJson())
+            is Block.Media -> if (media++ < 3) a.put(b.toJson())
+        }
+    }
+    o.put("b", a)
+    return o.toString()
+}
+
+/** Lee la vista previa: (título con estilos o null, bloques). */
+fun previewParse(pv: String): Pair<List<Run>?, List<Block>> = try {
+    val o = org.json.JSONObject(pv)
+    (o.optJSONArray("t")?.let { runsFromJson(it) }) to blocksFromJson(o.optJSONArray("b")?.toString() ?: "[]")
+} catch (_: Exception) { null to emptyList() }

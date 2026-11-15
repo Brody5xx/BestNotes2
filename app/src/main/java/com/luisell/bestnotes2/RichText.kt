@@ -144,7 +144,7 @@ object Rich {
  *  - se presiona Enter ([onEnter], si devuelve true se encarga él).
  */
 @SuppressLint("ViewConstructor", "AppCompatCustomView")
-class RichEdit(ctx: Context) : EditText(ctx) {
+open class RichEdit(ctx: Context) : EditText(ctx) {
     var onEdit: (() -> Unit)? = null
     var onCursor: ((RichEdit) -> Unit)? = null
     var onBackAtStart: ((RichEdit) -> Boolean)? = null
@@ -275,33 +275,7 @@ class RichEdit(ctx: Context) : EditText(ctx) {
     private val stroke = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG)
 
     override fun onDraw(canvas: android.graphics.Canvas) {
-        val t = text
-        val lay = layout
-        val outs = if (t != null && lay != null) t.getSpans(0, t.length, OutlineS::class.java) else emptyArray()
-        if (outs.isNotEmpty()) {
-            canvas.save()
-            canvas.translate(totalPaddingLeft.toFloat(), totalPaddingTop.toFloat())
-            for (o in outs) {
-                val a = t.getSpanStart(o); val b = t.getSpanEnd(o)
-                if (a < 0 || b <= a) continue
-                for (line in lay.getLineForOffset(a)..lay.getLineForOffset(b - 1)) {
-                    var s = maxOf(a, lay.getLineStart(line)); val e = minOf(b, lay.getLineVisibleEnd(line))
-                    val base = lay.getLineBaseline(line).toFloat()
-                    while (s < e) {
-                        val n = t.nextSpanTransition(s, e, android.text.style.MetricAffectingSpan::class.java)
-                        stroke.set(paint)
-                        t.getSpans(s, n, android.text.style.MetricAffectingSpan::class.java).forEach { it.updateMeasureState(stroke) }
-                        stroke.style = android.graphics.Paint.Style.STROKE
-                        stroke.strokeJoin = android.graphics.Paint.Join.ROUND
-                        stroke.strokeWidth = maxOf(dp(2.5f).toFloat(), stroke.textSize * 0.16f)
-                        stroke.color = o.color
-                        canvas.drawText(t, s, n, lay.getPrimaryHorizontal(s), base, stroke)
-                        s = n
-                    }
-                }
-            }
-            canvas.restore()
-        }
+        drawOutlines(this, canvas, stroke)
         super.onDraw(canvas)
     }
 
@@ -312,39 +286,52 @@ class RichEdit(ctx: Context) : EditText(ctx) {
     }
 }
 
-/**
- * El TÍTULO de la nota: texto simple, pero con color, resaltado, contorno
- * y tachado para todo el título (se guarda en la nota).
- */
-class TitleEdit(ctx: Context) : EditText(ctx) {
-    var outline = 0
-        set(v) { field = v; invalidate() }
-    var hilite = 0
-        set(v) { field = v; applyHi() }
-    var strike = false
-        set(v) { field = v; paintFlags = if (v) paintFlags or android.graphics.Paint.STRIKE_THRU_TEXT_FLAG else paintFlags and android.graphics.Paint.STRIKE_THRU_TEXT_FLAG.inv(); invalidate() }
-
-    private class TitleHi(c: Int) : android.text.style.BackgroundColorSpan(c)
-
-    /** El resaltado cubre todo el título (también lo que escribas después). */
-    fun applyHi() {
-        val e = text ?: return
-        e.getSpans(0, e.length, TitleHi::class.java).forEach { e.removeSpan(it) }
-        if (hilite != 0) e.setSpan(TitleHi(hilite), 0, e.length, android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE)
-    }
-
-    override fun onDraw(c: android.graphics.Canvas) {
-        val lay = layout
-        if (outline != 0 && lay != null && !text.isNullOrEmpty()) {
-            // primero el borde de color, luego la letra normal encima
-            val p = paint; val oc = p.color; val os = p.style; val ow = p.strokeWidth
-            p.style = android.graphics.Paint.Style.STROKE; p.strokeJoin = android.graphics.Paint.Join.ROUND
-            p.strokeWidth = textSize * 0.16f; p.color = outline
-            c.save(); c.translate(compoundPaddingLeft.toFloat(), extendedPaddingTop.toFloat())
-            lay.draw(c)
-            c.restore()
-            p.style = os; p.color = oc; p.strokeWidth = ow
+/** Dibuja el contorno (OutlineS) por detrás de las letras de cualquier caja de texto. */
+fun drawOutlines(tv: android.widget.TextView, canvas: android.graphics.Canvas, stroke: android.text.TextPaint) {
+    val t = tv.text as? Spanned ?: return
+    val lay = tv.layout ?: return
+    val outs = t.getSpans(0, t.length, OutlineS::class.java)
+    if (outs.isEmpty()) return
+    val d = tv.resources.displayMetrics.density
+    canvas.save()
+    canvas.translate(tv.totalPaddingLeft.toFloat(), tv.totalPaddingTop.toFloat())
+    for (o in outs) {
+        val a = t.getSpanStart(o); val b = t.getSpanEnd(o)
+        if (a < 0 || b <= a) continue
+        for (line in lay.getLineForOffset(a)..lay.getLineForOffset(b - 1)) {
+            var s = maxOf(a, lay.getLineStart(line)); val e = minOf(b, lay.getLineVisibleEnd(line))
+            val base = lay.getLineBaseline(line).toFloat()
+            while (s < e) {
+                val n = t.nextSpanTransition(s, e, android.text.style.MetricAffectingSpan::class.java)
+                stroke.set(tv.paint)
+                t.getSpans(s, n, android.text.style.MetricAffectingSpan::class.java).forEach { it.updateMeasureState(stroke) }
+                stroke.style = android.graphics.Paint.Style.STROKE
+                stroke.strokeJoin = android.graphics.Paint.Join.ROUND
+                stroke.strokeWidth = maxOf(2.5f * d * (stroke.textSize / (17f * d)).coerceAtMost(1f), stroke.textSize * 0.16f)
+                stroke.color = o.color
+                canvas.drawText(t, s, n, lay.getPrimaryHorizontal(s), base, stroke)
+                s = n
+            }
         }
-        super.onDraw(c)
+    }
+    canvas.restore()
+}
+
+/** Texto con estilos SOLO para mirar (las tarjetas de la pantalla de inicio). Dibuja también el contorno. */
+class RichView(ctx: Context) : android.widget.TextView(ctx) {
+    private val stroke = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    override fun onDraw(canvas: android.graphics.Canvas) { drawOutlines(this, canvas, stroke); super.onDraw(canvas) }
+
+    /** Pone [runs] achicando los tamaños por [scale] (en la tarjeta todo se ve más chico). */
+    fun setRuns(runs: List<Run>, scale: Float) {
+        val sb = Rich.build(runs)
+        sb.getSpans(0, sb.length, SizeS::class.java).forEach { sp ->
+            val a = sb.getSpanStart(sp); val b = sb.getSpanEnd(sp); sb.removeSpan(sp)
+            sb.setSpan(AbsoluteSizeSpan(maxOf(8, (sp.size * scale).toInt()), true), a, b, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        text = sb
     }
 }
+
+/** El TÍTULO de la nota: ahora con estilos letra por letra (como el texto). */
+class TitleEdit(ctx: Context) : RichEdit(ctx)

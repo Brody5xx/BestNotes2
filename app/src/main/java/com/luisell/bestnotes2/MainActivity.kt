@@ -739,7 +739,12 @@ class MainActivity : Activity() {
 
     inner class VH(val card: LinearLayout) : RecyclerView.ViewHolder(card) {
         val img = ImageView(this@MainActivity).apply { scaleType = ImageView.ScaleType.CENTER_CROP; clipToOutline = true }
-        val title = tv("", 16.5f, T.text, true).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END }
+        val title = RichView(this@MainActivity).apply {
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16.5f); setTextColor(T.text); typeface = android.graphics.Typeface.DEFAULT_BOLD
+            maxLines = 2; ellipsize = TextUtils.TruncateAt.END; setPadding(dp(2), dp(1), dp(2), dp(1))
+        }
+        /** La nota en chiquito: texto con estilos, listas, fotos, notas de voz y videos. */
+        val content = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL }
         val body = tv("", 14.5f, T.muted).apply { ellipsize = TextUtils.TruncateAt.END; setLineSpacing(0f, 1.1f) }
         val foot = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val date = tv("", 12f, T.faint)
@@ -752,6 +757,7 @@ class MainActivity : Activity() {
             card.addView(img, lp(MATCH, dp(120)).apply { bottomMargin = dp(10) })
             card.addView(title, lp(MATCH, WRAP))
             card.addView(body, lp(MATCH, WRAP).apply { topMargin = dp(4) })
+            card.addView(content, lp(MATCH, WRAP).apply { topMargin = dp(2) })
             foot.addView(date, lp(0, WRAP, 1f))
             foot.addView(icons)
             card.addView(foot, lp(MATCH, WRAP).apply { topMargin = dp(10) })
@@ -826,7 +832,17 @@ class MainActivity : Activity() {
             h.title.text = highlighted(n.title.ifEmpty { "" })
             h.title.visibility = if (n.title.isEmpty()) View.GONE else View.VISIBLE
             h.title.setTextColor(if (n.titleColor != 0) n.titleColor else T.text)
-            if (n.locked) {
+            h.content.removeAllViews(); h.content.visibility = View.GONE
+            val pv = n.pv
+            if (!n.locked && query.isBlank() && pv != null) {
+                // ✨ la tarjeta se ve como la nota (colores, contorno, tamaños, fotos, voz y video)
+                val (tr, blocks) = n.pvCache ?: previewParse(pv).also { n.pvCache = it }
+                if (tr != null && n.title.isNotEmpty()) { h.title.setTextColor(T.text); h.title.setRuns(tr, 16.5f / 24f) }
+                h.body.visibility = View.GONE; h.img.visibility = View.GONE
+                if (blocks.isEmpty() && n.title.isEmpty()) { h.body.visibility = View.VISIBLE; h.body.text = L.t("untitled") }
+                h.content.visibility = View.VISIBLE
+                fillPreview(h, n, blocks, grid)
+            } else if (n.locked) {
                 h.body.text = L.t("lockedNote"); h.body.maxLines = 1
                 h.img.visibility = View.GONE
             } else {
@@ -861,6 +877,95 @@ class MainActivity : Activity() {
             h.card.setOnLongClickListener {
                 if (!selected.remove(n.id)) selected.add(n.id)
                 notifyItemChanged(h.bindingAdapterPosition); paintHeader(); true
+            }
+        }
+    }
+
+    /** Arma la nota en chiquito dentro de la tarjeta. */
+    private fun fillPreview(h: VH, n: NoteMeta, blocks: List<Block>, grid: Boolean) {
+        val box = h.content
+        var lines = if (grid) 10 else 4
+        val sc = 14.5f / 17f
+        fun rich(runs: List<Run>, max: Int): RichView = RichView(this).apply {
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14.5f); setTextColor(0xD9FFFFFF.toInt()); setLineSpacing(0f, 1.08f)
+            maxLines = maxOf(1, max); ellipsize = TextUtils.TruncateAt.END; setPadding(0, dp(1), dp(3), dp(1))
+            setRuns(runs, sc)
+        }
+        for (b in blocks) {
+            if (lines <= 0) break
+            when (b) {
+                is Block.Text -> {
+                    val v = rich(b.runs, lines)
+                    box.addView(v, lp(MATCH, WRAP).apply { topMargin = dp(4) })
+                    lines -= minOf(lines, runsPlain(b.runs).count { it == '\n' } + 1 + runsPlain(b.runs).length / 28)
+                }
+                is Block.ListB -> {
+                    var k = 0
+                    for (it in b.items) {
+                        if (lines <= 0) break
+                        k++
+                        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP }
+                        val mark = when (b.kind) {
+                            "check" -> tv(if (it.done) "☑" else "☐", 15f, if (it.done) 0xFF30D158.toInt() else T.muted)
+                            "ol" -> tv("$k.", 13.5f, T.muted, true)
+                            else -> tv("•", 15f, T.muted, true)
+                        }
+                        row.addView(mark.apply { setPadding(0, 0, dp(6), 0) })
+                        val t = rich(it.runs, 2)
+                        if (it.done) { t.paintFlags = t.paintFlags or android.graphics.Paint.STRIKE_THRU_TEXT_FLAG; t.alpha = 0.55f }
+                        row.addView(t, lp(0, WRAP, 1f))
+                        box.addView(row, lp(MATCH, WRAP).apply { topMargin = dp(3) })
+                        lines--
+                    }
+                }
+                is Block.Img -> {
+                    val iv = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; clipToOutline = true; background = roundBg(0x10FFFFFF, dp(12).toFloat()) }
+                    box.addView(iv, lp(MATCH, dp(if (grid) 120 else 150)).apply { topMargin = dp(6); bottomMargin = dp(2) })
+                    val want = n.id
+                    Thumbs.load(b.file, dp(220)) { bm -> if (h.id == want) iv.setImageBitmap(bm) }
+                    if (b.beside.isNotEmpty()) box.addView(rich(b.beside, 2), lp(MATCH, WRAP).apply { topMargin = dp(2) })
+                    lines -= 3
+                }
+                is Block.Media -> {
+                    if (b.kind == "video") {
+                        val fr = FrameLayout(this).apply { clipToOutline = true; background = roundBg(0xFF000000.toInt(), dp(12).toFloat()) }
+                        val iv = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
+                        fr.addView(iv, FrameLayout.LayoutParams(MATCH, MATCH))
+                        val want = n.id
+                        Thumbs.load(MediaFiles.thumbName(b.file), dp(220)) { bm -> if (h.id == want && bm != null) iv.setImageBitmap(bm) }
+                        val play = FrameLayout(this).apply { background = roundBg(0xE6FFFFFF.toInt(), dp(20).toFloat()) }
+                        play.addView(IconView(this, MoreIcons.PLAY, 8f).apply { color = 0xFF161618.toInt(); isClickable = false }, FrameLayout.LayoutParams(dp(40), dp(40)))
+                        fr.addView(play, FrameLayout.LayoutParams(dp(40), dp(40), Gravity.CENTER))
+                        if (b.dur > 0) fr.addView(tv(MediaFiles.timeText(b.dur), 11.5f, Color.WHITE, true).apply {
+                            setPadding(dp(7), dp(2), dp(7), dp(2)); background = roundBg(0x99000000.toInt(), dp(8).toFloat())
+                        }, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, dp(6), dp(6)) })
+                        box.addView(fr, lp(MATCH, dp(if (grid) 110 else 140)).apply { topMargin = dp(6) })
+                        lines -= 3
+                    } else {
+                        // 🎙️ nota de voz: una pastillita como el reproductor
+                        val pill = LinearLayout(this).apply {
+                            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(6), dp(12), dp(6))
+                            background = roundBg(0x1AFFFFFF, dp(20).toFloat(), 0x26FFFFFF, dp(1))
+                        }
+                        val play = FrameLayout(this).apply { background = roundBg(0xFFFFFFFF.toInt(), dp(14).toFloat()) }
+                        play.addView(IconView(this, MoreIcons.PLAY, 6f).apply { color = 0xFF161618.toInt(); isClickable = false }, FrameLayout.LayoutParams(dp(28), dp(28)))
+                        pill.addView(play, lp(dp(28), dp(28)))
+                        // ondita
+                        val wave = object : View(this) {
+                            val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF8B7CFF.toInt(); strokeCap = android.graphics.Paint.Cap.ROUND; strokeWidth = dp(2.5f).toFloat() }
+                            override fun onDraw(c: android.graphics.Canvas) {
+                                val n2 = (width / dp(6)).coerceAtLeast(1)
+                                for (i in 0 until n2) { val hh = height * (0.25f + 0.6f * Math.abs(Math.sin(i * 1.7 + b.file.hashCode())).toFloat()); val x = dp(3) + i * dp(6f).toFloat()
+                                    c.drawLine(x, (height - hh) / 2, x, (height + hh) / 2, p) }
+                            }
+                        }
+                        pill.addView(wave, lp(0, dp(20), 1f).apply { marginStart = dp(8); marginEnd = dp(8) })
+                        pill.addView(IconView(this, MoreIcons.MIC, 6f).apply { color = T.muted; isClickable = false }, lp(dp(16), dp(16)))
+                        pill.addView(tv(MediaFiles.timeText(b.dur), 12.5f, T.muted, true).apply { setPadding(dp(3), 0, 0, 0) })
+                        box.addView(pill, lp(MATCH, WRAP).apply { topMargin = dp(6) })
+                        lines -= 2
+                    }
+                }
             }
         }
     }

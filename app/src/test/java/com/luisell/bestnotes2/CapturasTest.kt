@@ -100,13 +100,16 @@ class CapturasTest {
         Sheet.closeTop(act); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
         val tf = NoteActivity::class.java.getDeclaredField("title").apply { isAccessible = true }.get(act) as TitleEdit
         tf.requestFocus(); idle()
-        NoteActivity::class.java.getDeclaredMethod("titleStyle", Integer::class.java, Integer::class.java, Integer::class.java, java.lang.Boolean::class.java).apply { isAccessible = true }
-            .invoke(act, 0xFFFFD60A.toInt(), 0xFFFF375F.toInt(), null, null)
-        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
+        tf.setText(Rich.build(listOf(Run("Ticket ", St.PLAIN.copy(color = 0xFFFFD60A.toInt(), o = 0xFFFF375F.toInt())), Run("de prueba", St.PLAIN.copy(color = 0xFF64D2FF.toInt())))))
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(500))
         shot(act.window.decorView, "16_titulo")
+        NoteActivity::class.java.getDeclaredField("dirty").apply { isAccessible = true }.setBoolean(act, true)
         NoteActivity::class.java.getDeclaredMethod("save").apply { isAccessible = true }.invoke(act); waitIo()
         val (_, ex) = Store.readBody("n1")
-        org.junit.Assert.assertTrue("contorno guardado", ex!!.contains("tOl"))
+        org.junit.Assert.assertTrue("título con estilos guardado", ex!!.contains("\"tr\""))
+        val main2 = Robolectric.buildActivity(MainActivity::class.java).setup().visible().get()
+        waitIo(); idle(); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        shot(main2.window.decorView, "17_inicio")
     }
 
     @Test fun cierreDelMenu() {

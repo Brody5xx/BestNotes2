@@ -52,7 +52,7 @@ object Store {
         io.execute {
             val list = ArrayList<NoteMeta>()
             db.rawQuery(
-                "SELECT id,title,title_color,color,folder,fav,pinned,deleted,deleted_at,locked,kind,created,updated,plain,thumb,ck_total,ck_done,has_media FROM notes",
+                "SELECT id,title,title_color,color,folder,fav,pinned,deleted,deleted_at,locked,kind,created,updated,plain,thumb,ck_total,ck_done,has_media,pv FROM notes",
                 null,
             ).use { c ->
                 while (c.moveToNext()) {
@@ -61,7 +61,7 @@ object Store {
                             c.getString(0), c.getString(1) ?: "", c.getInt(2), c.getInt(3), c.getString(4),
                             c.getInt(5) == 1, c.getInt(6) == 1, c.getInt(7) == 1, c.getLong(8), c.getInt(9) == 1,
                             c.getString(10) ?: "text", c.getLong(11), c.getLong(12), c.getString(13) ?: "",
-                            c.getString(14), c.getInt(15), c.getInt(16), c.getInt(17) == 1,
+                            c.getString(14), c.getInt(15), c.getInt(16), c.getInt(17) == 1, c.getString(18),
                         ),
                     )
                 }
@@ -71,6 +71,13 @@ object Store {
                 while (c.moveToNext()) fl.add(Folder(c.getString(0), c.getString(1) ?: "", c.getInt(2), c.getInt(3)))
             }
             list.forEach { it.folded = fold(it.title + "\n" + it.plain) }
+            // notas de antes sin vista previa: se hace una sola vez
+            for (m in list) if (m.pv == null) try {
+                val (body, ex) = readBody(m.id)
+                val tr = try { org.json.JSONObject(ex ?: "{}").optJSONArray("tr")?.let { runsFromJson(it) } } catch (_: Exception) { null }
+                m.pv = previewJson(tr, blocksFromJson(body))
+                db.execSQL("UPDATE notes SET pv=? WHERE id=?", arrayOf(m.pv, m.id))
+            } catch (_: Exception) {}
             main.post {
                 if (myGen != gen) return@post          // llegó una recarga más nueva: esta se descarta
                 notes.clear(); notes.addAll(list)
@@ -101,11 +108,12 @@ object Store {
         put("folder", m.folder); put("fav", if (m.fav) 1 else 0); put("pinned", if (m.pinned) 1 else 0)
         put("deleted", if (m.deleted) 1 else 0); put("deleted_at", m.deletedAt); put("locked", if (m.locked) 1 else 0)
         put("kind", m.kind); put("created", m.created); put("updated", m.updated); put("plain", m.plain)
-        put("thumb", m.thumb); put("ck_total", m.checkTotal); put("ck_done", m.checkDone); put("has_media", if (m.hasMedia) 1 else 0)
+        put("thumb", m.thumb); put("ck_total", m.checkTotal); put("ck_done", m.checkDone); put("has_media", if (m.hasMedia) 1 else 0); put("pv", m.pv)
     }
 
     /** Llena los datos de la lista a partir de los bloques. */
-    fun fillMeta(m: NoteMeta, blocks: List<Block>) {
+    fun fillMeta(m: NoteMeta, blocks: List<Block>, titleRuns: List<Run>? = null) {
+        m.pv = previewJson(titleRuns, blocks); m.pvCache = null
         m.plain = blocksPlain(blocks)
         m.thumb = blocks.firstOrNull { it is Block.Img }?.let { (it as Block.Img).file }
             ?: blocks.firstOrNull { it is Block.Media && it.kind == "video" }?.let { MediaFiles.thumbName((it as Block.Media).file) }
@@ -208,7 +216,7 @@ object Store {
     fun reload(done: () -> Unit) { gen++; loaded = false; loading = false; load(done) }
     @Volatile private var gen = 0
 
-    private class Helper(ctx: Context) : SQLiteOpenHelper(ctx, "notas.db", null, 1) {
+    private class Helper(ctx: Context) : SQLiteOpenHelper(ctx, "notas.db", null, 2) {
         override fun onConfigure(db: SQLiteDatabase) { db.enableWriteAheadLogging() }
         override fun onCreate(db: SQLiteDatabase) {
             db.execSQL(
@@ -217,11 +225,13 @@ object Store {
                 folder TEXT, fav INTEGER DEFAULT 0, pinned INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0,
                 deleted_at INTEGER DEFAULT 0, locked INTEGER DEFAULT 0, kind TEXT, created INTEGER, updated INTEGER,
                 plain TEXT, thumb TEXT, ck_total INTEGER DEFAULT 0, ck_done INTEGER DEFAULT 0, has_media INTEGER DEFAULT 0,
-                body TEXT, extra TEXT)""",
+                body TEXT, extra TEXT, pv TEXT)""",
             )
             db.execSQL("CREATE TABLE folders (id TEXT PRIMARY KEY, name TEXT, color INTEGER, ord INTEGER DEFAULT 0)")
         }
-        override fun onUpgrade(db: SQLiteDatabase, o: Int, n: Int) {}
+        override fun onUpgrade(db: SQLiteDatabase, o: Int, n: Int) {
+            if (o < 2) try { db.execSQL("ALTER TABLE notes ADD COLUMN pv TEXT") } catch (_: Exception) {}
+        }
     }
 }
 

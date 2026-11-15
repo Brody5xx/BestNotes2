@@ -127,7 +127,7 @@ class NoteActivity : Activity(), EditorView.Host {
         fitInk()
         showWall()
         // estilo del título (contorno, resaltado, tachado)
-        title.outline = extraObj.optInt("tOl", 0); title.hilite = extraObj.optInt("tBg", 0); title.strike = extraObj.optBoolean("tS")
+        title.setText(Rich.build(titleRuns()))
         muting = true
         editor.readOnly = meta.deleted
         editor.setBlocks(blocks)
@@ -178,7 +178,7 @@ class NoteActivity : Activity(), EditorView.Host {
             setText(meta.title)
             hint = L.t("titlePh")
             setHintTextColor(T.faint)
-            setTextColor(if (meta.titleColor != 0) meta.titleColor else T.text)
+            setTextColor(T.text)
             setTextSize(TypedValue.COMPLEX_UNIT_DIP, 24f)
             typeface = Typeface.DEFAULT_BOLD
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_MULTI_LINE
@@ -194,7 +194,8 @@ class NoteActivity : Activity(), EditorView.Host {
                     onDirty()
                 }
             })
-            setOnFocusChangeListener { _, has -> if (has) onFocusEdit(null) }
+            setOnFocusChangeListener { _, has -> if (has) onFocusEdit(this) }
+            onCursor = { onFocusEdit(it) }
         }
         col.addView(title, lp(MATCH, WRAP))
         bannerBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), 0, dp(18), 0) }
@@ -347,10 +348,25 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     /* ---------- estilos ---------- */
-    private fun cur(): St = editor.focused?.currentStyle() ?: St.PLAIN
+    /** Los pedacitos del título con su estilo (o el título de antes, todo de un color). */
+    private fun titleRuns(): List<Run> {
+        extraObj.optJSONArray("tr")?.let { val r = runsFromJson(it); if (runsPlain(r) == meta.title) return r }
+        if (meta.title.isEmpty()) return emptyList()
+        val st = St.PLAIN.copy(color = meta.titleColor, o = extraObj.optInt("tOl", 0), bg = extraObj.optInt("tBg", 0), s = extraObj.optBoolean("tS"))
+        return listOf(Run(meta.title, st))
+    }
+
+    /** Dónde se aplica el estilo: el título (si estás ahí) o el texto. */
+    private fun target(): RichEdit? = if (::title.isInitialized && title.hasFocus()) title else editor.focused
+    private fun cur(): St = target()?.currentStyle() ?: St.PLAIN
     private fun style(fn: (St) -> St) {
-        val e = editor.focused ?: return
+        val e = target() ?: return
         if (!e.hasFocus()) return
+        // en el título sin seleccionar nada: se pinta TODO el título
+        if (e === title && e.selectionStart == e.selectionEnd && e.text.isNotEmpty()) {
+            val pos = e.selectionStart
+            e.setSelection(0, e.text.length); style(fn); e.setSelection(pos.coerceAtMost(e.text.length)); return
+        }
         val c = e.currentStyle()
         val next = fn(c)
         // se guarda solo lo que cambió (así no se pisan otros estilos al aplicarlo a un pedazo)
@@ -369,7 +385,7 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     private fun pickSize() {
-        val e = editor.focused ?: return
+        val e = target() ?: return
         val a0 = minOf(e.selectionStart, e.selectionEnd); val b0 = maxOf(e.selectionStart, e.selectionEnd)
         pickSize(e.currentStyle().size) { z ->
             if (!e.hasFocus()) e.requestFocus()
@@ -380,16 +396,7 @@ class NoteActivity : Activity(), EditorView.Host {
 
     /** Color de letra (o del título si estás en el título), resaltar o contorno. */
     private fun pickColor(kind: String) {
-        if (title.hasFocus() || (kind == "color" && editor.focused == null)) {
-            when (kind) {
-                "hi" -> pickColor(L.t("hilite"), title.hilite.let { if (it != 0) it or 0xFF000000.toInt() else 0 }, T.hiliteColors.map { it or 0xFF000000.toInt() }.toIntArray(),
-                    { c -> title.hilite = if (c == 0) 0 else (c and 0xFFFFFF) or 0x73000000 }) { c -> titleStyle(bg = if (c == 0) 0 else (c and 0xFFFFFF) or 0x73000000) }
-                "ol" -> pickColor(L.t("outline"), title.outline, T.textColors, { c -> title.outline = c }) { c -> titleStyle(ol = c) }
-                else -> pickColor(L.t("titleColor"), meta.titleColor, T.textColors, { c -> title.setTextColor(if (c != 0) c else T.text) }) { c -> titleStyle(color = c) }
-            }
-            return
-        }
-        val e = editor.focused ?: return
+        val e = target() ?: return
         val c = e.currentStyle()
         val a0 = minOf(e.selectionStart, e.selectionEnd); val b0 = maxOf(e.selectionStart, e.selectionEnd)
         // en vivo: se pinta lo seleccionado mientras mueves la rueda
@@ -409,7 +416,7 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     override fun onFocusEdit(e: RichEdit?) {
-        val st = e?.currentStyle() ?: if (::title.isInitialized && title.hasFocus()) titleSt() else St.PLAIN
+        val st = e?.currentStyle() ?: St.PLAIN
         fun on(k: String, v: Boolean) { toolBtns[k]?.background = if (v) roundBg(0x33FFFFFF, dp(22).toFloat()) else android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x33FFFFFF), null, roundBg(Color.WHITE, dp(22).toFloat())) }
         on("b", st.b); on("i", st.i); on("u", st.u)
         on("hi", st.bg != 0)
@@ -440,7 +447,11 @@ class NoteActivity : Activity(), EditorView.Host {
         if (isNew && isEmptyNote()) return
         meta.title = title.text.toString().trim()
         meta.updated = System.currentTimeMillis()
-        Store.fillMeta(meta, editor.blocks)
+        val tRuns = Rich.runs(title.text)
+        extraObj.remove("tOl"); extraObj.remove("tBg"); extraObj.remove("tS")
+        if (tRuns.any { !it.st.isPlain() }) extraObj.put("tr", runsJson(tRuns)) else extraObj.remove("tr")
+        meta.titleColor = tRuns.firstOrNull { it.text.isNotBlank() }?.st?.color ?: 0
+        Store.fillMeta(meta, editor.blocks, tRuns)
         extra = if (extraObj.length() > 0) extraObj.toString() else null
         Store.saveNote(meta, blocksJson(editor.blocks), extra, keepExtra = false)
         isNew = false
@@ -460,7 +471,7 @@ class NoteActivity : Activity(), EditorView.Host {
     /* ---------- deshacer / rehacer ---------- */
     private fun state(): String {
         editor.flushAll()
-        return JSONObject().put("t", title.text.toString()).put("b", blocksJson(editor.blocks)).toString()
+        return JSONObject().put("t", title.text.toString()).put("tr", runsJson(Rich.runs(title.text))).put("b", blocksJson(editor.blocks)).toString()
     }
 
     private var snapPending = false
@@ -480,7 +491,7 @@ class NoteActivity : Activity(), EditorView.Host {
         val f = editor.focused
         val bi = editor.views.indexOfFirst { v -> f != null && v.edits().contains(f) }
         muting = true
-        title.setText(o.optString("t"))
+        title.setText(o.optJSONArray("tr")?.let { Rich.build(runsFromJson(it)) } ?: o.optString("t"))
         editor.setBlocks(blocksFromJson(o.optString("b")))
         muting = false
         dirty = true; Store.main.removeCallbacks(saveRun); Store.main.postDelayed(saveRun, 600)
@@ -1288,17 +1299,6 @@ class NoteActivity : Activity(), EditorView.Host {
             .show()
     }
 
-    /** Cambia el estilo del título y lo guarda en la nota. */
-    private fun titleStyle(color: Int? = null, ol: Int? = null, bg: Int? = null, strike: Boolean? = null) {
-        color?.let { meta.titleColor = it; title.setTextColor(if (it != 0) it else T.text) }
-        ol?.let { title.outline = it; if (it != 0) extraObj.put("tOl", it) else extraObj.remove("tOl") }
-        bg?.let { title.hilite = it; if (it != 0) extraObj.put("tBg", it) else extraObj.remove("tBg") }
-        strike?.let { title.strike = it; if (it) extraObj.put("tS", true) else extraObj.remove("tS") }
-        dirty = true; onDirty()
-        if (stylePanel != null) Store.main.post { fillStyle() }
-    }
-    private fun titleSt() = St.PLAIN.copy(color = meta.titleColor, o = title.outline, bg = title.hilite, s = title.strike)
-
     /* ---------- 🎨 estilo de la letra: un panel ABAJO (no tapa lo que seleccionaste) ---------- */
     private var stylePanel: LinearLayout? = null
 
@@ -1320,7 +1320,7 @@ class NoteActivity : Activity(), EditorView.Host {
         val p = stylePanel ?: return
         p.removeAllViews()
         val inTitle = title.hasFocus()
-        val st = if (inTitle) titleSt() else editor.focused?.currentStyle() ?: St.PLAIN
+        val st = target()?.currentStyle() ?: St.PLAIN
         val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), 0, 0, 0) }
         head.addView(tv((if (inTitle) L.t("titleStyle") else L.t("textStyle")).uppercase(L.locale), 12f, T.muted, true).apply { letterSpacing = 0.1f }, lp(0, WRAP, 1f))
         head.addView(iconBtn(Icons.CLOSE, 8.5f) { closeStyle() }.apply { layoutParams = lp(dp(36), dp(36)) })
@@ -1336,8 +1336,8 @@ class NoteActivity : Activity(), EditorView.Host {
             v.setOnClickListener { pop(inner); a(it) }
             row.addView(v, lp(dp(42), dp(42)).apply { marginEnd = dp(4) })
         }
-        dot(0, st.color == 0) { if (inTitle) titleStyle(color = 0) else styleNow { s -> s.copy(color = 0) } }
-        for (c in T.textColors) dot(c, st.color == c) { if (inTitle) titleStyle(color = c) else styleNow { s -> s.copy(color = c) } }
+        dot(0, st.color == 0) { styleNow { s -> s.copy(color = 0) } }
+        for (c in T.textColors) dot(c, st.color == c) { styleNow { s -> s.copy(color = c) } }
         // ＋ = todos los colores (rueda)
         val more = View(this).apply {
             background = android.graphics.drawable.GradientDrawable().apply {
@@ -1363,13 +1363,13 @@ class NoteActivity : Activity(), EditorView.Host {
         }
         pill(MoreIcons.HILITE, L.t("hilite"), st.bg != 0, 0xFFFFD54F.toInt()) { pickColor("hi") }
         pill(MoreIcons.OUTLINE, L.t("outlineShort"), st.o != 0, 0xFF4FC3F7.toInt()) { pickColor("ol") }
-        pill(MoreIcons.STRIKE, L.t("strike"), st.s, 0xFFF48FB1.toInt()) { if (inTitle) titleStyle(strike = !title.strike) else styleNow { s -> s.copy(s = !cur().s) } }
+        pill(MoreIcons.STRIKE, L.t("strike"), st.s, 0xFFF48FB1.toInt()) { styleNow { s -> s.copy(s = !cur().s) } }
         p.addView(r2)
     }
 
     /** Aplica el estilo sin quitar lo que seleccionaste, y repinta el panel. */
     private fun styleNow(f: (St) -> St) {
-        editor.focused?.let { if (!it.hasFocus()) it.requestFocus() }
+        target()?.let { if (!it.hasFocus()) it.requestFocus() }
         style(f)
         Store.main.post { fillStyle() }
     }

@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     private class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-14" to ("El título se pinta letra por letra (como el texto) y la pantalla de inicio muestra la nota como es: colores, contorno, tamaños, listas, fotos, notas de voz y videos" to
+            "The title can be styled letter by letter (like the text) and the home screen shows the note as it is: colors, outline, sizes, lists, photos, voice notes and videos"),
         "2026-11-14" to ("El título ya se puede pintar desde el panel de estilo: color, resaltar, contorno y tachado" to
             "The title can now be styled from the style panel: color, highlight, outline and strike"),
         "2026-11-14" to ("La rueda de colores pinta la letra EN VIVO y tiene un botón «✓ Listo» que siempre se ve; la barrita de Cortar/Copiar se esconde mientras escoges" to
