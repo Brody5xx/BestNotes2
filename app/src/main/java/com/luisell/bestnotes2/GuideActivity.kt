@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-15" to ("Compartir varias notas a la vez (página con videos, PDF, texto o SMS), «Página con videos» que se abre en cualquier teléfono, y «Deshacer» al mandar a la papelera" to
+            "Share several notes at once (page with videos, PDF, text or SMS), “Page with videos” that opens on any phone, and “Undo” when moving to trash"),
         "2026-11-14" to ("☀️ un toque cambia claro ↔ oscuro con un círculo (déjalo presionado para los fondos), modo Translúcido con el fondo de tu teléfono, idiomas de derecha a izquierda, y la guía y plantillas también se traducen" to
             "☀️ one tap switches light ↔ dark with a circle (long-press for backgrounds), Translucent mode with your phone wallpaper, right-to-left languages, and the guide and templates are translated too"),
         "2026-11-14" to ("Parte 4c-3: respaldo con contraseña, plantillas, modo claro, 39 idiomas (traducidos con la IA), dibujos en las tarjetas de inicio y «Borrar todo el texto»" to

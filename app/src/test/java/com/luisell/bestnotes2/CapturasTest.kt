@@ -110,6 +110,16 @@ class CapturasTest {
         val main2 = Robolectric.buildActivity(MainActivity::class.java).setup().visible().get()
         waitIo(); idle(); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
         shot(main2.window.decorView, "17_inicio")
+        val sf = MainActivity::class.java.getDeclaredField("selected").apply { isAccessible = true }
+        @Suppress("UNCHECKED_CAST") (sf.get(main2) as MutableSet<String>).addAll(listOf("n1", "n2"))
+        MainActivity::class.java.getDeclaredMethod("refresh").apply { isAccessible = true }.invoke(main2)
+        main2.shareNotes(listOf("n1", "n2"))
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
+        shot(main2.window.decorView, "18_compartir")
+        Sheet.closeTop(main2); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        MainActivity::class.java.getDeclaredMethod("trashSnack", List::class.java).apply { isAccessible = true }.invoke(main2, listOf("n2"))
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(600))
+        shot(main2.window.decorView, "19_deshacer")
     }
 
     @Test fun cierreDelMenu() {

@@ -67,7 +67,10 @@ class MainActivity : Activity() {
 
     override fun onDestroy() { Store.removeListener(listener); super.onDestroy() }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handleIntent(intent) }
-    override fun onResume() { super.onResume(); if (Store.loaded) refresh() }
+    override fun onResume() {
+        super.onResume(); if (Store.loaded) refresh()
+        pendingTrash?.let { ids -> pendingTrash = null; root.postDelayed({ trashSnack(ids) }, 350) }
+    }
 
     /* ---------- pantalla ---------- */
     private fun buildUi() {
@@ -149,6 +152,8 @@ class MainActivity : Activity() {
     /* ---------- ☀️/🌙 cambiar de modo con un círculo que crece desde el botón ---------- */
     companion object {
         const val PICK_FILE = 41; const val REQ_WALL = 42; const val REQ_SAVE_BK = 43
+        /** Notas que se acaban de mandar a la papelera desde una nota (para "Deshacer"). */
+        var pendingTrash: List<String>? = null
         private var snap: android.graphics.Bitmap? = null
         private var sx = 0; private var sy = 0
     }
@@ -198,7 +203,8 @@ class MainActivity : Activity() {
         countTv.text = if (total == 1) L.t("nNotes1") else L.t("nNotes", "n" to total)
         if (selected.isNotEmpty()) {
             header.addView(glassBtn(Icons.CLOSE) { selected.clear(); refresh() })
-            header.addView(tv(if (selected.size == 1) L.t("selected1") else L.t("selected", "n" to selected.size), 17f, T.text, true).apply { setPadding(dp(6), 0, 0, 0) }, lp(0, WRAP, 1f))
+            header.addView(View(this), lp(0, 1, 1f))
+            titleTv.text = if (selected.size == 1) L.t("selected1") else L.t("selected", "n" to selected.size)
             if (view == "trash") {
                 header.addView(glassBtn(MoreIcons.RESTORE) { selRecover() })
                 header.addView(glassBtn(Icons.TRASH, 10f, T.danger) { selDeleteForever() })
@@ -207,8 +213,11 @@ class MainActivity : Activity() {
                 header.addView(glassBtn(MoreIcons.STAR5, 9f) { selFav() })
                 header.addView(glassBtn(MoreIcons.FOLDER, 9f) { selFolder() })
                 header.addView(glassBtn(MoreIcons.PALETTE, 9f) { selColor() })
+                header.addView(glassBtn(MoreIcons.IMPORT, 9f) { shareNotes(selected.toList()) { selected.clear(); refresh() } })
                 header.addView(glassBtn(Icons.TRASH, 9f) { selTrash() })
             }
+            // botones un poquito más chicos para que quepan todos
+            for (i in 0 until header.childCount) header.getChildAt(i).let { v -> if (v is IconView) v.layoutParams = lp(dp(42), dp(42)).apply { marginStart = dp(2); marginEnd = dp(2) } }
             fabBox.visibility = View.GONE
             return
         }
@@ -345,8 +354,40 @@ class MainActivity : Activity() {
     private fun selFav() { val l = sel(); val v = !l.all { it.fav }; l.forEach { it.fav = v; Store.saveMeta(it) }; done() }
     private fun selTrash() {
         val now = System.currentTimeMillis()
+        val ids = selected.toList()
         sel().forEach { it.deleted = true; it.deletedAt = now; Store.saveMeta(it) }
-        toast(L.t("movedTrash")); done()
+        done()
+        trashSnack(ids)
+    }
+
+    /* ---------- 🗑️ "Se movió a la papelera · Deshacer" ---------- */
+    private var snackView: View? = null
+    private fun trashSnack(ids: List<String>) {
+        snack(L.t("movedTrash"), L.t("undo")) {
+            ids.forEach { id -> Store.meta(id)?.let { it.deleted = false; Store.saveMeta(it) } }
+            Store.changed()
+        }
+    }
+
+    private fun snack(msg: String, action: String?, onAction: (() -> Unit)?) {
+        snackView?.let { root.removeView(it) }
+        val bar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(18), dp(6), dp(6), dp(6))
+            background = android.graphics.drawable.LayerDrawable(arrayOf(roundBg(if (T.light) 0xF21C1C1E.toInt() else 0xF2303036.toInt(), dp(26).toFloat()), Glass.make(this@MainActivity, 26f)))
+            elevation = dp(10).toFloat()
+        }
+        bar.addView(tv(msg, 15f, if (T.light) 0xFFFFFFFF.toInt() else T.text), lp(0, WRAP, 1f))
+        lateinit var hide: Runnable
+        if (action != null && onAction != null) bar.addView(tv(action, 15f, 0xFF64D2FF.toInt(), true).apply {
+            setPadding(dp(16), dp(12), dp(16), dp(12)); pressBg(0, 20f)
+            setOnClickListener { onAction(); root.removeCallbacks(hide); hide.run() }
+        })
+        root.addView(bar, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.BOTTOM).apply { setMargins(dp(14), 0, dp(14), dp(100)) })
+        snackView = bar
+        bar.translationY = dp(80).toFloat(); bar.alpha = 0f
+        bar.animate().translationY(0f).alpha(1f).setDuration(320).setInterpolator(android.view.animation.OvershootInterpolator(1.2f)).start()
+        hide = Runnable { bar.animate().translationY(dp(60).toFloat()).alpha(0f).setDuration(220).withEndAction { root.removeView(bar); if (snackView === bar) snackView = null }.start() }
+        root.postDelayed(hide, 4500)
     }
     private fun selRecover() { sel().forEach { it.deleted = false; Store.saveMeta(it) }; done() }
     private fun selDeleteForever() {

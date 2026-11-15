@@ -378,4 +378,17 @@ class PantallaTest {
         assertEquals(body0, Store.readBody("n1").first)
         assertTrue("la foto volvió", File(Store.mediaDir, foto).length() > 0)
     }
+
+    @Test fun compartirVariasNotas() {
+        importar()
+        val items = Export.load(Store.notes.map { it.id })
+        assertTrue("las de PIN no se mandan", items.none { it.meta.locked })
+        val page = File(ctx.cacheDir, "p.html")
+        Export.page(ctx, items, page)
+        val html = page.readText()
+        assertTrue(html.contains("<img src=\"data:image"))
+        assertTrue(html.contains("<audio") || html.contains("<video"))
+        assertTrue(html.contains("Ticket"))
+        assertTrue(Export.text(items).contains("☐"))
+    }
 }

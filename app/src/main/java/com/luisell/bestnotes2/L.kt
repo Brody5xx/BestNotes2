@@ -262,6 +262,9 @@ object L {
         "langAiMsg" to "La IA gratis va a traducir la app a este idioma. Tarda de 1 a 4 minutos y necesita internet (solo esta vez).", "langAiGo" to "Traducir",
         "langAiWorking" to "Traduciendo…", "langAiFail" to "No se pudo terminar. Revisa el internet e inténtalo otra vez (sigue donde quedó).",
         "wallPhone" to "Translúcido", "themeTip" to "Tip: deja presionado ☀️ para escoger el fondo",
+        "sharePage" to "Página con videos", "sharePageSub" to "Se abre en cualquier teléfono, con fotos, audios y videos", "shareMany" to "{n} notas",
+        "sizeSend" to "Tamaño para enviar: {s}", "sizeOk" to "✅ Cabe por correo (Outlook, Gmail) y por mensaje", "sizeBig" to "⚠️ Muy grande para correo (máx. ~20 MB). Mándalo por WhatsApp como documento o achica los videos.",
+        "sizeHuge" to "⚠️ Muy grande. Mándalo por WhatsApp como documento (hasta 2 GB) o achica los videos.", "shareLocked" to "Las notas con PIN no se comparten",
     )
 
     private val EN = mapOf(
@@ -427,5 +430,8 @@ object L {
         "langAiMsg" to "The free AI will translate the app into this language. It takes 1 to 4 minutes and needs internet (only this time).", "langAiGo" to "Translate",
         "langAiWorking" to "Translating…", "langAiFail" to "Couldn't finish. Check your internet and try again (it continues where it stopped).",
         "wallPhone" to "Translucent", "themeTip" to "Tip: long-press ☀️ to pick the background",
+        "sharePage" to "Page with videos", "sharePageSub" to "Opens on any phone, with photos, audio and videos", "shareMany" to "{n} notes",
+        "sizeSend" to "Size to send: {s}", "sizeOk" to "✅ Fits by email (Outlook, Gmail) and by message", "sizeBig" to "⚠️ Too big for email (max ~20 MB). Send it on WhatsApp as a document or shrink the videos.",
+        "sizeHuge" to "⚠️ Very big. Send it on WhatsApp as a document (up to 2 GB) or shrink the videos.", "shareLocked" to "Notes with a PIN aren't shared",
     )
 }
