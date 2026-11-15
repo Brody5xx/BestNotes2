@@ -834,8 +834,15 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         private var snap = ""
         private val slop = android.view.ViewConfiguration.get(ctx).scaledTouchSlop
 
-        private fun dist(e: MotionEvent) = Math.hypot((e.getX(0) - e.getX(1)).toDouble(), (e.getY(0) - e.getY(1)).toDouble()).toFloat()
-        private fun ang(e: MotionEvent) = Math.toDegrees(Math.atan2((e.getY(1) - e.getY(0)).toDouble(), (e.getX(1) - e.getX(0)).toDouble())).toFloat()
+        /** Los dos dedos en coordenadas de la PANTALLA (no de la foto girada: si no, al girar la foto
+         *  el ángulo de los dedos "cambia" solo y la foto brinca de un lado a otro). */
+        private fun fingers(e: MotionEvent): FloatArray {
+            val p = floatArrayOf(e.getX(0), e.getY(0), e.getX(1), e.getY(1))
+            box.matrix.mapPoints(p)
+            return p
+        }
+        private fun dist(e: MotionEvent): Float { val p = fingers(e); return Math.hypot((p[0] - p[2]).toDouble(), (p[1] - p[3]).toDouble()).toFloat() }
+        private fun ang(e: MotionEvent): Float { val p = fingers(e); return Math.toDegrees(Math.atan2((p[3] - p[1]).toDouble(), (p[2] - p[0]).toDouble())).toFloat() }
 
         private fun guides(label: String?) {
             val loc = IntArray(2); box.getLocationInWindow(loc)

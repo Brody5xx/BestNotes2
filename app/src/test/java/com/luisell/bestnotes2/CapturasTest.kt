@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.net.Uri
 import android.os.Looper
+import android.view.MotionEvent
 import android.view.View
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -295,6 +296,27 @@ class CapturasTest {
         val ed = find(act.window.decorView, EditorView::class.java)!!
         val foto = ed.views.filterIsInstance<FotoView>().first()
         ed.selectImage(foto); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(800))
+        // 🤏 girar con dos dedos: la foto debe seguir a los dedos sin brincar
+        val box = FotoView::class.java.getDeclaredField("box").apply { isAccessible = true }.get(foto) as View
+        val touch = box.let { v -> val f2 = View::class.java.getDeclaredMethod("getListenerInfo").apply { isAccessible = true }.invoke(v); f2.javaClass.getDeclaredField("mOnTouchListener").apply { isAccessible = true }.get(f2) as View.OnTouchListener }
+        val cx = box.width / 2f; val cy = box.height / 2f; val rad = box.width / 3f
+        fun send(action: Int, n: Int, deg: Double) {
+            // dónde están los dedos en la pantalla → coordenadas dentro de la foto (como lo hace Android)
+            val scr = floatArrayOf((cx - rad * Math.cos(Math.toRadians(deg))).toFloat(), (cy - rad * Math.sin(Math.toRadians(deg))).toFloat(), (cx + rad * Math.cos(Math.toRadians(deg))).toFloat(), (cy + rad * Math.sin(Math.toRadians(deg))).toFloat())
+            val inv = android.graphics.Matrix(); box.matrix.invert(inv); inv.mapPoints(scr)
+            val props = Array(n) { MotionEvent.PointerProperties().apply { id = it; toolType = MotionEvent.TOOL_TYPE_FINGER } }
+            val co = Array(n) { MotionEvent.PointerCoords().apply { x = scr[it * 2]; y = scr[it * 2 + 1]; pressure = 1f; size = 1f } }
+            touch.onTouch(box, MotionEvent.obtain(0, 0, action, n, props, co, 0, 0, 1f, 1f, 0, 0, 0, 0))
+        }
+        send(MotionEvent.ACTION_DOWN, 1, 0.0)
+        send(MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 2, 0.0)
+        val seen = ArrayList<Float>()
+        for (k in 1..20) { send(MotionEvent.ACTION_MOVE, 2, k * 2.0); idle(); seen.add(foto.block.rot) }
+        System.err.println("GIRO " + seen)
+        org.junit.Assert.assertEquals("la foto debe quedar girada 40°", 40f, foto.block.rot, 1.5f)
+        for (i in 1 until seen.size) org.junit.Assert.assertTrue("no debe brincar: $seen", seen[i] >= seen[i - 1] - 0.5f)
+        send(MotionEvent.ACTION_POINTER_UP or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 2, 40.0)
+        foto.setRot(0f); idle()
         for ((deg, name) in listOf(30f to "50_girada30", 90f to "51_girada90")) {
             foto.setRot(deg); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(900))
             shot(act.window.decorView, name)
