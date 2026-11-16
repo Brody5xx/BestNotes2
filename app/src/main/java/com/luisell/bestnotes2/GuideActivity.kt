@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-16" to ("✨ Todo con animación: las tarjetas llegan una tras otra y se hunden al tocarlas, los botones de arriba caen rebotando, el menú llega deslizándose, estrellitas al terminar un pendiente y al abrir con el PIN, y los botones de nota nueva se esconden al bajar en la lista" to
+            "✨ Animations everywhere: cards arrive one after another and sink when tapped, the top buttons drop in bouncing, the menu slides in, sparkles when you finish a to-do and when you unlock with the PIN, and the new-note buttons hide while scrolling down"),
         "2026-11-15" to ("📲 «Transferir notas» en el menú ☰: pasa todas tus notas a otro teléfono con un archivo y tu contraseña" to
             "📲 “Transfer notes” in the ☰ menu: move all your notes to another phone with a file and your password"),
         "2026-11-15" to ("🕘 Historial nuevo: línea de tiempo por ratos de trabajo, verde lo nuevo y rojo lo borrado, «Volver a como quedó» y «Recuperar». 👆 Huella o cara, 📥 guardar fotos y textos de otras apps, 🏠 widget, 🔁 respaldo automático cada semana, 🗑️ la papelera se vacía sola a los 30 días y 📄 escáner de documentos" to

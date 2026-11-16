@@ -143,6 +143,15 @@ class MainActivity : Activity() {
         fabs.addView(fab, lp(dp(60), dp(60)))
         root.addView(fabs, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, dp(20), dp(24)) })
         fabBox = fabs
+        // ✨ los botones de nota nueva entran rebotando, uno tras otro
+        Anim.popIn(fab, 250); Anim.popIn(ck, 330); Anim.popIn(pen, 410)
+        // al bajar en la lista se esconden; al subir regresan
+        list.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
+                if (dy > 12 && !fabsHidden) { fabsHidden = true; fabs.animate().translationY(dp(120).toFloat()).alpha(0f).setDuration(220).start() }
+                else if (dy < -12 && fabsHidden) { fabsHidden = false; fabs.animate().translationY(0f).alpha(1f).setDuration(320).setInterpolator(android.view.animation.OvershootInterpolator(1.4f)).start() }
+            }
+        })
         setContentView(root)
         root.isFocusableInTouchMode = true; root.requestFocus()
         paintHeader()
@@ -198,7 +207,15 @@ class MainActivity : Activity() {
 
     private fun paintHeader() {
         header.removeAllViews()
-        titleTv.text = viewName()
+        val hMode = (if (selected.isNotEmpty()) "sel" else view.takeIf { it == "trash" } ?: ""); val hChanged = hMode != headerMode; headerMode = hMode
+        val newTitle = viewName()
+        if (newTitle != lastTitle && lastTitle.isNotEmpty()) {
+            titleTv.alpha = 0f; titleTv.translationX = -dp(30).toFloat()
+            titleTv.animate().alpha(1f).translationX(0f).setDuration(380).setInterpolator(android.view.animation.OvershootInterpolator(1.2f)).start()
+            countTv.alpha = 0f; countTv.animate().alpha(1f).setStartDelay(120).setDuration(380).start()
+        }
+        lastTitle = newTitle
+        titleTv.text = newTitle
         val total = visibleCount
         countTv.text = (if (total == 1) L.t("nNotes1") else L.t("nNotes", "n" to total)) + if (view == "trash") "  ·  " + L.t("trashAuto") else ""
         if (selected.isNotEmpty()) {
@@ -219,6 +236,7 @@ class MainActivity : Activity() {
             // botones un poquito más chicos para que quepan todos
             for (i in 0 until header.childCount) header.getChildAt(i).let { v -> if (v is IconView) v.layoutParams = lp(dp(42), dp(42)).apply { marginStart = dp(2); marginEnd = dp(2) } }
             fabBox.visibility = View.GONE
+            if (hChanged) dropHeader()
             return
         }
         fabBox.visibility = if (view == "trash") View.GONE else View.VISIBLE
@@ -239,6 +257,20 @@ class MainActivity : Activity() {
             spread(); header.addView(glassBtn(if (T.light) MoreIcons.MOON else MoreIcons.SUN) { v -> switchTheme(!T.light, v) }.apply {
                 setOnLongClickListener { appearance(); true }
             })
+        }
+        if (hChanged) dropHeader()
+    }
+
+    private var headerMode: String? = null
+
+    /** ✨ Los botones de arriba caen uno tras otro con un rebotito. */
+    private fun dropHeader() {
+        var k = 0
+        for (i in 0 until header.childCount) {
+            val v = header.getChildAt(i); if (v.layoutParams.width == 0) continue
+            v.alpha = 0f; v.translationY = -dp(26).toFloat(); v.scaleX = 0.7f; v.scaleY = 0.7f
+            v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f).setStartDelay(45L * k++).setDuration(420)
+                .setInterpolator(android.view.animation.OvershootInterpolator(2f)).start()
         }
     }
 
@@ -285,12 +317,25 @@ class MainActivity : Activity() {
     /** Saltito al tocar un botón. */
     private fun pop(v: View) { v.animate().scaleX(0.88f).scaleY(0.88f).setDuration(70).withEndAction { v.animate().scaleX(1f).scaleY(1f).setDuration(160).setInterpolator(android.view.animation.OvershootInterpolator(3f)).start() }.start() }
 
+    /** ✨ Para la animación de las tarjetas: cuáles ya se vieron en esta vista. */
+    private val shownCards = HashSet<String>()
+    private var cardWave = 0
+    private var shownKey = ""
+    private var lastTitle = ""
+    private var fabsHidden = false
+
     fun refresh() {
+        // al cambiar de carpeta, de vista o de búsqueda, las tarjetas vuelven a llegar con animación
+        val key = view + "|" + query.isBlank() + "|" + lm.spanCount
+        if (key != shownKey) { shownKey = key; shownCards.clear() }
+        cardWave = 0
         selected.retainAll(Store.notes.map { it.id }.toSet())
         val items = visible()
         visibleCount = items.size
         adapter.set(items)
-        empty.visibility = if (items.isEmpty() && Store.loaded) View.VISIBLE else View.GONE
+        val showEmpty = items.isEmpty() && Store.loaded
+        if (showEmpty && empty.visibility != View.VISIBLE) { empty.alpha = 0f; empty.animate().alpha(1f).setDuration(500).start(); Anim.float(empty) }
+        empty.visibility = if (showEmpty) View.VISIBLE else View.GONE
         empty.text = when {
             query.isNotBlank() -> L.t("noMatch", "q" to query.trim())
             view == "trash" -> L.t("trashEmpty")
@@ -521,6 +566,12 @@ class MainActivity : Activity() {
             line.translationX = dp(10) + panelW * holder.scaleX - dp(7); line.alpha = if (k < 0.85f) 1f else (1 - k) / 0.15f
         }
         va.start()
+        // ✨ las opciones del menú llegan una tras otra desde la izquierda
+        for (i in 0 until p.childCount) {
+            val v = p.getChildAt(i)
+            v.alpha = 0f; v.translationX = -dp(40).toFloat()
+            v.animate().alpha(1f).translationX(0f).setStartDelay(120L + 22L * minOf(i, 24)).setDuration(360).setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
+        }
     }
 
     /* ---------- ☀️ Apariencia: el fondo de la app (panel bonito) ---------- */
@@ -1162,6 +1213,7 @@ class MainActivity : Activity() {
             }
             val card = LinearLayout(parent.context)
             card.layoutParams = StaggeredGridLayoutManager.LayoutParams(MATCH, WRAP).apply { setMargins(dp(5), dp(5), dp(5), dp(5)) }
+            Anim.press(card)                          // ✨ se hunde al tocarla y rebota
             return VH(card)
         }
 
@@ -1170,6 +1222,8 @@ class MainActivity : Activity() {
             val h = hh as VH
             val n = items[position - off()]
             h.id = n.id
+            // ✨ las tarjetas llegan una tras otra la primera vez que se ven
+            if (shownCards.add(n.id)) Anim.enter(h.card, 40L * minOf(cardWave++, 10)) else { h.card.alpha = 1f; h.card.translationY = 0f; h.card.scaleX = 1f; h.card.scaleY = 1f }
             val grid = lm.spanCount == 2
             val sel = n.id in selected
             h.card.background = Glass.make(this@MainActivity, 22f, tint = n.color, bar = n.color != 0, selected = sel)
@@ -1215,11 +1269,13 @@ class MainActivity : Activity() {
             if (n.pinned && view != "trash") ic(Icons.PIN)
             if (n.id in remindIds) ic(Icons.CLOCK)
             h.card.setOnClickListener {
-                if (selected.isNotEmpty()) { if (!selected.remove(n.id)) selected.add(n.id); notifyItemChanged(h.bindingAdapterPosition); paintHeader() }
+                if (selected.isNotEmpty()) { if (!selected.remove(n.id)) selected.add(n.id); Anim.bump(h.card, 1.04f); notifyItemChanged(h.bindingAdapterPosition); paintHeader() }
                 else open(n)
             }
             h.card.setOnLongClickListener {
                 if (!selected.remove(n.id)) selected.add(n.id)
+                Anim.bump(h.card, 1.05f)
+                h.card.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
                 notifyItemChanged(h.bindingAdapterPosition); paintHeader(); true
             }
         }

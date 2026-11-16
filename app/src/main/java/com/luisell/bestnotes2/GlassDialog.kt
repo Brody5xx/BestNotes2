@@ -223,6 +223,8 @@ object PinPad {
                 val v = entered
                 card.postDelayed({
                     if (onDone(v)) {
+                        Anim.sparkle(lock, 70f, 700)
+                        dots.forEach { Anim.bump(it, 1.4f) }
                         // ✓ se abre el candado y se va
                         lock.animate().rotation(-12f).scaleX(1.15f).scaleY(1.15f).setDuration(160).withEndAction { d.dismiss() }.start()
                     } else shake()

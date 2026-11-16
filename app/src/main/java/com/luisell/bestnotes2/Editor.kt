@@ -540,6 +540,11 @@ class ListaView(val ed: EditorView, override val block: Block.ListB) : BlockView
         flush()
         if (!it.done) {
             ed.host.askDone {
+                // ✨ estrellitas en la casilla y el renglón se va deslizando antes de bajar a "Terminados"
+                val row = rows.firstOrNull { r -> r.first === it }?.second?.parent as? View
+                row?.let { r ->
+                    (r as? ViewGroup)?.getChildAt(0)?.let { m -> Anim.bump(m, 1.35f); Anim.sparkle(m, 34f, 560) }
+                }
                 val undone = block.items.filter { x -> !x.done }
                 it.pos = undone.indexOf(it)
                 it.done = true
@@ -549,7 +554,8 @@ class ListaView(val ed: EditorView, override val block: Block.ListB) : BlockView
                     (ed.context.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).hideSoftInputFromWindow(f.windowToken, 0)
                     f.clearFocus()
                 }
-                draw(null); ed.host.onDirty()
+                if (row != null) row.animate().alpha(0.25f).translationX(row.width * 0.18f).setStartDelay(160).setDuration(220).withEndAction { draw(null); ed.host.onDirty() }.start()
+                else { draw(null); ed.host.onDirty() }
             }
         } else {
             it.done = false

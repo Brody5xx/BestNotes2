@@ -44,7 +44,7 @@ class LockActivity : Activity() {
         super.onCreate(savedInstanceState)
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
         edgeToEdge(root)
-        root.addView(IconView(this, Icons.LOCK, 22f).apply { color = T.text; isClickable = false }, lp(dp(90), dp(90)))
+        root.addView(IconView(this, Icons.LOCK, 22f).apply { color = T.text; isClickable = false; post { Anim.popIn(this); Anim.float(this, 5f) } }, lp(dp(90), dp(90)))
         root.addView(tv(L.t("unlockApp"), 18f, T.text, true).apply { gravity = Gravity.CENTER; setPadding(0, dp(16), 0, dp(20)) })
         root.addView(tv(L.t("unlock"), 16f, 0xFF16161A.toInt(), true).apply {
             setPadding(dp(28), dp(12), dp(28), dp(12)); pressBg(T.text, 24f); setOnClickListener { ask() }

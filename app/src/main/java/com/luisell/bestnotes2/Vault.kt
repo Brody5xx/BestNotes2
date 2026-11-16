@@ -251,7 +251,7 @@ class VaultActivity : Activity() {
     private fun lockCard(col: LinearLayout): LinearLayout {
         val sv = ScrollView(this)
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(24), dp(30), dp(24), dp(30)) }
-        box.addView(IconView(this, MoreIcons.SHIELD, 26f).apply { color = 0xFF4FC3F7.toInt() }, lp(dp(96), dp(96)))
+        box.addView(IconView(this, MoreIcons.SHIELD, 26f).apply { color = 0xFF4FC3F7.toInt(); post { Anim.popIn(this); Anim.float(this, 5f) } }, lp(dp(96), dp(96)))
         sv.addView(box); col.addView(sv, lp(MATCH, 0, 1f))
         return box
     }
