@@ -474,6 +474,7 @@ class MainActivity : Activity() {
             startActivity(Intent(this, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id))
         }) })
         p.addView(menuRow(this, Icons.BOX, L.t("backup"), lastBackupText()) { closeDrawer(); backupMenu() })
+        p.addView(menuRow(this, Icons.SWAP, L.t("transfer"), L.t("transferSub")) { closeDrawer(); transferMenu() })
         p.addView(menuRow(this, MoreIcons.IMPORT, L.t("import"), L.t("importSub")) { closeDrawer(); pickFile() })
         p.addView(menuRow(this, Icons.GLOBE, L.t("language"), when (L.choice) { "es" -> "Español"; "en" -> "English"; else -> L.t("langAuto") }) { closeDrawer(); pickLang() })
         p.addView(menuRow(this, Icons.CLOCK, L.t("hourFmt"), when (L.hourFmt) { "12" -> "12 h (3:00 PM)"; "24" -> "24 h (15:00)"; else -> L.t("hourAuto") }) { closeDrawer(); pickHourFmt() })
@@ -909,6 +910,15 @@ class MainActivity : Activity() {
                 }
             }
         }.setNegativeButton(L.t("cancel"), null).show()
+    }
+
+    /* ---------- 📲 pasar las notas a otro teléfono ---------- */
+    private fun transferMenu() {
+        Sheet(this, "📲 " + L.t("transfer"), L.t("transferIntro"))
+            .item(Icons.SEND, L.t("transferMake"), Sheet.GREEN, L.t("transferMakeSub")) { askBackupPass() }
+            .item(MoreIcons.IMPORT, L.t("transferGet"), Sheet.BLUE, L.t("transferGetSub")) { pickFile() }
+            .custom(tv(L.t("transferHow"), 13.5f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(18), dp(8), dp(18), dp(10)) })
+            .show()
     }
 
     /* ---------- 💾 respaldo ---------- */

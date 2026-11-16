@@ -213,6 +213,8 @@ class CapturasTest {
             val d = org.robolectric.shadows.ShadowDialog.getLatestDialog()!!
             shot(d.window!!.decorView, name); d.dismiss(); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(500))
         }
+        MainActivity::class.java.getDeclaredMethod("transferMenu").apply { isAccessible = true }.invoke(main)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500)); shot(main.window.decorView, "36_transferir"); Sheet.closeTop(main); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(800))
         main.confirm("Vaciar papelera", "Se borrarán 3 notas para siempre.", "Vaciar", true) {}; last("30_confirmar")
         main.dialog().setTitle("Mover a carpeta").setSingleChoiceItems(arrayOf("Sin carpeta", "Ideas", "Recetas"), 1) { _, _ -> }.setNegativeButton("Cancelar", null).show(); last("31_lista")
         Pin.create(main) {}; last("32_pin")
