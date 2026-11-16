@@ -100,7 +100,7 @@ class GlassBuilder(private val ctx: Context) {
                 v.setTextColor(T.text); v.setHintTextColor(T.faint)
             } else if (v is ViewGroup) for (i in 0 until v.childCount) glassFields(v.getChildAt(i))
         }
-        view?.let { glassFields(it) }
+        view?.let { glassFields(it); addEyes(it) }
         items?.let { arr ->
             for ((i, t) in arr.withIndex()) {
                 val row = LinearLayout(ctx).apply {

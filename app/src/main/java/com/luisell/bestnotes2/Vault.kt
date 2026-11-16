@@ -275,6 +275,7 @@ class VaultActivity : Activity() {
                 runOnUiThread { if (k == null) { btn.isEnabled = true; btn.text = L.t("vCreate"); err.text = L.t("vFail") } else { keys = k; items = JSONArray(); showOpen() } }
             }
         }
+        addEyes(box)
         box.addView(btn, lp(MATCH, WRAP).apply { topMargin = dp(14) })
         box.addView(tv("⚠️ " + L.t("vForgetWarn"), 13f, T.muted).apply { gravity = Gravity.CENTER; setPadding(0, dp(18), 0, 0) })
     }
@@ -283,7 +284,7 @@ class VaultActivity : Activity() {
     private fun showLocked() {
         val col = screen(); val box = lockCard(col)
         box.addView(tv(L.t("vLocked"), 20f, T.text, true).apply { gravity = Gravity.CENTER; setPadding(0, dp(10), 0, dp(18)) })
-        val p = passField(L.t("vPassword")); box.addView(p, lp(MATCH, WRAP))
+        val p = passField(L.t("vPassword")); box.addView(p, lp(MATCH, WRAP)); addEyes(box)
         val err = tv("", 14f, T.danger).apply { gravity = Gravity.CENTER; setPadding(0, dp(10), 0, 0) }; box.addView(err)
         lateinit var btn: TextView
         val go = {

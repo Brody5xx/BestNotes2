@@ -19,8 +19,9 @@ object Bio {
         if (Build.VERSION.SDK_INT < 29) return false
         return try {
             val bm = ctx.getSystemService(android.hardware.biometrics.BiometricManager::class.java) ?: return false
-            @Suppress("DEPRECATION")
-            bm.canAuthenticate() == android.hardware.biometrics.BiometricManager.BIOMETRIC_SUCCESS
+            val ok = android.hardware.biometrics.BiometricManager.BIOMETRIC_SUCCESS
+            if (Build.VERSION.SDK_INT >= 30) bm.canAuthenticate(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_WEAK) == ok
+            else @Suppress("DEPRECATION") (bm.canAuthenticate() == ok)
         } catch (_: Throwable) { false }
     }
 
@@ -34,11 +35,15 @@ object Bio {
     fun ask(ctx: Context, title: String, onOk: () -> Unit) {
         if (Build.VERSION.SDK_INT < 28) return
         try {
-            val p = android.hardware.biometrics.BiometricPrompt.Builder(ctx)
+            val b = android.hardware.biometrics.BiometricPrompt.Builder(ctx)
                 .setTitle(title)
                 .setSubtitle(L.t("bioSub"))
                 .setNegativeButton(L.t("bioUsePin"), ctx.mainExecutor) { _, _ -> }
-                .build()
+            // la cara abre sola, sin tener que tocar "Confirmar" después
+            if (Build.VERSION.SDK_INT >= 29) b.setConfirmationRequired(false)
+            // acepta también la cara "normal" del teléfono (no solo la más segura)
+            if (Build.VERSION.SDK_INT >= 30) b.setAllowedAuthenticators(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_WEAK)
+            val p = b.build()
             p.authenticate(CancellationSignal(), ctx.mainExecutor, object : android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(r: android.hardware.biometrics.BiometricPrompt.AuthenticationResult?) { onOk() }
             })

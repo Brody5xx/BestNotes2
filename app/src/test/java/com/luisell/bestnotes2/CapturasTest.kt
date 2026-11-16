@@ -219,6 +219,15 @@ class CapturasTest {
         main.dialog().setTitle("Mover a carpeta").setSingleChoiceItems(arrayOf("Sin carpeta", "Ideas", "Recetas"), 1) { _, _ -> }.setNegativeButton("Cancelar", null).show(); last("31_lista")
         Pin.create(main) {}; last("32_pin")
         main.askText("Nueva carpeta", hint = "Nombre") {}; last("35_texto")
+        main.askText("Contraseña del archivo", "secreta123", password = true) {}
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(800))
+        org.robolectric.shadows.ShadowDialog.getLatestDialog()!!.window!!.decorView.let { dv ->
+            fun <T> find(x: View, c: Class<T>): List<T> { val o = ArrayList<T>(); if (c.isInstance(x)) o.add(c.cast(x)); if (x is android.view.ViewGroup) for (k in 0 until x.childCount) o.addAll(find(x.getChildAt(k), c)); return o }
+            shot(dv, "37_pass_oculta")
+            find(dv, IconView::class.java).first { it.kind == Icons.EYE }.performClick()
+            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(400))
+        }
+        last("38_pass_visible")
         T.light = true
         try { Pin.change(main) {}; last("33_pin_claro"); main.confirm("¿Borrar?", "No se puede deshacer.", "Borrar", true) {}; last("34_confirmar_claro") } finally { T.light = false }
     }

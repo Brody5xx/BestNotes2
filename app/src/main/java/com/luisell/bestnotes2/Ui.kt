@@ -206,3 +206,42 @@ fun menuRow(ctx: Context, icon: Int, label: String, sub: String? = null, color: 
     row.addView(col, lp(0, WRAP, 1f))
     return row
 }
+
+/* ---------- 👁 el ojito para ver la contraseña mientras la escribes ---------- */
+private fun EditText.isPass(): Boolean {
+    val v = inputType and android.text.InputType.TYPE_MASK_VARIATION
+    return (inputType and android.text.InputType.TYPE_MASK_CLASS) == android.text.InputType.TYPE_CLASS_TEXT &&
+        (v == android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD || v == android.text.InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD)
+}
+
+/** Le pone el ojito 👁 a las cajitas de contraseña que haya dentro de [root] (una sola vez). */
+fun addEyes(root: View) {
+    val found = ArrayList<EditText>()
+    fun walk(v: View) { if (v is EditText) { if (v.isPass() && v.tag != "eye") found.add(v) } else if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i)) }
+    walk(root)
+    for (e in found) {
+        val parent = e.parent as? ViewGroup ?: continue
+        val idx = parent.indexOfChild(e); val lpE = e.layoutParams
+        parent.removeViewAt(idx)
+        val ctx = e.context
+        val box = FrameLayout(ctx)
+        e.tag = "eye"
+        e.typeface = android.graphics.Typeface.DEFAULT
+        e.setPaddingRelative(e.paddingStart, e.paddingTop, e.paddingEnd + ctx.dp(40), e.paddingBottom)
+        box.addView(e, FrameLayout.LayoutParams(MATCH, WRAP))
+        var shown = false
+        val eye = IconView(ctx, Icons.EYE, 8.5f).apply { color = T.muted; contentDescription = L.t("showPass") }
+        eye.setOnClickListener {
+            shown = !shown
+            val sel = e.selectionEnd
+            e.inputType = android.text.InputType.TYPE_CLASS_TEXT or if (shown) android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD else android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            e.typeface = android.graphics.Typeface.DEFAULT
+            e.setSelection(sel.coerceIn(0, e.text.length))
+            eye.kind = if (shown) Icons.EYE_OFF else Icons.EYE
+            eye.color = if (shown) 0xFF4FC3F7.toInt() else T.muted
+            eye.animate().scaleX(0.75f).scaleY(0.75f).setDuration(70).withEndAction { eye.animate().scaleX(1f).scaleY(1f).setDuration(140).start() }.start()
+        }
+        box.addView(eye, FrameLayout.LayoutParams(ctx.dp(44), ctx.dp(44), Gravity.END or Gravity.CENTER_VERTICAL).apply { marginEnd = ctx.dp(4) })
+        parent.addView(box, idx, lpE ?: ViewGroup.LayoutParams(MATCH, WRAP))
+    }
+}
