@@ -199,10 +199,12 @@ class PantallaTest {
         assertEquals(1, f.edits().size)
         f.edits()[0].setText("al lado")
         ed.moveBlock(f, -1); idle()
-        assertTrue(ed.blocks[0] is Block.Img)
-        assertEquals("al lado", runsPlain((ed.blocks[0] as Block.Img).beside))
+        // arriba de la foto queda un renglón vacío para poder escribir encima
+        assertTrue(ed.blocks[0] is Block.Text && runsPlain((ed.blocks[0] as Block.Text).runs).isEmpty())
+        assertTrue(ed.blocks[1] is Block.Img)
+        assertEquals("al lado", runsPlain((ed.blocks[1] as Block.Img).beside))
         // quitar la foto: el texto de al lado se queda
-        ed.removeImage(ed.views[0] as FotoView); idle()
+        ed.removeImage(ed.views.first { it is FotoView } as FotoView); idle()
         assertTrue(ed.blocks.none { it is Block.Img })
         assertTrue(blocksPlain(ed.blocks).startsWith("al lado"))
         // contorno y tamaño se guardan

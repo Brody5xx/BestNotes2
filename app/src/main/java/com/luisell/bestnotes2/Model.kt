@@ -198,7 +198,8 @@ fun normalize(blocks: MutableList<Block>): MutableList<Block> {
     for (b in blocks) {
         val last = out.lastOrNull()
         if (b is Block.Text && last is Block.Text) {
-            last.runs = mergeRuns(last.runs + Run("\n") + b.runs)
+            // un renglón vacío no deja un salto de línea de más
+            last.runs = if (runsPlain(last.runs).isEmpty()) b.runs.toMutableList() else mergeRuns(last.runs + Run("\n") + b.runs)
         } else if (b is Block.ListB && last is Block.ListB && last.kind == b.kind) {
             last.items.addAll(b.items)
         } else if (b is Block.ListB && b.items.isEmpty()) {
@@ -206,6 +207,8 @@ fun normalize(blocks: MutableList<Block>): MutableList<Block> {
         } else out.add(b)
     }
     if (out.isEmpty() || out.last() !is Block.Text) out.add(Block.Text())
+    // si la nota empieza con una foto, arriba queda un renglón para poder escribir encima
+    if (out.first() is Block.Img) out.add(0, Block.Text())
     return out
 }
 

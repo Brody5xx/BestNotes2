@@ -257,6 +257,30 @@ class EditorView(ctx: Context, val host: Host) : LinearLayout(ctx) {
     var selected: FotoView? = null
         private set
 
+    /** ✍️ Escribir ARRIBA de un bloque (si no hay texto arriba, se crea un renglón). */
+    fun writeAbove(v: BlockView) {
+        selectImage(null)
+        val i = views.indexOf(v); if (i < 0) return
+        val prev = views.getOrNull(i - 1)
+        if (prev != null && prev.block is Block.Text) { prev.focusAt(0, -1); return }
+        flushAll()
+        val nb = blocks.toMutableList(); nb.add(i, Block.Text())
+        setBlocks(nb); host.onDirty()
+        post { views.getOrNull(i)?.focusAt(0, 0) }
+    }
+
+    /** ✍️ Escribir DEBAJO de un bloque. */
+    fun writeBelow(v: BlockView) {
+        selectImage(null)
+        val i = views.indexOf(v); if (i < 0) return
+        val next = views.getOrNull(i + 1)
+        if (next != null && next.block is Block.Text) { next.focusAt(0, 0); return }
+        flushAll()
+        val nb = blocks.toMutableList(); nb.add(i + 1, Block.Text())
+        setBlocks(nb); host.onDirty()
+        post { views.getOrNull(i + 1)?.focusAt(0, 0) }
+    }
+
     fun selectImage(f: FotoView?) {
         if (selected === f) return
         selected?.setSelected(false)
@@ -657,6 +681,17 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             canvas.restore()
         }
         override fun verifyDrawable(who: android.graphics.drawable.Drawable) = who === glow || super.verifyDrawable(who)
+        // tocar el espacio vacío ARRIBA de la foto: escribes arriba de la foto
+        @SuppressLint("ClickableViewAccessibility")
+        override fun onTouchEvent(e: MotionEvent): Boolean {
+            if (e.actionMasked == MotionEvent.ACTION_DOWN) return true
+            if (e.actionMasked == MotionEvent.ACTION_UP) {
+                if (e.y < box.top) ed.writeAbove(this@FotoView)
+                else if (side().isNotEmpty()) focusAt(0, -1)
+                else ed.writeBelow(this@FotoView)
+            }
+            return true
+        }
         override fun onMeasure(ws: Int, hs: Int) {
             val W = MeasureSpec.getSize(ws)
             var pw = (W * block.pct / 100f).toInt().coerceIn(dp(40), W)
@@ -672,7 +707,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             if (edit.visibility != View.GONE) {
                 if (side().isNotEmpty()) {
                     edit.measure(MeasureSpec.makeMeasureSpec(maxOf(dp(60), W - bw - gap), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
-                    h = maxOf(h, edit.measuredHeight)
+                    h = maxOf(h, top + edit.measuredHeight)          // el texto de al lado empieza donde empieza la foto
                 } else {
                     edit.measure(MeasureSpec.makeMeasureSpec(W, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
                     h += gap / 2 + edit.measuredHeight
@@ -697,8 +732,9 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             if (edit.visibility != View.GONE) {
                 val gap = dp(12)
                 when (side()) {
-                    "l" -> { val x = left + pw + ox + gap; edit.layout(x, 0, x + edit.measuredWidth, edit.measuredHeight) }
-                    "r" -> { val x = maxOf(0, left - ox - gap - edit.measuredWidth); edit.layout(x, 0, x + edit.measuredWidth, edit.measuredHeight) }
+                    // el texto de al lado viaja con la foto (empieza a su altura) y ocupa todo el lado: tocas ahí y escribes
+                    "l" -> { val x = left + pw + ox + gap; edit.layout(x, top, x + edit.measuredWidth, top + maxOf(edit.measuredHeight, bh)) }
+                    "r" -> { val x = maxOf(0, left - ox - gap - edit.measuredWidth); edit.layout(x, top, x + edit.measuredWidth, top + maxOf(edit.measuredHeight, bh)) }
                     else -> { val y = top + bh + gap / 2; edit.layout(0, y, W, y + edit.measuredHeight) }
                 }
             }
@@ -720,7 +756,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         stampTv.background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0x00000000, 0x9E000000.toInt()))
         stampTv.setPadding(dp(8), dp(14), dp(8), dp(5))
         box.addView(stampTv, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
-        edit.setRuns(block.beside); edit.hint = L.t("besidePh"); edit.minHeight = dp(70)
+        edit.setRuns(block.beside); edit.hint = null; edit.minHeight = dp(40)    // sin letrero: así las capturas se ven limpias
         ed.wire(edit)
         flow.addView(box); flow.addView(edit)
         root.addView(flow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))

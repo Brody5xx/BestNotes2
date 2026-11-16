@@ -333,4 +333,21 @@ class CapturasTest {
             shot(act.window.decorView, name)
         }
     }
+
+    @Test fun capturasTextoAlrededor() {
+        if (System.getenv("CAPTURAS") == null) return
+        var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
+        val bm = android.graphics.Bitmap.createBitmap(600, 450, android.graphics.Bitmap.Config.ARGB_8888); android.graphics.Canvas(bm).drawColor(0xFF3949AB.toInt())
+        val r = Photos.saveNew(bm)
+        val m = Store.createNote("Alrededor", mutableListOf(
+            Block.Img(r.file, 45f, "l", 0f, 40f, 600, 450, beside = mutableListOf(Run("Texto al lado de la foto que baja junto con ella"))),
+            Block.Text(mutableListOf(Run("Texto debajo de la foto")))))
+        waitIo(); idle()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
+        waitIo(); idle(); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        shot(act.window.decorView, "60_alrededor")
+        fun <T> find(x: View, c: Class<T>): T? { if (c.isInstance(x)) return c.cast(x); if (x is android.view.ViewGroup) for (k in 0 until x.childCount) find(x.getChildAt(k), c)?.let { return it }; return null }
+        val ed = find(act.window.decorView, EditorView::class.java)!!
+        org.junit.Assert.assertTrue("arriba de la foto debe haber un renglón para escribir", ed.blocks.first() is Block.Text)
+    }
 }
