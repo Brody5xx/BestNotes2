@@ -350,4 +350,18 @@ class CapturasTest {
         val ed = find(act.window.decorView, EditorView::class.java)!!
         org.junit.Assert.assertTrue("arriba de la foto debe haber un renglón para escribir", ed.blocks.first() is Block.Text)
     }
+
+    @Test fun capturasIntro() {
+        if (System.getenv("CAPTURAS") == null) return
+        var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
+        val main = Robolectric.buildActivity(MainActivity::class.java).setup().visible().get(); idle()
+        MainActivity::class.java.getDeclaredMethod("intro").apply { isAccessible = true }.invoke(main)
+        val rt = MainActivity::class.java.getDeclaredField("root").apply { isAccessible = true }.get(main) as android.view.ViewGroup
+        val ov = rt.getChildAt(rt.childCount - 1) as android.view.ViewGroup
+        // como queda a la mitad de la presentación
+        fun fin(v: View) { v.animate().cancel(); v.alpha = 1f; v.scaleX = 1f; v.scaleY = 1f; v.rotation = 0f; v.translationY = 0f; if (v is android.widget.TextView) v.letterSpacing = 0.3f; if (v is android.view.ViewGroup) for (k in 0 until v.childCount) fin(v.getChildAt(k)) }
+        fin(ov)
+        main.window.decorView.let { v -> v.measure(View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(2340, View.MeasureSpec.EXACTLY)); v.layout(0, 0, 1080, 2340) }
+        shot(main.window.decorView, "70_intro")
+    }
 }

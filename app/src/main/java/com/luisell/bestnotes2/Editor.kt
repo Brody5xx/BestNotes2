@@ -376,6 +376,8 @@ class EditorView(ctx: Context, val host: Host) : LinearLayout(ctx) {
     /** Pone fotos donde está el cursor (parte el texto o la lista en dos). */
     fun insertImages(imgs: List<Block>) {
         if (imgs.isEmpty()) return
+        // ✨ las fotos nuevas llegan inflándose con estrellitas
+        post { postDelayed({ views.filterIsInstance<FotoView>().filter { f -> imgs.any { it === f.block } }.forEachIndexed { i, f -> f.appear(i * 90L) } }, 60) }
         flushAll()
         val e = focused
         val owner = e?.let { ed -> views.firstOrNull { it.edits().contains(ed) } }
@@ -893,6 +895,13 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         } else { block.stamp = ""; Photos.setStampOn(ctx, false) }
         stampTv.alpha = 0f; paint(); stampTv.animate().alpha(1f).setDuration(200).start()
         ed.host.onDirty(); ed.host.onImageChanged(this)
+    }
+
+    /** ✨ Llega inflándose (cuando la acabas de poner). */
+    fun appear(delay: Long) {
+        box.scaleX = 0.3f; box.scaleY = 0.3f; box.alpha = 0f
+        box.animate().scaleX(1f).scaleY(1f).alpha(1f).setStartDelay(delay).setDuration(480)
+            .setInterpolator(android.view.animation.OvershootInterpolator(1.6f)).withEndAction { Anim.sparkle(box, 80f, 650) }.start()
     }
 
     /** La foto cambió de archivo (girar o recortar). */

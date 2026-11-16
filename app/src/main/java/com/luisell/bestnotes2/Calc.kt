@@ -463,6 +463,9 @@ class CalcActivity : Activity() {
                     pressBg(bg, 14f)
                     setOnClickListener { key(k) }
                 }
+                Anim.press(cell, 0.9f)                                  // ✨ las teclas se hunden y rebotan
+                cell.alpha = 0f; cell.translationY = dp(24).toFloat()   // ✨ y llegan en ola al abrir
+                cell.animate().alpha(1f).translationY(0f).setStartDelay(40L * r + 18L * c).setDuration(340).setInterpolator(android.view.animation.OvershootInterpolator(1.3f)).start()
                 val small = tv(k[2], 10f, 0xFFB9AEFF.toInt()).apply { gravity = Gravity.CENTER }
                 if (k[2].isEmpty()) small.visibility = View.GONE
                 cell.addView(small)

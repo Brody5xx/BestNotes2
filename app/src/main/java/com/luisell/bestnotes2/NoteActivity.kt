@@ -136,6 +136,14 @@ class NoteActivity : Activity(), EditorView.Host {
         loaded = true
         snapshot()
         showBanners()
+        // ✨ el contenido de la nota llega en ola, renglón tras renglón
+        if (!isNew) editor.post {
+            for (i in 0 until minOf(editor.childCount, 10)) {
+                val v = editor.getChildAt(i)
+                v.alpha = 0f; v.translationY = dp(18).toFloat()
+                v.animate().alpha(1f).translationY(0f).setStartDelay(90L + 45L * i).setDuration(360).setInterpolator(android.view.animation.DecelerateInterpolator(1.8f)).start()
+            }
+        }
         // lo que había al abrir (para guardar la versión de antes si cambias algo)
         openTitle = meta.title; openBody = blocksJson(editor.blocks); openInk = extraObj.opt("ink"); openAt = meta.updated; wasNew = isNew
         sessStart = System.currentTimeMillis(); sessPre = Timeline.snap(meta.title, extraObj.optJSONArray("tr"), openBody, openInk)
@@ -780,7 +788,9 @@ class NoteActivity : Activity(), EditorView.Host {
 
     override fun hint(msg: String) {
         hintTv.text = msg
-        hintTv.animate().alpha(1f).setDuration(150).start()
+        // ✨ el aviso cae desde arriba con un rebotito
+        if (hintTv.alpha < 0.5f) { hintTv.translationY = -dp(24).toFloat(); hintTv.scaleX = 0.85f; hintTv.scaleY = 0.85f }
+        hintTv.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f).setDuration(320).setInterpolator(android.view.animation.OvershootInterpolator(2f)).start()
         Store.main.removeCallbacks(hideHint); Store.main.postDelayed(hideHint, 2600)
     }
 

@@ -63,6 +63,7 @@ class MainActivity : Activity() {
         Store.addListener(listener)
         Store.load { refresh() }
         handleIntent(intent)
+        if (savedInstanceState == null && !introShown && android.os.Build.FINGERPRINT != "robolectric") { introShown = true; intro() }
     }
 
     override fun onDestroy() { Store.removeListener(listener); super.onDestroy() }
@@ -159,7 +160,37 @@ class MainActivity : Activity() {
     }
 
     /* ---------- ☀️/🌙 cambiar de modo con un círculo que crece desde el botón ---------- */
+    /** 🎬 La presentación al abrir la app: el logo se infla girando, salen estrellitas y se abre la pantalla. */
+    private fun intro() {
+        val ov = FrameLayout(this).apply { background = Glass.background(this@MainActivity); isClickable = true; elevation = dp(30).toFloat() }
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+        val logo = ImageView(this).apply { setImageResource(R.mipmap.ic_launcher); clipToOutline = true; background = roundBg(0, dp(30).toFloat()); elevation = dp(12).toFloat() }
+        col.addView(logo, lp(dp(116), dp(116)))
+        val name = tv("BEST NOTES 2", 22f, T.text, true).apply { letterSpacing = 0.3f; gravity = Gravity.CENTER; setPadding(0, dp(22), 0, 0) }
+        col.addView(name)
+        ov.addView(col, FrameLayout.LayoutParams(MATCH, MATCH))
+        root.addView(ov, FrameLayout.LayoutParams(MATCH, MATCH))
+        logo.scaleX = 0.2f; logo.scaleY = 0.2f; logo.rotation = -35f; logo.alpha = 0f
+        name.alpha = 0f; name.translationY = dp(20).toFloat(); name.letterSpacing = 0.8f
+        logo.animate().scaleX(1f).scaleY(1f).rotation(0f).alpha(1f).setDuration(620).setInterpolator(android.view.animation.OvershootInterpolator(1.8f))
+            .withEndAction { Anim.sparkle(logo, 110f, 800) }.start()
+        name.animate().alpha(1f).translationY(0f).setStartDelay(260).setDuration(520).setInterpolator(android.view.animation.DecelerateInterpolator(2f)).start()
+        android.animation.ValueAnimator.ofFloat(0.8f, 0.3f).apply { startDelay = 260; duration = 620; addUpdateListener { name.letterSpacing = it.animatedValue as Float } }.start()
+        var gone = false
+        val leave = {
+            if (!gone) {
+                gone = true
+                ov.animate().alpha(0f).scaleX(1.12f).scaleY(1.12f).setDuration(380).setInterpolator(android.view.animation.AccelerateInterpolator())
+                    .withEndAction { root.removeView(ov); dropHeader() }.start()
+            }
+        }
+        ov.setOnClickListener { leave() }
+        ov.postDelayed({ leave() }, 1250)
+    }
+
     companion object {
+        /** La presentación sale una sola vez cada vez que se abre la app. */
+        private var introShown = false
         const val PICK_FILE = 41; const val REQ_WALL = 42; const val REQ_SAVE_BK = 43; const val REQ_AUTO_DIR = 44
         /** Notas que se acaban de mandar a la papelera desde una nota (para "Deshacer"). */
         var pendingTrash: List<String>? = null
@@ -395,9 +426,33 @@ class MainActivity : Activity() {
     /* ---------- seleccionar varias ---------- */
     private fun sel(): List<NoteMeta> = Store.notes.filter { it.id in selected }
     private fun done() { selected.clear(); Store.changed() }
-    private fun selPin() { val l = sel(); val v = !l.all { it.pinned }; l.forEach { it.pinned = v; Store.saveMeta(it) }; done() }
-    private fun selFav() { val l = sel(); val v = !l.all { it.fav }; l.forEach { it.fav = v; Store.saveMeta(it) }; done() }
+    private fun selPin() { val l = sel(); val v = !l.all { it.pinned }; cardsFx(selected) { Anim.bump(it, 1.06f) }; l.forEach { it.pinned = v; Store.saveMeta(it) }; done() }
+    private fun selFav() {
+        val l = sel(); val v = !l.all { it.fav }
+        if (v) cardsFx(selected) { Anim.sparkle(it, 70f, 700); Anim.bump(it, 1.06f) }    // ⭐ estrellitas al marcar favorita
+        l.forEach { it.fav = v; Store.saveMeta(it) }; done()
+    }
+    /** ✨ Las tarjetas de [ids] hacen algo bonito; [after] corre cuando terminan. */
+    private fun cardsFx(ids: Collection<String>, fx: (View) -> Unit) {
+        for (i in 0 until list.childCount) {
+            val c = list.getChildAt(i)
+            val h = list.getChildViewHolder(c) as? VH ?: continue
+            if (h.id in ids) fx(h.card)
+        }
+    }
+
     private fun selTrash() {
+        // 🗑️ las tarjetas se encogen, giran y salen volando antes de irse a la papelera
+        val flying = selected.toList()
+        var k = 0
+        cardsFx(flying) { c ->
+            c.animate().scaleX(0.4f).scaleY(0.4f).rotation(if (k++ % 2 == 0) -12f else 12f).translationY(-dp(60).toFloat()).alpha(0f)
+                .setDuration(320).setInterpolator(android.view.animation.AccelerateInterpolator(1.4f)).start()
+        }
+        list.postDelayed({ selTrashNow() }, 300)
+    }
+
+    private fun selTrashNow() {
         val now = System.currentTimeMillis()
         val ids = selected.toList()
         sel().forEach { it.deleted = true; it.deletedAt = now; Store.saveMeta(it) }
@@ -1223,7 +1278,7 @@ class MainActivity : Activity() {
             val n = items[position - off()]
             h.id = n.id
             // ✨ las tarjetas llegan una tras otra la primera vez que se ven
-            if (shownCards.add(n.id)) Anim.enter(h.card, 40L * minOf(cardWave++, 10)) else { h.card.alpha = 1f; h.card.translationY = 0f; h.card.scaleX = 1f; h.card.scaleY = 1f }
+            if (shownCards.add(n.id)) { h.card.rotation = 0f; Anim.enter(h.card, 40L * minOf(cardWave++, 10)) } else { h.card.animate().cancel(); h.card.alpha = 1f; h.card.translationY = 0f; h.card.scaleX = 1f; h.card.scaleY = 1f; h.card.rotation = 0f }
             val grid = lm.spanCount == 2
             val sel = n.id in selected
             h.card.background = Glass.make(this@MainActivity, 22f, tint = n.color, bar = n.color != 0, selected = sel)
