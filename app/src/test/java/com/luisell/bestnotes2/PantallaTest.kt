@@ -411,4 +411,27 @@ class PantallaTest {
         org.junit.Assert.assertTrue("debe haber líneas blancas", a.right > 0)
         org.junit.Assert.assertTrue("las líneas blancas deben estar dentro de la foto movida: $b", b.left >= 700 && b.top >= 600 && b.right <= 1000 && b.bottom <= 1000)
     }
+
+    /** Bajaste la foto: tocando el espacio de arriba escribes JUSTO arriba de la foto. */
+    @Test fun escribirJustoArribaDeLaFoto() {
+        reload()
+        val bm = android.graphics.Bitmap.createBitmap(60, 40, android.graphics.Bitmap.Config.ARGB_8888)
+        val r = Photos.saveNew(bm)
+        val m = Store.createNote("Arriba", mutableListOf(Block.Text(mutableListOf(Run("Hola"))), Block.Img(r.file, 50f, "", 25f, 120f, 60, 40)))
+        waitIo(); idle()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
+        waitIo(); idle()
+        val ed = find(act.window.decorView, EditorView::class.java).first()
+        val f = ed.views.first { it is FotoView } as FotoView
+        val d = ctx.resources.displayMetrics.density
+        ed.writeInGap(f, 120 * d - 5)              // tocar justo arriba de la foto
+        idle()
+        assertEquals(0f, (ed.blocks.first { it is Block.Img } as Block.Img).y)
+        val t = ed.views[0] as TextoView
+        assertTrue("el texto debe tener el cursor", t.edit.hasFocus())
+        t.edit.text.insert(t.edit.selectionStart, "X")
+        val txt = t.edit.text.toString()
+        assertTrue("la X debe quedar en el último renglón, justo arriba de la foto: «$txt»", txt.endsWith("X"))
+        assertTrue("debe haber renglones vacíos entre Hola y la X: «$txt»", txt.startsWith("Hola\n\n"))
+    }
 }

@@ -269,6 +269,37 @@ class EditorView(ctx: Context, val host: Host) : LinearLayout(ctx) {
         post { views.getOrNull(i)?.focusAt(0, 0) }
     }
 
+    /**
+     * ✍️ Tocaste el espacio vacío que quedó ARRIBA de una foto que bajaste:
+     * ese espacio se vuelve renglones de verdad y el cursor queda donde tocaste
+     * (como en Best Notes vieja: escribes justo arriba de la foto).
+     */
+    fun writeInGap(f: FotoView, tapY: Float) {
+        val i = views.indexOf(f); if (i < 0) return
+        val img = f.block as Block.Img
+        val d = resources.displayMetrics.density
+        val gapPx = img.y * d
+        if (gapPx < 4) { writeAbove(f); return }
+        selectImage(null); flushAll()
+        val prevView = views.getOrNull(i - 1)
+        val lineH = ((prevView?.edits()?.firstOrNull()?.lineHeight) ?: (24 * d).toInt()).toFloat().coerceAtLeast(8f)
+        val n = maxOf(1, Math.round(gapPx / lineH))
+        val k = (Math.floor((tapY / lineH).toDouble()).toInt() + 1).coerceIn(1, n)
+        img.y = 0f
+        val prev = blocks.getOrNull(i - 1) as? Block.Text
+        val at: Int; val offset: Int
+        if (prev != null) {
+            val plain = runsPlain(prev.runs)
+            if (plain.isEmpty()) { prev.runs = mutableListOf(Run("\n".repeat(n - 1))); offset = k - 1 }
+            else { prev.runs = mergeRuns(prev.runs + Run("\n".repeat(n))); offset = plain.length + k }
+            at = i - 1
+        } else {
+            blocks.add(i, Block.Text(mutableListOf(Run("\n".repeat(n - 1))))); at = i; offset = k - 1
+        }
+        setBlocks(blocks); host.onDirty()
+        post { views.getOrNull(at)?.focusAt(0, offset) }
+    }
+
     /** ✍️ Escribir DEBAJO de un bloque. */
     fun writeBelow(v: BlockView) {
         selectImage(null)
@@ -686,7 +717,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         override fun onTouchEvent(e: MotionEvent): Boolean {
             if (e.actionMasked == MotionEvent.ACTION_DOWN) return true
             if (e.actionMasked == MotionEvent.ACTION_UP) {
-                if (e.y < box.top) ed.writeAbove(this@FotoView)
+                if (e.y < box.top) ed.writeInGap(this@FotoView, e.y)
                 else if (side().isNotEmpty()) focusAt(0, -1)
                 else ed.writeBelow(this@FotoView)
             }
