@@ -284,6 +284,10 @@ class NoteActivity : Activity(), EditorView.Host {
         bottom = android.widget.FrameLayout(this).apply { background = Glass.make(this@NoteActivity, 26f, strong = true); setPadding(dp(4), dp(2), dp(4), dp(2)) }
         bottom.addView(hs, android.widget.FrameLayout.LayoutParams(MATCH, WRAP))
         root.addView(bottom, lp(MATCH, WRAP).apply { setMargins(dp(8), dp(4), dp(8), dp(8)) })
+        // ⌨️ con el teclado abierto la barra se esconde (para ver más de la nota); el botón "Aa" la saca un ratito
+        kbBtn = glassBtn(MoreIcons.TEXT_T) { pop(it); kbPeek = !kbPeek; updateKbBar() }.apply { visibility = View.GONE }
+        holder.addView(kbBtn, android.widget.FrameLayout.LayoutParams(dp(46), dp(46), Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, dp(12), dp(10)) })
+        root.viewTreeObserver.addOnGlobalLayoutListener { updateKbBar() }
         setContentView(root)
         root.alpha = 0f
         reveal(true)
@@ -872,6 +876,45 @@ class NoteActivity : Activity(), EditorView.Host {
     private lateinit var col: LinearLayout
     private lateinit var wallImg: android.widget.ImageView
     private lateinit var bottom: android.widget.FrameLayout
+    private lateinit var kbBtn: View
+    private var kbPeek = false
+    private var barHiddenByKb = false
+
+    /** ¿Está abierto el teclado? */
+    private fun kbOpen(): Boolean {
+        val r = root.rootView
+        if (android.os.Build.VERSION.SDK_INT >= 30) return r.rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime()) == true
+        val vis = android.graphics.Rect(); r.getWindowVisibleDisplayFrame(vis)
+        return r.height - vis.bottom > r.height * 0.18f
+    }
+
+    /**
+     * ⌨️ Teclado abierto → la barra de abajo se va (si no hay otro panel abierto, como el de la foto).
+     * Teclado cerrado → la barra regresa. Con el botón "Aa" la puedes sacar mientras escribes.
+     */
+    private fun updateKbBar() {
+        if (!::bottom.isInitialized) return
+        val kb = kbOpen()
+        if (!kb) kbPeek = false
+        val onlyBar = (0 until bottom.childCount).all { val c = bottom.getChildAt(it); c === formatBar || c.visibility == View.GONE }
+        val hide = kb && onlyBar && formatBar.visibility == View.VISIBLE && !kbPeek
+        val showBtn = kb && onlyBar && formatBar.visibility == View.VISIBLE
+        if (showBtn != (kbBtn.visibility == View.VISIBLE)) {
+            kbBtn.visibility = if (showBtn) View.VISIBLE else View.GONE
+            if (showBtn) { kbBtn.scaleX = 0.5f; kbBtn.scaleY = 0.5f; kbBtn.animate().scaleX(1f).scaleY(1f).setDuration(200).start() }
+        }
+        (kbBtn as? IconView)?.color = if (kbPeek) 0xFF4FC3F7.toInt() else T.text
+        if (hide == barHiddenByKb) return
+        barHiddenByKb = hide
+        bottom.animate().cancel()
+        if (hide) {
+            bottom.visibility = View.GONE
+        } else {
+            bottom.visibility = View.VISIBLE
+            bottom.alpha = 0f; bottom.translationY = dp(24).toFloat()
+            bottom.animate().alpha(1f).translationY(0f).setDuration(200).start()
+        }
+    }
     private lateinit var formatBar: View
     private var drawBar: LinearLayout? = null
     private var extraObj = JSONObject()
