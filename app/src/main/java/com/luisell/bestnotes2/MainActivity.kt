@@ -992,6 +992,22 @@ class MainActivity : Activity() {
         askText(L.t("importPass"), "", L.t("importPassHint"), password = true) { pass -> runImport(uri, pass) }
     }
 
+    /** Nombre, tamaño y cómo empieza el archivo (para saber qué pasó si no se pudo abrir). */
+    private fun fileInfo(uri: Uri): String {
+        var name = "?"; var size = -1L
+        try {
+            contentResolver.query(uri, null, null, null, null)?.use { c ->
+                if (c.moveToFirst()) {
+                    c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME).takeIf { it >= 0 }?.let { name = c.getString(it) ?: "?" }
+                    c.getColumnIndex(android.provider.OpenableColumns.SIZE).takeIf { it >= 0 }?.let { if (!c.isNull(it)) size = c.getLong(it) }
+                }
+            }
+        } catch (_: Exception) {}
+        val start = try { contentResolver.openInputStream(uri)?.use { i -> val b = ByteArray(40); val n = i.read(b); if (n > 0) String(b, 0, n, Charsets.UTF_8).replace(Regex("[^\\x20-\\x7E]"), "·") else "" } ?: "" } catch (_: Exception) { "" }
+        val sz = if (size < 0) "?" else if (size > 1048576) String.format(L.locale, "%.1f MB", size / 1048576.0) else "${size / 1024} KB"
+        return "📄 $name · $sz" + (if (size == 0L) "\n" + L.t("importEmpty") else "") + (if (start.isNotEmpty()) "\n«$start…»" else "")
+    }
+
     private fun runImport(uri: Uri, pass: String) {
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(24), dp(20), dp(24), dp(10)) }
         box.addView(ProgressBar(this))
@@ -1005,7 +1021,7 @@ class MainActivity : Activity() {
                     (if (s.missing > 0) "\n\n" + L.t("importMediaFail", "n" to s.missing) else "") +
                     (when (s.vault) { "ok" -> "\n\n🛡️ " + L.t("vImported"); "exists" -> "\n\n🛡️ " + L.t("vImportExists"); else -> "" })
             } catch (_: Backup.WrongPassword) { "!" + L.t("importWrongPass") }
-            catch (_: Backup.BadFile) { "!" + L.t("importBadFile") }
+            catch (_: Backup.BadFile) { "!" + L.t("importBadFile") + "\n\n" + fileInfo(uri) }
             catch (e: Throwable) { "!" + L.t("importFail", "e" to (e.message ?: e.javaClass.simpleName)) }
             runOnUiThread {
                 d.dismiss()

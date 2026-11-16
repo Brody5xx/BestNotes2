@@ -14,13 +14,19 @@ import android.view.View
    Se puede apagar en el menú ☰ → "Huella o cara".
    ============================================================ */
 object Bio {
-    /** ¿El teléfono tiene huella/cara configurada? (Android 10 o más nuevo) */
+    private val WEAK get() = android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_WEAK
+    private val PHONE get() = android.hardware.biometrics.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+
+    /**
+     * ¿Se puede usar? Android 11+: huella, cara O el bloqueo del teléfono (su PIN/patrón).
+     * Así, si tu teléfono no deja que las apps usen la cara, igual sale el bloqueo del teléfono.
+     */
     fun available(ctx: Context): Boolean {
         if (Build.VERSION.SDK_INT < 29) return false
         return try {
             val bm = ctx.getSystemService(android.hardware.biometrics.BiometricManager::class.java) ?: return false
             val ok = android.hardware.biometrics.BiometricManager.BIOMETRIC_SUCCESS
-            if (Build.VERSION.SDK_INT >= 30) bm.canAuthenticate(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_WEAK) == ok
+            if (Build.VERSION.SDK_INT >= 30) bm.canAuthenticate(WEAK or PHONE) == ok
             else @Suppress("DEPRECATION") (bm.canAuthenticate() == ok)
         } catch (_: Throwable) { false }
     }
@@ -31,23 +37,25 @@ object Bio {
     /** ¿Se usa ahora? (el teléfono la tiene y no la apagaste) */
     fun use(ctx: Context) = enabled(ctx) && available(ctx)
 
-    /** Pide la huella/cara. [onOk] si salió bien. */
+    /** Pide la huella/cara (o el bloqueo del teléfono). [onOk] si salió bien. */
     fun ask(ctx: Context, title: String, onOk: () -> Unit) {
-        if (Build.VERSION.SDK_INT < 28) return
+        if (Build.VERSION.SDK_INT < 29) return
         try {
             val b = android.hardware.biometrics.BiometricPrompt.Builder(ctx)
                 .setTitle(title)
                 .setSubtitle(L.t("bioSub"))
-                .setNegativeButton(L.t("bioUsePin"), ctx.mainExecutor) { _, _ -> }
-            // la cara abre sola, sin tener que tocar "Confirmar" después
-            if (Build.VERSION.SDK_INT >= 29) b.setConfirmationRequired(false)
-            // acepta también la cara "normal" del teléfono (no solo la más segura)
-            if (Build.VERSION.SDK_INT >= 30) b.setAllowedAuthenticators(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_WEAK)
-            val p = b.build()
-            p.authenticate(CancellationSignal(), ctx.mainExecutor, object : android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
+                .setConfirmationRequired(false)            // la cara abre sola, sin "Confirmar"
+            if (Build.VERSION.SDK_INT >= 30) b.setAllowedAuthenticators(WEAK or PHONE)
+            else @Suppress("DEPRECATION") b.setDeviceCredentialAllowed(true)
+            b.build().authenticate(CancellationSignal(), ctx.mainExecutor, object : android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(r: android.hardware.biometrics.BiometricPrompt.AuthenticationResult?) { onOk() }
+                override fun onAuthenticationError(code: Int, msg: CharSequence?) {
+                    // si el teléfono no pudo (no por que tú lo cerraste), se dice por qué
+                    if (code != android.hardware.biometrics.BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED &&
+                        code != android.hardware.biometrics.BiometricPrompt.BIOMETRIC_ERROR_CANCELED && !msg.isNullOrBlank()) ctx.toast("👆 $msg")
+                }
             })
-        } catch (_: Throwable) {}
+        } catch (e: Throwable) { ctx.toast("👆 " + (e.message ?: L.t("bioFail"))) }
     }
 }
 
