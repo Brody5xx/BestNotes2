@@ -485,4 +485,29 @@ class PantallaTest {
         assertEquals("ea 1\nlínea 2\nlínea", clip2)
         assertTrue(edits.size >= 4)
     }
+
+    /** Dejar presionada una palabra y SOLTAR el dedo: la selección NO se quita. Un toque nuevo sí la quita. */
+    @Test fun soltarElDedoNoQuitaLaSeleccion() {
+        reload()
+        val m = Store.createNote("Lista", mutableListOf(Block.ListB("ol", mutableListOf(Item(mutableListOf(Run("Two glass break wires"))), Item(mutableListOf(Run("Two cables")))))))
+        waitIo(); idle()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
+        waitIo(); idle()
+        val c = NoteActivity::class.java
+        val ed = find(act.window.decorView, EditorView::class.java).first()
+        val e = (ed.views.first { it is ListaView }).edits()[0]
+        e.requestFocus()
+        c.getDeclaredMethod("startFromNative", RichEdit::class.java, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType).apply { isAccessible = true }.invoke(act, e, 4, 9)
+        idle()
+        val multi = c.getDeclaredField("multi").apply { isAccessible = true }
+        assertTrue(multi.get(act) != null)
+        // el MISMO dedo se mueve un poquito y se suelta (llega sin ACTION_DOWN)
+        val tl = View::class.java.getDeclaredMethod("getListenerInfo").apply { isAccessible = true }.invoke(e).let { li -> li.javaClass.getDeclaredField("mOnTouchListener").apply { isAccessible = true }.get(li) as View.OnTouchListener }
+        fun ev(a: Int) = android.view.MotionEvent.obtain(0, 0, a, 10f, 10f, 0)
+        tl.onTouch(e, ev(android.view.MotionEvent.ACTION_MOVE)); tl.onTouch(e, ev(android.view.MotionEvent.ACTION_UP)); idle()
+        assertTrue("soltar el dedo no debe quitar la selección", multi.get(act) != null)
+        // un toque nuevo (DOWN + UP) sí la quita
+        tl.onTouch(e, ev(android.view.MotionEvent.ACTION_DOWN)); tl.onTouch(e, ev(android.view.MotionEvent.ACTION_UP)); idle()
+        assertTrue(multi.get(act) == null)
+    }
 }

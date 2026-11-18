@@ -2146,8 +2146,24 @@ class NoteActivity : Activity(), EditorView.Host {
         for ((k, e) in mEdits.withIndex()) {
             e.showSoftInputOnFocus = false
             e.isCursorVisible = false
+            // ⚠️ el dedo que dejó presionada la palabra TODAVÍA está en la pantalla:
+            // ese toque NO quita la selección; si lo mueves, la selección crece (como en el teléfono)
+            var mine = false
             e.setOnTouchListener { v, ev ->
+                when (ev.actionMasked) {
+                    android.view.MotionEvent.ACTION_DOWN -> { mine = true; return@setOnTouchListener true }
+                    android.view.MotionEvent.ACTION_CANCEL -> { mine = false; return@setOnTouchListener true }
+                    android.view.MotionEvent.ACTION_MOVE -> {
+                        if (!mine && !mLinesMode) {
+                            val hs = IntArray(2); noteHolder.getLocationOnScreen(hs)
+                            spotAt(ev.rawX - hs[0], ev.rawY - hs[1])?.let { sp -> if (sp != mB) { mB = sp; multiPaint(false); handles?.invalidate() } }
+                        }
+                        return@setOnTouchListener true
+                    }
+                    android.view.MotionEvent.ACTION_UP -> if (!mine) { placeSelBar(); return@setOnTouchListener true }
+                }
                 if (ev.actionMasked == android.view.MotionEvent.ACTION_UP) {
+                    mine = false
                     val off = (v as EditText).getOffsetForPosition(ev.x, ev.y).coerceIn(0, v.text.length)
                     if (mLinesMode) {
                         val key = k to lineOf(v, off)
