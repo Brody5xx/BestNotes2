@@ -245,3 +245,20 @@ fun addEyes(root: View) {
         parent.addView(box, idx, lpE ?: ViewGroup.LayoutParams(MATCH, WRAP))
     }
 }
+
+
+/* ---------- ✍️ la rayita del cursor: blanca en oscuro, oscura en claro (con un toque de azul) ---------- */
+fun EditText.niceCursor() {
+    highlightColor = if (T.light) 0x554FC3F7 else 0x668B7CFF.toInt()
+    if (android.os.Build.VERSION.SDK_INT < 29) return
+    val top = if (T.light) 0xFF1C1C22.toInt() else 0xFFFFFFFF.toInt()
+    val bottom = if (T.light) 0xFF2979FF.toInt() else 0xFF8FD8FF.toInt()
+    textCursorDrawable = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(top, top, bottom)).apply {
+        cornerRadius = context.dp(2).toFloat(); setSize(context.dp(2) + context.dp(1) / 2, context.dp(20))
+    }
+    // las gotitas para mover la selección, del mismo color que el cursor
+    val tint = if (T.light) 0xFF2979FF.toInt() else 0xFFB3E5FC.toInt()
+    try {
+        textSelectHandle?.mutate()?.setTint(tint); textSelectHandleLeft?.mutate()?.setTint(tint); textSelectHandleRight?.mutate()?.setTint(tint)
+    } catch (_: Throwable) {}
+}

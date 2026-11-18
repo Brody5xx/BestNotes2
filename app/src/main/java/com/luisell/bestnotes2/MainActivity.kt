@@ -91,7 +91,7 @@ class MainActivity : Activity() {
             background = Glass.make(this@MainActivity, 24f); setPadding(dp(16), 0, dp(4), 0)
         }
         sb.addView(IconView(this, Icons.SEARCH, 8.5f).apply { color = T.muted; isClickable = false }, lp(dp(22), dp(22)))
-        search = EditText(this).apply {
+        search = EditText(this).apply { niceCursor()
             background = null; hint = L.t("searchPh"); setHintTextColor(T.faint); setTextColor(T.text)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f); maxLines = 1; isSingleLine = true
             setPadding(dp(10), 0, 0, 0)

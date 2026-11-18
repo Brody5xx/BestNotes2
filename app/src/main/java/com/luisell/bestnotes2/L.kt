@@ -274,6 +274,7 @@ object L {
         "transfer" to "Transferir notas", "transferSub" to "Pasar tus notas a otro teléfono", "transferIntro" to "Pasa todas tus notas a otro teléfono con un archivo protegido con tu propia contraseña.", "transferMake" to "Crear respaldo", "transferMakeSub" to "En el teléfono que tiene tus notas", "transferGet" to "Importar notas", "transferGetSub" to "En el teléfono nuevo", "transferHow" to "1. En el teléfono viejo toca «Crear respaldo» y mándate el archivo (WhatsApp, correo, Drive…).\n2. En el teléfono nuevo toca «Importar notas», escoge el archivo y escribe la misma contraseña.\nTambién sirve con el archivo de la app vieja Best Notes.",
         "showPass" to "Ver contraseña",
         "bioFail" to "No se pudo usar la huella o la cara", "bioTitle" to "Huella, cara o bloqueo del teléfono", "bioSub" to "Usa tu huella, tu cara o el bloqueo de tu teléfono", "importEmpty" to "⚠️ El archivo está vacío (0 KB): en el otro teléfono no se guardó bien. Vuelve a crearlo allá.",
+        "selMore" to "Seleccionar varias líneas", "selLines" to "{n} renglón(es) seleccionados", "selTapEnd" to "toca dónde termina", "selCopied" to "Copiado ✓", "selDeleted" to "Borrado ✓ (puedes deshacer ↶)",
     )
 
     private val EN = mapOf(
@@ -451,5 +452,6 @@ object L {
         "transfer" to "Transfer notes", "transferSub" to "Move your notes to another phone", "transferIntro" to "Move all your notes to another phone with a file protected by your own password.", "transferMake" to "Create backup", "transferMakeSub" to "On the phone that has your notes", "transferGet" to "Import notes", "transferGetSub" to "On the new phone", "transferHow" to "1. On the old phone tap “Create backup” and send yourself the file (WhatsApp, email, Drive…).\n2. On the new phone tap “Import notes”, pick the file and type the same password.\nIt also works with the file from the old Best Notes app.",
         "showPass" to "Show password",
         "bioFail" to "Couldn't use fingerprint or face", "bioTitle" to "Fingerprint, face or phone lock", "bioSub" to "Use your fingerprint, face or phone lock", "importEmpty" to "⚠️ The file is empty (0 KB): it wasn't saved correctly on the other phone. Create it again there.",
+        "selMore" to "Select several lines", "selLines" to "{n} line(s) selected", "selTapEnd" to "tap where it ends", "selCopied" to "Copied ✓", "selDeleted" to "Deleted ✓ (you can undo ↶)",
     )
 }

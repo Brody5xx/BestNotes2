@@ -159,14 +159,27 @@ open class RichEdit(ctx: Context) : EditText(ctx) {
     companion object {
         /** La barrita de Cortar/Copiar/Pegar que está abierta ahora (para esconderla bajo los paneles). */
         var toolbar: android.view.ActionMode? = null
+        /** "Seleccionar todo" / "Seleccionar varias líneas": lo maneja la pantalla de la nota (toda la nota, no solo este renglón). */
+        var onSelectAll: ((RichEdit) -> Unit)? = null
+        var onSelectMore: ((RichEdit) -> Unit)? = null
+        const val MENU_MORE = 9901
         fun hideToolbar(ms: Long) { if (android.os.Build.VERSION.SDK_INT >= 23) try { toolbar?.hide(ms) } catch (_: Exception) {} }
     }
 
     init {
         customSelectionActionModeCallback = object : android.view.ActionMode.Callback {
-            override fun onCreateActionMode(m: android.view.ActionMode, menu: android.view.Menu): Boolean { toolbar = m; return true }
+            override fun onCreateActionMode(m: android.view.ActionMode, menu: android.view.Menu): Boolean {
+                toolbar = m
+                if (onSelectMore != null) menu.add(0, MENU_MORE, 1, L.t("selMore"))
+                return true
+            }
             override fun onPrepareActionMode(m: android.view.ActionMode, menu: android.view.Menu) = false
-            override fun onActionItemClicked(m: android.view.ActionMode, item: android.view.MenuItem) = false
+            override fun onActionItemClicked(m: android.view.ActionMode, item: android.view.MenuItem): Boolean {
+                // "Seleccionar todo" = TODA la nota (todos los renglones, la lista y el título)
+                if (item.itemId == android.R.id.selectAll && onSelectAll != null) { m.finish(); onSelectAll?.invoke(this@RichEdit); return true }
+                if (item.itemId == MENU_MORE) { m.finish(); onSelectMore?.invoke(this@RichEdit); return true }
+                return false
+            }
             override fun onDestroyActionMode(m: android.view.ActionMode) { if (toolbar === m) toolbar = null }
         }
         background = null
@@ -178,7 +191,7 @@ open class RichEdit(ctx: Context) : EditText(ctx) {
         setPadding(0, dp(2), 0, dp(2))
         inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
         isVerticalScrollBarEnabled = false
-        highlightColor = 0x558B7CFF
+        niceCursor()
         addTextChangedListener(object : TextWatcher {
             var enterAt = -1
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}

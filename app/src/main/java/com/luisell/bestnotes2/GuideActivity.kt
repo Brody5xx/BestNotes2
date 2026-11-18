@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-18" to ("↕ Seleccionar varias líneas o toda la nota (título, texto y listas juntos) para copiar, cortar, borrar o ponerle estilo a todo; ✍️ el cursor ahora es blanco en modo oscuro y oscuro en modo claro" to
+            "↕ Select several lines or the whole note (title, text and lists together) to copy, cut, delete or style everything; ✍️ the cursor is now white in dark mode and dark in light mode"),
         "2026-11-16" to ("🎬 Presentación al abrir la app, 🗑️ las notas salen volando a la papelera, ⭐ estrellitas al marcar favoritas, 📷 las fotos llegan inflándose, la nota se abre en ola y la calculadora con teclas que rebotan" to
             "🎬 Intro when opening the app, 🗑️ notes fly into the trash, ⭐ sparkles when marking favorites, 📷 photos pop in, notes open in a wave and the calculator keys bounce"),
         "2026-11-16" to ("✨ Todo con animación: las tarjetas llegan una tras otra y se hunden al tocarlas, los botones de arriba caen rebotando, el menú llega deslizándose, estrellitas al terminar un pendiente y al abrir con el PIN, y los botones de nota nueva se esconden al bajar en la lista" to

@@ -97,7 +97,7 @@ class GlassBuilder(private val ctx: Context) {
             if (v is android.widget.EditText && v !is RichEdit) {
                 v.background = roundBg(tw(0x12), dp(16).toFloat(), tw(0x38), dp(1))
                 v.setPadding(dp(16), dp(13), dp(16), dp(13)); v.textSize = 16.5f
-                v.setTextColor(T.text); v.setHintTextColor(T.faint)
+                v.setTextColor(T.text); v.setHintTextColor(T.faint); v.niceCursor()
             } else if (v is ViewGroup) for (i in 0 until v.childCount) glassFields(v.getChildAt(i))
         }
         view?.let { glassFields(it); addEyes(it) }

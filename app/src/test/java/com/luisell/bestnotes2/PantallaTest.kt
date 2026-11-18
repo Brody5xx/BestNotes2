@@ -434,4 +434,27 @@ class PantallaTest {
         assertTrue("la X debe quedar en el último renglón, justo arriba de la foto: «$txt»", txt.endsWith("X"))
         assertTrue("debe haber renglones vacíos entre Hola y la X: «$txt»", txt.startsWith("Hola\n\n"))
     }
+
+    /** ↕ Seleccionar TODA la nota (título + renglones de la lista) y ponerle negrita a todo junto. */
+    @Test fun seleccionarVariasLineas() {
+        reload()
+        val m = Store.createNote("Casa", mutableListOf(Block.Text(mutableListOf(Run("Preguntas:"))),
+            Block.ListB("ol", mutableListOf(Item(mutableListOf(Run("uno"))), Item(mutableListOf(Run("dos"))), Item(mutableListOf(Run("tres")))))))
+        waitIo(); idle()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
+        waitIo(); idle()
+        val start = NoteActivity::class.java.getDeclaredMethod("multiStart", RichEdit::class.java, Boolean::class.javaPrimitiveType).apply { isAccessible = true }
+        start.invoke(act, null, true); shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(800))
+        @Suppress("UNCHECKED_CAST")
+        val pieces = NoteActivity::class.java.getDeclaredMethod("mPieces").apply { isAccessible = true }.invoke(act) as List<Triple<android.widget.EditText, Int, Int>>
+        assertEquals("título + 1 texto + 3 renglones", 5, pieces.size)
+        val sty = NoteActivity::class.java.getDeclaredMethod("multiStyle", Function1::class.java).apply { isAccessible = true }
+        sty.invoke(act, { s: St -> s.copy(b = !s.b) }); idle()
+        NoteActivity::class.java.getDeclaredMethod("multiEnd").apply { isAccessible = true }.invoke(act); idle()
+        act.finish(); waitIo()
+        val saved = blocksFromJson(Store.readBody(m.id).first)
+        val items = (saved.first { it is Block.ListB } as Block.ListB).items
+        assertTrue("todos los renglones en negrita", items.all { it.runs.all { r -> r.st.b } })
+        assertTrue((saved.first { it is Block.Text } as Block.Text).runs.all { it.st.b })
+    }
 }

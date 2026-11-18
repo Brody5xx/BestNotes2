@@ -364,4 +364,17 @@ class CapturasTest {
         main.window.decorView.let { v -> v.measure(View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(2340, View.MeasureSpec.EXACTLY)); v.layout(0, 0, 1080, 2340) }
         shot(main.window.decorView, "70_intro")
     }
+
+    @Test fun capturasSeleccion() {
+        if (System.getenv("CAPTURAS") == null) return
+        var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
+        val m = Store.createNote("Casa de ejemplo", mutableListOf(Block.Text(mutableListOf(Run("Preguntas para contestar:", St(b = true, u = true)))),
+            Block.ListB("ol", mutableListOf(Item(mutableListOf(Run("Dos sensores para las ventanas del sótano"))), Item(mutableListOf(Run("El cable para el simulador"))), Item(mutableListOf(Run("El cable para el boliche")))))))
+        waitIo(); idle()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
+        waitIo(); idle(); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        NoteActivity::class.java.getDeclaredMethod("multiStart", RichEdit::class.java, Boolean::class.javaPrimitiveType).apply { isAccessible = true }.invoke(act, null, true)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
+        shot(act.window.decorView, "80_seleccion")
+    }
 }

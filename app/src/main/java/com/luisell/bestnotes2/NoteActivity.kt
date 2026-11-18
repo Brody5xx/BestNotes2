@@ -486,8 +486,16 @@ class NoteActivity : Activity(), EditorView.Host {
         Store.changed()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // ↕ "Seleccionar todo" y "Seleccionar varias líneas" toman TODA la nota
+        RichEdit.onSelectAll = { multiStart(null, true) }
+        RichEdit.onSelectMore = { e -> multiStart(e, false) }
+    }
+
     override fun onPause() {
         super.onPause()
+        RichEdit.onSelectAll = null; RichEdit.onSelectMore = null
         if (dict != null) stopDictation()
         AudioPlayer.stop()
         save()
@@ -1336,6 +1344,7 @@ class NoteActivity : Activity(), EditorView.Host {
     override fun onBackPressed() {
         when {
             Sheet.closeTop(this) -> {}
+            multi != null -> multiEnd()
             spell != null -> closeSpell()
             stylePanel != null -> closeStyle()
             editor.selected != null -> editor.selectImage(null)
@@ -1874,6 +1883,169 @@ class NoteActivity : Activity(), EditorView.Host {
     private var spell: LinearLayout? = null
     private val spErrs = ArrayList<SpErr>()
     private var spI = 0
+
+    /* =========================================================
+       ↕ SELECCIONAR VARIAS LÍNEAS (o toda la nota) de una vez
+       - Todo lo seleccionado se pinta de un color (llega como una ola).
+       - Tocas cualquier renglón para decir dónde termina (o empieza).
+       - Copiar, cortar, borrar, negrita, cursiva, subrayado y tachado a todo junto.
+       ========================================================= */
+    private class SelS(c: Int) : android.text.style.BackgroundColorSpan(c)
+    private var multi: LinearLayout? = null
+    private var mEdits: List<EditText> = emptyList()
+    private var mA = 0 to 0
+    private var mB = 0 to 0
+    private var mInfo: TextView? = null
+
+    private fun mRange(): Pair<Pair<Int, Int>, Pair<Int, Int>> {
+        val a = mA; val b = mB
+        return if (a.first < b.first || (a.first == b.first && a.second <= b.second)) a to b else b to a
+    }
+
+    /** Los pedazos seleccionados: (cajita, desde, hasta). */
+    private fun mPieces(): List<Triple<EditText, Int, Int>> {
+        val (s, e) = mRange(); val out = ArrayList<Triple<EditText, Int, Int>>()
+        for (i in s.first..e.first) {
+            val ed = mEdits.getOrNull(i) ?: continue
+            val len = ed.text.length
+            val a = if (i == s.first) s.second.coerceIn(0, len) else 0
+            val b = if (i == e.first) e.second.coerceIn(0, len) else len
+            if (a < b) out.add(Triple(ed, a, b))
+        }
+        return out
+    }
+
+    private fun multiPaint(wave: Boolean) {
+        val col = if (T.light) 0x664FC3F7 else 0x668B7CFF.toInt()
+        for (e in mEdits) e.text.getSpans(0, e.text.length, SelS::class.java).forEach { e.text.removeSpan(it) }
+        for ((k, p) in mPieces().withIndex()) {
+            val (e, a, b) = p
+            val put = { if (multi != null && b <= e.text.length) e.text.setSpan(SelS(col), a, b, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
+            if (wave) e.postDelayed(put, 35L * minOf(k, 20)) else put()
+            if (wave) e.postDelayed({ Anim.bump(e, 1.015f) }, 35L * minOf(k, 20))
+        }
+        val n = mPieces().size
+        mInfo?.text = L.t("selLines", "n" to n) + "  ·  " + L.t("selTapEnd")
+    }
+
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    private fun multiStart(from: RichEdit?, all: Boolean) {
+        if (multi != null) { if (all) { mA = 0 to 0; mB = (mEdits.size - 1) to mEdits.last().text.length; multiPaint(true) }; return }
+        editor.selectImage(null); editor.flushAll()
+        if (spell != null) closeSpell()
+        stylePanel?.let { closeStyle() }
+        mEdits = allEdits()
+        if (mEdits.isEmpty()) return
+        if (all || from == null) { mA = 0 to 0; mB = (mEdits.size - 1) to mEdits.last().text.length }
+        else {
+            val i = mEdits.indexOf(from).coerceAtLeast(0)
+            mA = i to minOf(from.selectionStart, from.selectionEnd).coerceAtLeast(0)
+            val j = minOf(i + 1, mEdits.size - 1)
+            mB = j to mEdits[j].text.length                  // al principio: hasta el final del renglón de abajo
+        }
+        currentFocus?.let { f -> (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).hideSoftInputFromWindow(f.windowToken, 0) }
+        // tocar un renglón = ahí termina (o empieza) lo seleccionado; no se abre el teclado
+        for ((i, e) in mEdits.withIndex()) {
+            e.showSoftInputOnFocus = false
+            e.setOnTouchListener { v, ev ->
+                if (ev.actionMasked == android.view.MotionEvent.ACTION_UP) {
+                    val off = (v as EditText).getOffsetForPosition(ev.x, ev.y).coerceIn(0, v.text.length)
+                    val (s, _) = mRange()
+                    if (i < s.first || (i == s.first && off < s.second)) mA = i to off else { mA = s; mB = i to off }
+                    multiPaint(false); Anim.bump(v, 1.02f)
+                }
+                true
+            }
+        }
+        // el panel de abajo
+        formatBar.visibility = View.GONE
+        val p = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(10), dp(12), dp(10)) }
+        multi = p
+        mInfo = tv("", 13.5f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(4), 0, dp(4), dp(8)) }
+        p.addView(mInfo)
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        fun chip(label: String, bold: Boolean = true, act: (View) -> Unit) = tv(label, 15f, T.text, bold).apply {
+            gravity = Gravity.CENTER; setPadding(dp(10), dp(10), dp(10), dp(10)); pressBg(tw(0x14), 16f)
+            setOnClickListener { pop(it); act(it) }
+        }
+        fun ichip(icon: Int, color: Int = T.text, act: (View) -> Unit): View = IconView(this, icon, 8.5f).apply {
+            this.color = color; pressBg(tw(0x14), 16f); setPadding(0, dp(10), 0, dp(10))
+            setOnClickListener { pop(it); act(it) }
+        }
+        val chips = listOf(
+            ichip(MoreIcons.COPY) { b -> multiCopy(); Anim.sparkle(b, 36f, 500) },
+            ichip(MoreIcons.SCISSORS) { multiCopy(); multiDelete() },
+            ichip(Icons.TRASH, T.danger) { multiDelete() },
+            chip("B") { multiStyle { s -> s.copy(b = !s.b) } },
+            chip("I") { multiStyle { s -> s.copy(i = !s.i) } }.apply { setTypeface(typeface, android.graphics.Typeface.ITALIC) },
+            chip("U") { multiStyle { s -> s.copy(u = !s.u) } }.apply { paintFlags = paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG },
+            chip("S") { multiStyle { s -> s.copy(s = !s.s) } }.apply { paintFlags = paintFlags or android.graphics.Paint.STRIKE_THRU_TEXT_FLAG },
+        )
+        for (c in chips) row.addView(c, lp(0, dp(42), 1f).apply { setMargins(dp(2), 0, dp(2), 0) })
+        val sv = android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        bar.addView(row, lp(0, WRAP, 1f))
+        bar.addView(tv("✓ " + L.t("done"), 15f, T.onPill, true).apply {
+            setPadding(dp(14), dp(10), dp(14), dp(10)); pressBg(T.pill, 20f); setOnClickListener { pop(it); multiEnd() }
+        })
+        p.addView(bar, lp(MATCH, WRAP))
+        bottom.addView(p, android.widget.FrameLayout.LayoutParams(MATCH, WRAP))
+        p.translationY = dp(50).toFloat(); p.alpha = 0f
+        p.animate().translationY(0f).alpha(1f).setDuration(360).setInterpolator(android.view.animation.OvershootInterpolator(1.2f)).start()
+        chips.forEachIndexed { k, c -> Anim.popIn(c, 80L + 40L * k) }
+        multiPaint(true)
+    }
+
+    private fun multiCopy() {
+        val txt = mPieces().joinToString("\n") { (e, a, b) -> e.text.substring(a, b) }
+        (getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("nota", txt))
+        hint(L.t("selCopied"))
+    }
+
+    private fun multiStyle(fn: (St) -> St) {
+        if (snapPending) snapshot()
+        // si TODO ya tiene el estilo, se quita; si no, se pone a todo
+        val pieces = mPieces()
+        val probe = pieces.firstOrNull()?.let { (e, a, _) -> Rich.styleAt(e.text, a + 1) } ?: St.PLAIN
+        val on = fn(probe)
+        for ((e, a, b) in pieces) {
+            val r = e as? RichEdit ?: continue
+            r.setSelection(a, b); r.applyStyle { s -> val want = fn(probe); s.copy(b = if (want.b != probe.b) want.b else s.b, i = if (want.i != probe.i) want.i else s.i, u = if (want.u != probe.u) want.u else s.u, s = if (want.s != probe.s) want.s else s.s) }
+            Anim.bump(e, 1.03f)
+        }
+        if (on != probe) { dirty = true; onDirty() }
+        multiPaint(false)
+        snapshot()
+    }
+
+    private fun multiDelete() {
+        if (snapPending) snapshot()
+        val pieces = mPieces()
+        if (pieces.isEmpty()) return
+        // se van desvaneciendo y después se borran
+        pieces.forEach { (e, _, _) -> e.animate().alpha(0.35f).setDuration(160).start() }
+        root.postDelayed({
+            for ((e, a, b) in pieces.reversed()) if (b <= e.text.length) e.text.delete(a, b)
+            pieces.forEach { (e, _, _) -> e.alpha = 1f }
+            multiEnd()
+            // los renglones de lista que quedaron vacíos se quitan
+            editor.change { bl -> bl.filterIsInstance<Block.ListB>().forEach { l -> l.items.removeAll { runsPlain(it.runs).isEmpty() } }; null }
+            dirty = true; onDirty(); snapshot()
+            hint(L.t("selDeleted"))
+        }, 170)
+    }
+
+    private fun multiEnd() {
+        val p = multi ?: return
+        multi = null
+        for (e in mEdits) {
+            e.text.getSpans(0, e.text.length, SelS::class.java).forEach { e.text.removeSpan(it) }
+            e.setOnTouchListener(null); e.showSoftInputOnFocus = true
+        }
+        p.animate().translationY(dp(40).toFloat()).alpha(0f).setDuration(200).withEndAction {
+            bottom.removeView(p); if (imgPanel == null && spell == null && !ink.drawing && rec == null) formatBar.visibility = View.VISIBLE
+        }.start()
+    }
 
     private fun allEdits(): List<EditText> {
         val out = arrayListOf<EditText>(title)
