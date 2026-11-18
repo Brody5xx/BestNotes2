@@ -275,6 +275,7 @@ object L {
         "showPass" to "Ver contraseña",
         "bioFail" to "No se pudo usar la huella o la cara", "bioTitle" to "Huella, cara o bloqueo del teléfono", "bioSub" to "Usa tu huella, tu cara o el bloqueo de tu teléfono", "importEmpty" to "⚠️ El archivo está vacío (0 KB): en el otro teléfono no se guardó bien. Vuelve a crearlo allá.",
         "selMore" to "Seleccionar varias líneas", "selLines" to "{n} renglón(es) seleccionados", "selTapEnd" to "toca dónde termina", "selCopied" to "Copiado ✓", "selDeleted" to "Borrado ✓ (puedes deshacer ↶)",
+        "selDrag" to "arrastra las gotitas", "selAll" to "Todo", "selLoose" to "Líneas sueltas", "selLinesLoose" to "{n} renglón(es) · toca los renglones que quieras",
     )
 
     private val EN = mapOf(
@@ -453,5 +454,6 @@ object L {
         "showPass" to "Show password",
         "bioFail" to "Couldn't use fingerprint or face", "bioTitle" to "Fingerprint, face or phone lock", "bioSub" to "Use your fingerprint, face or phone lock", "importEmpty" to "⚠️ The file is empty (0 KB): it wasn't saved correctly on the other phone. Create it again there.",
         "selMore" to "Select several lines", "selLines" to "{n} line(s) selected", "selTapEnd" to "tap where it ends", "selCopied" to "Copied ✓", "selDeleted" to "Deleted ✓ (you can undo ↶)",
+        "selDrag" to "drag the handles", "selAll" to "All", "selLoose" to "Separate lines", "selLinesLoose" to "{n} line(s) · tap the lines you want",
     )
 }

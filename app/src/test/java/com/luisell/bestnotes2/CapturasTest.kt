@@ -373,8 +373,19 @@ class CapturasTest {
         waitIo(); idle()
         val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
         waitIo(); idle(); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
-        NoteActivity::class.java.getDeclaredMethod("multiStart", RichEdit::class.java, Boolean::class.javaPrimitiveType).apply { isAccessible = true }.invoke(act, null, true)
+        NoteActivity::class.java.getDeclaredMethod("multiStart", RichEdit::class.java, Boolean::class.javaPrimitiveType, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType).apply { isAccessible = true }.invoke(act, null, true, -1, -1, false)
         shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
+        // de corrido: desde la mitad del primer renglón de la lista hasta la mitad del tercero
+        val c = NoteActivity::class.java
+        fun f(n: String) = c.getDeclaredField(n).apply { isAccessible = true }
+        f("mA").set(act, 2 to 4); f("mB").set(act, 4 to 9)
+        c.getDeclaredMethod("multiPaint", Boolean::class.javaPrimitiveType).apply { isAccessible = true }.invoke(act, false)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(800))
         shot(act.window.decorView, "80_seleccion")
+        f("mLinesMode").setBoolean(act, true)
+        @Suppress("UNCHECKED_CAST") (f("mLines").get(act) as java.util.TreeSet<Pair<Int, Int>>).apply { clear(); add(2 to 0); add(4 to 0) }
+        c.getDeclaredMethod("multiPaint", Boolean::class.javaPrimitiveType).apply { isAccessible = true }.invoke(act, false)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(800))
+        shot(act.window.decorView, "81_sueltas")
     }
 }

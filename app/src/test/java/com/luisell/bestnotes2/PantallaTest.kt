@@ -443,8 +443,8 @@ class PantallaTest {
         waitIo(); idle()
         val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
         waitIo(); idle()
-        val start = NoteActivity::class.java.getDeclaredMethod("multiStart", RichEdit::class.java, Boolean::class.javaPrimitiveType).apply { isAccessible = true }
-        start.invoke(act, null, true); shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(800))
+        val start = NoteActivity::class.java.getDeclaredMethod("multiStart", RichEdit::class.java, Boolean::class.javaPrimitiveType, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType).apply { isAccessible = true }
+        start.invoke(act, null, true, -1, -1, false); shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(800))
         @Suppress("UNCHECKED_CAST")
         val pieces = NoteActivity::class.java.getDeclaredMethod("mPieces").apply { isAccessible = true }.invoke(act) as List<Triple<android.widget.EditText, Int, Int>>
         assertEquals("título + 1 texto + 3 renglones", 5, pieces.size)
@@ -456,5 +456,33 @@ class PantallaTest {
         val items = (saved.first { it is Block.ListB } as Block.ListB).items
         assertTrue("todos los renglones en negrita", items.all { it.runs.all { r -> r.st.b } })
         assertTrue((saved.first { it is Block.Text } as Block.Text).runs.all { it.st.b })
+    }
+
+    /** ☰ Líneas sueltas: renglón 1 sí, 2 no, 3 sí → se copian juntos. Y de corrido de un renglón a otro. */
+    @Test fun lineasSueltasYDeCorrido() {
+        reload()
+        val m = Store.createNote("Lista", mutableListOf(Block.ListB("ul", mutableListOf(Item(mutableListOf(Run("línea 1"))), Item(mutableListOf(Run("línea 2"))), Item(mutableListOf(Run("línea 3")))))))
+        waitIo(); idle()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
+        waitIo(); idle()
+        val c = NoteActivity::class.java
+        fun f(n: String) = c.getDeclaredField(n).apply { isAccessible = true }
+        c.getDeclaredMethod("multiStart", RichEdit::class.java, Boolean::class.javaPrimitiveType, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType).apply { isAccessible = true }.invoke(act, null, true, -1, -1, false)
+        idle()
+        @Suppress("UNCHECKED_CAST") val edits = f("mEdits").get(act) as List<android.widget.EditText>
+        // edits: título, línea 1, línea 2, línea 3
+        f("mLinesMode").setBoolean(act, true)
+        @Suppress("UNCHECKED_CAST") val lines = f("mLines").get(act) as java.util.TreeSet<Pair<Int, Int>>
+        lines.clear(); lines.add(1 to 0); lines.add(3 to 0)
+        c.getDeclaredMethod("multiCopy").apply { isAccessible = true }.invoke(act)
+        val clip = (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).primaryClip!!.getItemAt(0).text.toString()
+        assertEquals("línea 1\nlínea 3", clip)
+        // de corrido: desde la mitad de la línea 1 hasta la mitad de la línea 3
+        f("mLinesMode").setBoolean(act, false)
+        f("mA").set(act, 1 to 3); f("mB").set(act, 3 to 5)
+        c.getDeclaredMethod("multiCopy").apply { isAccessible = true }.invoke(act)
+        val clip2 = (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).primaryClip!!.getItemAt(0).text.toString()
+        assertEquals("ea 1\nlínea 2\nlínea", clip2)
+        assertTrue(edits.size >= 4)
     }
 }

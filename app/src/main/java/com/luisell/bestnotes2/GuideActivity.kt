@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-18" to ("💧 Las gotitas para seleccionar ahora cruzan renglones: dejas presionada una palabra y arrastras por toda la nota. ☰ «Líneas sueltas» para copiar renglones separados juntos" to
+            "💧 Selection handles now cross lines: long-press a word and drag across the whole note. ☰ “Separate lines” to copy separate lines together"),
         "2026-11-18" to ("↕ Seleccionar varias líneas o toda la nota (título, texto y listas juntos) para copiar, cortar, borrar o ponerle estilo a todo; ✍️ el cursor ahora es blanco en modo oscuro y oscuro en modo claro" to
             "↕ Select several lines or the whole note (title, text and lists together) to copy, cut, delete or style everything; ✍️ the cursor is now white in dark mode and dark in light mode"),
         "2026-11-16" to ("🎬 Presentación al abrir la app, 🗑️ las notas salen volando a la papelera, ⭐ estrellitas al marcar favoritas, 📷 las fotos llegan inflándose, la nota se abre en ola y la calculadora con teclas que rebotan" to

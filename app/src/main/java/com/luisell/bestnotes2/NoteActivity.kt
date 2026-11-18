@@ -228,6 +228,7 @@ class NoteActivity : Activity(), EditorView.Host {
         page.addView(ink, android.widget.FrameLayout.LayoutParams(MATCH, MATCH))
         scroll.addView(page, android.widget.FrameLayout.LayoutParams(MATCH, WRAP))
         val holder = android.widget.FrameLayout(this)
+        noteHolder = holder
         wallImg = android.widget.ImageView(this).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP; visibility = View.GONE }
         holder.addView(wallImg, android.widget.FrameLayout.LayoutParams(MATCH, MATCH))
         holder.addView(scroll, android.widget.FrameLayout.LayoutParams(MATCH, MATCH))
@@ -373,9 +374,13 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     /** Dónde se aplica el estilo: el título (si estás ahí) o el texto. */
-    private fun target(): RichEdit? = if (::title.isInitialized && title.hasFocus()) title else editor.focused
+    private fun target(): RichEdit? {
+        if (multi != null) mPieces().firstOrNull()?.first?.let { if (it is RichEdit) return it }
+        return if (::title.isInitialized && title.hasFocus()) title else editor.focused
+    }
     private fun cur(): St = target()?.currentStyle() ?: St.PLAIN
     private fun style(fn: (St) -> St) {
+        if (multi != null) { multiStyle(fn); return }      // ↕ con la selección de la app: a todo lo seleccionado
         val e = target() ?: return
         if (!e.hasFocus()) return
         // en el título sin seleccionar nada: se pinta TODO el título
@@ -490,12 +495,13 @@ class NoteActivity : Activity(), EditorView.Host {
         super.onResume()
         // ↕ "Seleccionar todo" y "Seleccionar varias líneas" toman TODA la nota
         RichEdit.onSelectAll = { multiStart(null, true) }
-        RichEdit.onSelectMore = { e -> multiStart(e, false) }
+        RichEdit.onSelectMore = { e -> multiStart(e, false, lines = true) }
+        RichEdit.onUserSelect = { e, a, b -> startFromNative(e, a, b) }
     }
 
     override fun onPause() {
         super.onPause()
-        RichEdit.onSelectAll = null; RichEdit.onSelectMore = null
+        RichEdit.onSelectAll = null; RichEdit.onSelectMore = null; RichEdit.onUserSelect = null
         if (dict != null) stopDictation()
         AudioPlayer.stop()
         save()
@@ -1885,10 +1891,14 @@ class NoteActivity : Activity(), EditorView.Host {
     private var spI = 0
 
     /* =========================================================
-       ↕ SELECCIONAR VARIAS LÍNEAS (o toda la nota) de una vez
-       - Todo lo seleccionado se pinta de un color (llega como una ola).
-       - Tocas cualquier renglón para decir dónde termina (o empieza).
-       - Copiar, cortar, borrar, negrita, cursiva, subrayado y tachado a todo junto.
+       ↕ SELECCIONAR TEXTO DE VERDAD (aunque esté en renglones distintos)
+       - Dejas presionada una palabra: salen DOS GOTITAS de la app.
+         Las arrastras y se selecciona todo lo que quieras: el título,
+         el texto y todos los renglones de las listas, de corrido.
+       - "Líneas sueltas": tocas los renglones que quieras (1 sí, 2 no, 3 sí…)
+         y se copian juntos.
+       - Copiar, cortar, borrar y TODA la barra de abajo (negrita, colores,
+         tamaño, contorno…) funcionan con lo seleccionado.
        ========================================================= */
     private class SelS(c: Int) : android.text.style.BackgroundColorSpan(c)
     private var multi: LinearLayout? = null
@@ -1896,15 +1906,34 @@ class NoteActivity : Activity(), EditorView.Host {
     private var mA = 0 to 0
     private var mB = 0 to 0
     private var mInfo: TextView? = null
+    private var mLinesMode = false
+    private val mLines = java.util.TreeSet<Pair<Int, Int>>(compareBy<Pair<Int, Int>>({ it.first }, { it.second }))
+    private var handles: HandlesView? = null
+    private var mLinesBtn: TextView? = null
+    private lateinit var noteHolder: android.widget.FrameLayout
 
     private fun mRange(): Pair<Pair<Int, Int>, Pair<Int, Int>> {
         val a = mA; val b = mB
         return if (a.first < b.first || (a.first == b.first && a.second <= b.second)) a to b else b to a
     }
 
-    /** Los pedazos seleccionados: (cajita, desde, hasta). */
+    /** Dónde empieza y termina el renglón [line] (separado por Enter) de una cajita. */
+    private fun lineRange(e: EditText, line: Int): Pair<Int, Int>? {
+        val t = e.text.toString(); var start = 0
+        for (k in 0 until line) { val n = t.indexOf('\n', start); if (n < 0) return null; start = n + 1 }
+        val end = t.indexOf('\n', start).let { if (it < 0) t.length else it }
+        return start to end
+    }
+    private fun lineOf(e: EditText, off: Int): Int = e.text.toString().substring(0, off.coerceIn(0, e.text.length)).count { it == '\n' }
+
+    /** Los pedazos seleccionados, en orden: (cajita, desde, hasta). */
     private fun mPieces(): List<Triple<EditText, Int, Int>> {
-        val (s, e) = mRange(); val out = ArrayList<Triple<EditText, Int, Int>>()
+        val out = ArrayList<Triple<EditText, Int, Int>>()
+        if (mLinesMode) {
+            for ((i, l) in mLines) { val e = mEdits.getOrNull(i) ?: continue; val r = lineRange(e, l) ?: continue; if (r.first < r.second) out.add(Triple(e, r.first, r.second)) }
+            return out
+        }
+        val (s, e) = mRange()
         for (i in s.first..e.first) {
             val ed = mEdits.getOrNull(i) ?: continue
             val len = ed.text.length
@@ -1921,79 +1950,241 @@ class NoteActivity : Activity(), EditorView.Host {
         for ((k, p) in mPieces().withIndex()) {
             val (e, a, b) = p
             val put = { if (multi != null && b <= e.text.length) e.text.setSpan(SelS(col), a, b, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
-            if (wave) e.postDelayed(put, 35L * minOf(k, 20)) else put()
-            if (wave) e.postDelayed({ Anim.bump(e, 1.015f) }, 35L * minOf(k, 20))
+            if (wave) { e.postDelayed(put, 30L * minOf(k, 20)); e.postDelayed({ Anim.bump(e, 1.012f) }, 30L * minOf(k, 20)) } else put()
         }
         val n = mPieces().size
-        mInfo?.text = L.t("selLines", "n" to n) + "  ·  " + L.t("selTapEnd")
+        mInfo?.text = if (mLinesMode) L.t("selLinesLoose", "n" to n) else L.t("selLines", "n" to n) + "  ·  " + L.t("selDrag")
+        mLinesBtn?.let { b -> b.setTextColor(if (mLinesMode) T.onPill else T.text); b.pressBg(if (mLinesMode) T.pill else tw(0x14), 16f) }
+        handles?.visibility = if (mLinesMode) View.GONE else View.VISIBLE
+        handles?.invalidate()
+    }
+
+    /** El sitio (cajita, letra) que está debajo de un punto de la nota (en coordenadas de [noteHolder]). */
+    private fun spotAt(x: Float, y: Float): Pair<Int, Int>? {
+        val hl = IntArray(2); noteHolder.getLocationInWindow(hl)
+        var best = -1; var bestD = Float.MAX_VALUE
+        val loc = IntArray(2)
+        for ((i, e) in mEdits.withIndex()) {
+            if (!e.isShown) continue
+            e.getLocationInWindow(loc)
+            val top = (loc[1] - hl[1]).toFloat(); val bot = top + e.height
+            val d = if (y < top) top - y else if (y > bot) y - bot else 0f
+            if (d < bestD) { bestD = d; best = i }
+        }
+        if (best < 0) return null
+        val e = mEdits[best]; e.getLocationInWindow(loc)
+        val lx = x - (loc[0] - hl[0]); val ly = (y - (loc[1] - hl[1])).coerceIn(0f, e.height - 1f)
+        return best to e.getOffsetForPosition(lx, ly).coerceIn(0, e.text.length)
+    }
+
+    /** Dónde se dibuja la gotita de un sitio (x, arriba del renglón, abajo del renglón). */
+    private fun spotXY(p: Pair<Int, Int>): FloatArray? {
+        val e = mEdits.getOrNull(p.first) ?: return null
+        val lay = e.layout ?: return null
+        if (!e.isShown) return null
+        val hl = IntArray(2); noteHolder.getLocationInWindow(hl)
+        val loc = IntArray(2); e.getLocationInWindow(loc)
+        val off = p.second.coerceIn(0, e.text.length)
+        val line = lay.getLineForOffset(off)
+        val x = lay.getPrimaryHorizontal(off) + e.totalPaddingLeft + (loc[0] - hl[0])
+        val ty = lay.getLineTop(line) + e.totalPaddingTop + (loc[1] - hl[1]).toFloat()
+        val by = lay.getLineBottom(line) + e.totalPaddingTop + (loc[1] - hl[1]).toFloat()
+        return floatArrayOf(x, ty, by)
+    }
+
+    /** 💧 Las dos gotitas de la app: se arrastran por TODA la nota. */
+    @android.annotation.SuppressLint("ViewConstructor")
+    inner class HandlesView : View(this@NoteActivity) {
+        private val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        private var drag = 0          // 0 nada, 1 = la de A, 2 = la de B
+        private var grow = 0f
+        private var lastX = 0f; private var lastY = 0f
+        private val r get() = dp(11).toFloat()
+        private val autoScroll = object : Runnable {
+            override fun run() {
+                if (drag == 0) return
+                val edge = dp(70); var dy = 0
+                if (lastY < edge) dy = -dp(14) else if (lastY > height - edge) dy = dp(14)
+                if (dy != 0) { scroll.scrollBy(0, dy); move(lastX, lastY) }
+                postOnAnimation(this)
+            }
+        }
+        init { isClickable = false }
+
+        private fun color() = if (T.light) 0xFF2979FF.toInt() else 0xFF8FD8FF.toInt()
+
+        override fun onDraw(c: android.graphics.Canvas) {
+            if (multi == null || mLinesMode) return
+            for ((k, pt) in listOf(mA, mB).withIndex()) {
+                val xy = spotXY(pt) ?: continue
+                val (x, ty, by) = Triple(xy[0], xy[1], xy[2])
+                val big = if (drag == k + 1) 1f + 0.35f * grow else 1f
+                // la rayita
+                p.style = android.graphics.Paint.Style.FILL; p.color = color()
+                c.drawRoundRect(x - dp(1), ty, x + dp(1), by, dp(1).toFloat(), dp(1).toFloat(), p)
+                // la gotita con su brillo
+                val cy = by + r * big
+                p.color = (color() and 0x00FFFFFF) or 0x40000000; c.drawCircle(x, cy, r * big * 1.6f, p)
+                p.color = color(); c.drawCircle(x, cy, r * big, p)
+                p.color = 0xFFFFFFFF.toInt(); c.drawCircle(x - r * 0.3f, cy - r * 0.3f, r * 0.28f * big, p)
+            }
+        }
+
+        private fun hit(x: Float, y: Float): Int {
+            for ((k, pt) in listOf(mA, mB).withIndex()) {
+                val xy = spotXY(pt) ?: continue
+                if (Math.hypot((x - xy[0]).toDouble(), (y - (xy[2] + r)).toDouble()) < dp(30)) return k + 1
+            }
+            return 0
+        }
+
+        private fun move(x: Float, y: Float) {
+            val s = spotAt(x, y - r * 2.2f) ?: return     // un poquito arriba del dedo, para que veas el texto
+            if (drag == 1) mA = s else mB = s
+            multiPaint(false)
+        }
+
+        @android.annotation.SuppressLint("ClickableViewAccessibility")
+        override fun onTouchEvent(e: android.view.MotionEvent): Boolean {
+            when (e.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    if (multi == null || mLinesMode) return false
+                    drag = hit(e.x, e.y); if (drag == 0) return false
+                    parent.requestDisallowInterceptTouchEvent(true)
+                    lastX = e.x; lastY = e.y
+                    android.animation.ValueAnimator.ofFloat(0f, 1f).apply { duration = 180; addUpdateListener { grow = it.animatedValue as Float; invalidate() } }.start()
+                    performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+                    postOnAnimation(autoScroll)
+                    return true
+                }
+                android.view.MotionEvent.ACTION_MOVE -> if (drag != 0) { lastX = e.x; lastY = e.y; move(e.x, e.y) }
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> if (drag != 0) {
+                    android.animation.ValueAnimator.ofFloat(1f, 0f).apply { duration = 220; interpolator = android.view.animation.OvershootInterpolator(3f); addUpdateListener { grow = it.animatedValue as Float; invalidate() } }
+                        .withEnd { drag = 0; invalidate() }.start()
+                }
+            }
+            return drag != 0
+        }
+        private fun android.animation.ValueAnimator.withEnd(f: () -> Unit) = apply { addListener(object : android.animation.AnimatorListenerAdapter() { override fun onAnimationEnd(a: android.animation.Animator) { f() } }) }
+    }
+
+    /** Dejaste presionada una palabra (o la seleccionaste): empieza la selección de la app. */
+    private fun startFromNative(e: RichEdit, a: Int, b: Int) {
+        if (multi != null || ink.drawing) return
+        val i = allEdits().indexOf(e); if (i < 0) return
+        multiStart(e, false, minOf(a, b), maxOf(a, b))
     }
 
     @android.annotation.SuppressLint("ClickableViewAccessibility")
-    private fun multiStart(from: RichEdit?, all: Boolean) {
-        if (multi != null) { if (all) { mA = 0 to 0; mB = (mEdits.size - 1) to mEdits.last().text.length; multiPaint(true) }; return }
+    private fun multiStart(from: RichEdit?, all: Boolean, a: Int = -1, b: Int = -1, lines: Boolean = false) {
+        if (multi != null) {
+            if (all) { mLinesMode = false; mA = 0 to 0; mB = (mEdits.size - 1) to mEdits.last().text.length; multiPaint(true) }
+            return
+        }
         editor.selectImage(null); editor.flushAll()
         if (spell != null) closeSpell()
         stylePanel?.let { closeStyle() }
         mEdits = allEdits()
         if (mEdits.isEmpty()) return
-        if (all || from == null) { mA = 0 to 0; mB = (mEdits.size - 1) to mEdits.last().text.length }
-        else {
-            val i = mEdits.indexOf(from).coerceAtLeast(0)
-            mA = i to minOf(from.selectionStart, from.selectionEnd).coerceAtLeast(0)
-            val j = minOf(i + 1, mEdits.size - 1)
-            mB = j to mEdits[j].text.length                  // al principio: hasta el final del renglón de abajo
+        mLinesMode = lines; mLines.clear()
+        val i = from?.let { mEdits.indexOf(it).coerceAtLeast(0) } ?: 0
+        when {
+            all || from == null -> { mA = 0 to 0; mB = (mEdits.size - 1) to mEdits.last().text.length }
+            a >= 0 && b >= 0 -> { mA = i to a; mB = i to b }
+            else -> { val o = minOf(from.selectionStart, from.selectionEnd).coerceAtLeast(0); mA = i to o; mB = i to maxOf(from.selectionStart, from.selectionEnd) }
         }
+        if (lines && from != null) mLines.add(i to lineOf(from, mA.second))
+        // la selección del teléfono se quita (la de la app la reemplaza, y no se abre el teclado)
+        RichEdit.toolbar?.finish()
+        from?.let { f -> val pos = maxOf(a, b).coerceIn(0, f.text.length); f.setSelection(pos) }
         currentFocus?.let { f -> (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).hideSoftInputFromWindow(f.windowToken, 0) }
-        // tocar un renglón = ahí termina (o empieza) lo seleccionado; no se abre el teclado
-        for ((i, e) in mEdits.withIndex()) {
+        for ((k, e) in mEdits.withIndex()) {
             e.showSoftInputOnFocus = false
             e.setOnTouchListener { v, ev ->
                 if (ev.actionMasked == android.view.MotionEvent.ACTION_UP) {
                     val off = (v as EditText).getOffsetForPosition(ev.x, ev.y).coerceIn(0, v.text.length)
-                    val (s, _) = mRange()
-                    if (i < s.first || (i == s.first && off < s.second)) mA = i to off else { mA = s; mB = i to off }
-                    multiPaint(false); Anim.bump(v, 1.02f)
+                    if (mLinesMode) {
+                        // líneas sueltas: un toque pone o quita ese renglón
+                        val key = k to lineOf(v, off)
+                        if (!mLines.remove(key)) mLines.add(key)
+                        multiPaint(false); Anim.bump(v, 1.02f)
+                    } else {
+                        // tocar el texto (fuera de las gotitas) = se acaba la selección y escribes ahí
+                        multiEnd()
+                        v.requestFocus(); v.setSelection(off); showKeyboard(v)
+                    }
                 }
                 true
             }
         }
-        // el panel de abajo
-        formatBar.visibility = View.GONE
-        val p = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(10), dp(12), dp(10)) }
+        // las gotitas
+        val hv = HandlesView(); handles = hv
+        noteHolder.addView(hv, android.widget.FrameLayout.LayoutParams(MATCH, MATCH))
+        hv.alpha = 0f; hv.animate().alpha(1f).setDuration(220).start()
+        // el panel (arriba de la barra de siempre: con ella cambias negrita, colores, tamaño…)
+        val p = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), dp(8), dp(10), dp(8)) }
         multi = p
-        mInfo = tv("", 13.5f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(4), 0, dp(4), dp(8)) }
+        mInfo = tv("", 13f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(4), 0, dp(4), dp(6)) }
         p.addView(mInfo)
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        fun chip(label: String, bold: Boolean = true, act: (View) -> Unit) = tv(label, 15f, T.text, bold).apply {
-            gravity = Gravity.CENTER; setPadding(dp(10), dp(10), dp(10), dp(10)); pressBg(tw(0x14), 16f)
+        fun chip(label: String, act: (View) -> Unit) = tv(label, 13.5f, T.text, true).apply {
+            gravity = Gravity.CENTER; setPadding(dp(12), dp(9), dp(12), dp(9)); pressBg(tw(0x14), 16f)
             setOnClickListener { pop(it); act(it) }
         }
         fun ichip(icon: Int, color: Int = T.text, act: (View) -> Unit): View = IconView(this, icon, 8.5f).apply {
-            this.color = color; pressBg(tw(0x14), 16f); setPadding(0, dp(10), 0, dp(10))
+            this.color = color; pressBg(tw(0x14), 16f)
             setOnClickListener { pop(it); act(it) }
         }
-        val chips = listOf(
-            ichip(MoreIcons.COPY) { b -> multiCopy(); Anim.sparkle(b, 36f, 500) },
-            ichip(MoreIcons.SCISSORS) { multiCopy(); multiDelete() },
-            ichip(Icons.TRASH, T.danger) { multiDelete() },
-            chip("B") { multiStyle { s -> s.copy(b = !s.b) } },
-            chip("I") { multiStyle { s -> s.copy(i = !s.i) } }.apply { setTypeface(typeface, android.graphics.Typeface.ITALIC) },
-            chip("U") { multiStyle { s -> s.copy(u = !s.u) } }.apply { paintFlags = paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG },
-            chip("S") { multiStyle { s -> s.copy(s = !s.s) } }.apply { paintFlags = paintFlags or android.graphics.Paint.STRIKE_THRU_TEXT_FLAG },
-        )
-        for (c in chips) row.addView(c, lp(0, dp(42), 1f).apply { setMargins(dp(2), 0, dp(2), 0) })
-        val sv = android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
-        val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        bar.addView(row, lp(0, WRAP, 1f))
-        bar.addView(tv("✓ " + L.t("done"), 15f, T.onPill, true).apply {
-            setPadding(dp(14), dp(10), dp(14), dp(10)); pressBg(T.pill, 20f); setOnClickListener { pop(it); multiEnd() }
-        })
-        p.addView(bar, lp(MATCH, WRAP))
-        bottom.addView(p, android.widget.FrameLayout.LayoutParams(MATCH, WRAP))
-        p.translationY = dp(50).toFloat(); p.alpha = 0f
+        val allC = chip("⬚ " + L.t("selAll")) { mLinesMode = false; mA = 0 to 0; mB = (mEdits.size - 1) to mEdits.last().text.length; multiPaint(true) }
+        val linesC = chip("☰ " + L.t("selLoose")) {
+            mLinesMode = !mLinesMode
+            if (mLinesMode && mLines.isEmpty()) mPiecesFromRangeToLines()
+            multiPaint(true)
+        }
+        mLinesBtn = linesC
+        val copyC = ichip(MoreIcons.COPY) { v -> multiCopy(); Anim.sparkle(v, 36f, 500) }
+        val cutC = ichip(MoreIcons.SCISSORS) { multiCopy(); multiDelete() }
+        val delC = ichip(Icons.TRASH, T.danger) { multiDelete() }
+        val strikeC = chip("S") { multiStyle { s -> s.copy(s = !s.s) } }.apply { paintFlags = paintFlags or android.graphics.Paint.STRIKE_THRU_TEXT_FLAG }
+        val doneC = tv("✓", 16f, T.onPill, true).apply { gravity = Gravity.CENTER; pressBg(T.pill, 20f); setOnClickListener { pop(it); multiEnd() } }
+        val items = listOf<Pair<View, Int>>(allC to WRAP, linesC to WRAP, copyC to dp(42), cutC to dp(42), delC to dp(42), strikeC to dp(42))
+        val sv = android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(row) }
+        for ((v, w) in items) row.addView(v, lp(w, dp(40)).apply { setMargins(dp(3), 0, dp(3), 0) })
+        val line = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        line.addView(sv, lp(0, WRAP, 1f)); line.addView(doneC, lp(dp(46), dp(40)).apply { marginStart = dp(6) })
+        p.addView(line, lp(MATCH, WRAP))
+        bottom.addView(p, 0, android.widget.FrameLayout.LayoutParams(MATCH, WRAP))
+        // la barra de siempre va debajo del panel
+        (formatBar.layoutParams as? android.widget.FrameLayout.LayoutParams)?.let { }
+        relayoutBottom()
+        p.translationY = dp(40).toFloat(); p.alpha = 0f
         p.animate().translationY(0f).alpha(1f).setDuration(360).setInterpolator(android.view.animation.OvershootInterpolator(1.2f)).start()
-        chips.forEachIndexed { k, c -> Anim.popIn(c, 80L + 40L * k) }
+        (items.map { it.first } + doneC).forEachIndexed { k, c -> Anim.popIn(c, 60L + 35L * k) }
+        scroll.viewTreeObserver.addOnScrollChangedListener(scrollInv)
         multiPaint(true)
+    }
+
+    private val scrollInv = android.view.ViewTreeObserver.OnScrollChangedListener { handles?.invalidate() }
+
+    /** El panel de selección y la barra de siempre, uno encima del otro. */
+    private fun relayoutBottom() {
+        val p = multi ?: return
+        p.post {
+            val h = p.height
+            (formatBar.layoutParams as android.widget.FrameLayout.LayoutParams).topMargin = h
+            formatBar.requestLayout()
+        }
+    }
+
+    /** Al pasar a "líneas sueltas": los renglones que ya estaban seleccionados quedan marcados. */
+    private fun mPiecesFromRangeToLines() {
+        val (s, e) = mRange()
+        for (i in s.first..e.first) {
+            val ed = mEdits.getOrNull(i) ?: continue
+            val a = if (i == s.first) lineOf(ed, s.second) else 0
+            val b = if (i == e.first) lineOf(ed, e.second) else lineOf(ed, ed.text.length)
+            for (l in a..b) mLines.add(i to l)
+        }
     }
 
     private fun multiCopy() {
@@ -2002,18 +2193,30 @@ class NoteActivity : Activity(), EditorView.Host {
         hint(L.t("selCopied"))
     }
 
+    /** Un estilo a TODO lo seleccionado (solo cambia lo que cambió: no pisa otros estilos). */
     private fun multiStyle(fn: (St) -> St) {
         if (snapPending) snapshot()
-        // si TODO ya tiene el estilo, se quita; si no, se pone a todo
         val pieces = mPieces()
-        val probe = pieces.firstOrNull()?.let { (e, a, _) -> Rich.styleAt(e.text, a + 1) } ?: St.PLAIN
-        val on = fn(probe)
+        val c = pieces.firstOrNull()?.let { (e, a, _) -> Rich.styleAt(e.text, minOf(a + 1, e.text.length)) } ?: St.PLAIN
+        val next = fn(c)
         for ((e, a, b) in pieces) {
             val r = e as? RichEdit ?: continue
-            r.setSelection(a, b); r.applyStyle { s -> val want = fn(probe); s.copy(b = if (want.b != probe.b) want.b else s.b, i = if (want.i != probe.i) want.i else s.i, u = if (want.u != probe.u) want.u else s.u, s = if (want.s != probe.s) want.s else s.s) }
-            Anim.bump(e, 1.03f)
+            r.setSelection(a, b)
+            r.applyStyle { s ->
+                var x = s
+                if (next.b != c.b) x = x.copy(b = next.b)
+                if (next.i != c.i) x = x.copy(i = next.i)
+                if (next.u != c.u) x = x.copy(u = next.u)
+                if (next.s != c.s) x = x.copy(s = next.s)
+                if (next.size != c.size) x = x.copy(size = next.size)
+                if (next.color != c.color) x = x.copy(color = next.color)
+                if (next.bg != c.bg) x = x.copy(bg = next.bg)
+                if (next.o != c.o) x = x.copy(o = next.o)
+                x
+            }
+            r.setSelection(b)
         }
-        if (on != probe) { dirty = true; onDirty() }
+        dirty = true; onDirty()
         multiPaint(false)
         snapshot()
     }
@@ -2022,13 +2225,12 @@ class NoteActivity : Activity(), EditorView.Host {
         if (snapPending) snapshot()
         val pieces = mPieces()
         if (pieces.isEmpty()) return
-        // se van desvaneciendo y después se borran
         pieces.forEach { (e, _, _) -> e.animate().alpha(0.35f).setDuration(160).start() }
         root.postDelayed({
-            for ((e, a, b) in pieces.reversed()) if (b <= e.text.length) e.text.delete(a, b)
+            // de atrás para adelante (así no se mueven las posiciones)
+            for ((e, a, b) in pieces.sortedWith(compareBy({ -mEdits.indexOf(it.first) }, { -it.second }))) if (b <= e.text.length) e.text.delete(a, b)
             pieces.forEach { (e, _, _) -> e.alpha = 1f }
             multiEnd()
-            // los renglones de lista que quedaron vacíos se quitan
             editor.change { bl -> bl.filterIsInstance<Block.ListB>().forEach { l -> l.items.removeAll { runsPlain(it.runs).isEmpty() } }; null }
             dirty = true; onDirty(); snapshot()
             hint(L.t("selDeleted"))
@@ -2042,9 +2244,11 @@ class NoteActivity : Activity(), EditorView.Host {
             e.text.getSpans(0, e.text.length, SelS::class.java).forEach { e.text.removeSpan(it) }
             e.setOnTouchListener(null); e.showSoftInputOnFocus = true
         }
-        p.animate().translationY(dp(40).toFloat()).alpha(0f).setDuration(200).withEndAction {
-            bottom.removeView(p); if (imgPanel == null && spell == null && !ink.drawing && rec == null) formatBar.visibility = View.VISIBLE
-        }.start()
+        scroll.viewTreeObserver.removeOnScrollChangedListener(scrollInv)
+        handles?.let { h -> h.animate().alpha(0f).setDuration(150).withEndAction { noteHolder.removeView(h) }.start() }
+        handles = null; mLinesBtn = null
+        (formatBar.layoutParams as android.widget.FrameLayout.LayoutParams).topMargin = 0; formatBar.requestLayout()
+        p.animate().translationY(dp(30).toFloat()).alpha(0f).setDuration(180).withEndAction { bottom.removeView(p) }.start()
     }
 
     private fun allEdits(): List<EditText> {

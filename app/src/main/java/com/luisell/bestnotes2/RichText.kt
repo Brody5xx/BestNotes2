@@ -162,6 +162,8 @@ open class RichEdit(ctx: Context) : EditText(ctx) {
         /** "Seleccionar todo" / "Seleccionar varias líneas": lo maneja la pantalla de la nota (toda la nota, no solo este renglón). */
         var onSelectAll: ((RichEdit) -> Unit)? = null
         var onSelectMore: ((RichEdit) -> Unit)? = null
+        /** Seleccionaste con el dedo (dejando presionado): la nota pone sus propias gotitas que cruzan renglones. */
+        var onUserSelect: ((RichEdit, Int, Int) -> Unit)? = null
         const val MENU_MORE = 9901
         fun hideToolbar(ms: Long) { if (android.os.Build.VERSION.SDK_INT >= 23) try { toolbar?.hide(ms) } catch (_: Exception) {} }
     }
@@ -219,6 +221,12 @@ open class RichEdit(ctx: Context) : EditText(ctx) {
         })
     }
 
+    private var lastTouch = 0L
+    override fun dispatchTouchEvent(e: android.view.MotionEvent): Boolean {
+        if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN) lastTouch = android.os.SystemClock.uptimeMillis()
+        return super.dispatchTouchEvent(e)
+    }
+
     /** Cambia el texto sin avisar que "se editó" (al abrir la nota o deshacer). */
     fun setRuns(runs: List<Run>) {
         muting = true
@@ -255,6 +263,9 @@ open class RichEdit(ctx: Context) : EditText(ctx) {
 
     override fun onSelectionChanged(selStart: Int, selEnd: Int) {
         super.onSelectionChanged(selStart, selEnd)
+        if (selStart != selEnd && onUserSelect != null && hasFocus() && android.os.SystemClock.uptimeMillis() - lastTouch < 1500) {
+            postDelayed({ if (selectionStart != selectionEnd && hasFocus()) onUserSelect?.invoke(this, selectionStart, selectionEnd) }, 60)
+        }
         if (pending != null && (selStart != selEnd || selStart < pendA || selStart > pendB)) { pending = null }
         onCursor?.invoke(this)
     }
