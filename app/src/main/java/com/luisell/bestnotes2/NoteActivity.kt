@@ -1924,7 +1924,18 @@ class NoteActivity : Activity(), EditorView.Host {
     private var mB = 0 to 0
     private var mInfo: TextView? = null
     private var mLinesMode = false
-    private val mLines = java.util.TreeSet<Pair<Int, Int>>(compareBy<Pair<Int, Int>>({ it.first }, { it.second }))
+    /** Líneas sueltas: varios pedazos separados, cada uno con [inicio, fin] (y sus gotitas). */
+    private val mRanges = ArrayList<Array<Pair<Int, Int>>>()
+    private fun before(a: Pair<Int, Int>, b: Pair<Int, Int>) = a.first < b.first || (a.first == b.first && a.second <= b.second)
+    private fun ordered(r: Array<Pair<Int, Int>>) = if (before(r[0], r[1])) r[0] to r[1] else r[1] to r[0]
+    /** Pone (o quita, si ya estaba) el renglón completo [line] de la cajita [i]. */
+    private fun toggleLine(i: Int, off: Int) {
+        val e = mEdits.getOrNull(i) ?: return
+        val hit = mRanges.indexOfFirst { r -> val (a, b) = ordered(r); before(a, i to off) && before(i to off, b) }
+        if (hit >= 0) { mRanges.removeAt(hit); return }
+        val lr = lineRange(e, lineOf(e, off)) ?: return
+        if (lr.first < lr.second) mRanges.add(arrayOf(i to lr.first, i to lr.second))
+    }
     private var handles: HandlesView? = null
     private var mLinesBtn: TextView? = null
     private lateinit var noteHolder: android.widget.FrameLayout
@@ -1945,12 +1956,13 @@ class NoteActivity : Activity(), EditorView.Host {
 
     /** Los pedazos seleccionados, en orden: (cajita, desde, hasta). */
     private fun mPieces(): List<Triple<EditText, Int, Int>> {
-        val out = ArrayList<Triple<EditText, Int, Int>>()
-        if (mLinesMode) {
-            for ((i, l) in mLines) { val e = mEdits.getOrNull(i) ?: continue; val r = lineRange(e, l) ?: continue; if (r.first < r.second) out.add(Triple(e, r.first, r.second)) }
-            return out
-        }
+        if (mLinesMode) return mRanges.map { ordered(it) }.sortedWith(compareBy({ it.first.first }, { it.first.second })).flatMap { (a, b) -> piecesOf(a, b) }
         val (s, e) = mRange()
+        return piecesOf(s, e)
+    }
+
+    private fun piecesOf(s: Pair<Int, Int>, e: Pair<Int, Int>): List<Triple<EditText, Int, Int>> {
+        val out = ArrayList<Triple<EditText, Int, Int>>()
         for (i in s.first..e.first) {
             val ed = mEdits.getOrNull(i) ?: continue
             val len = ed.text.length
@@ -1970,7 +1982,6 @@ class NoteActivity : Activity(), EditorView.Host {
             if (wave) { e.postDelayed(put, 30L * minOf(k, 20)); e.postDelayed({ Anim.bump(e, 1.012f) }, 30L * minOf(k, 20)) } else put()
         }
         mLinesBtn?.let { b -> b.setTextColor(if (mLinesMode) 0xFF4FC3F7.toInt() else T.text) }
-        handles?.visibility = if (mLinesMode) View.GONE else View.VISIBLE
         handles?.invalidate()
     }
 
@@ -2034,12 +2045,24 @@ class NoteActivity : Activity(), EditorView.Host {
             }
         }
         init { isClickable = false }
+        override fun onDetachedFromWindow() { super.onDetachedFromWindow(); try { mag?.dismiss() } catch (_: Throwable) {} }
 
         /** La agarradera de la izquierda va donde EMPIEZA lo seleccionado; la de la derecha donde TERMINA. */
-        private fun pts(): List<Pair<Int, Pair<Int, Int>>> {
+        private fun pts(): List<Triple<Int, Pair<Int, Int>, Boolean>> {
+            if (mLinesMode) return mRanges.withIndex().flatMap { (ri, r) ->
+                val startIdx = if (before(r[0], r[1])) 0 else 1
+                listOf(Triple(10 + ri * 2 + startIdx, r[startIdx], true), Triple(10 + ri * 2 + (1 - startIdx), r[1 - startIdx], false))
+            }
             val (s, e) = mRange()
             val first = if (s == mA) 1 else 2
-            return listOf(first to s, (3 - first) to e)
+            return listOf(Triple(first, s, true), Triple(3 - first, e, false))
+        }
+        private fun setPt(id: Int, sp: Pair<Int, Int>) {
+            when {
+                id == 1 -> mA = sp
+                id == 2 -> mB = sp
+                id >= 10 -> mRanges.getOrNull((id - 10) / 2)?.set((id - 10) % 2, sp)
+            }
         }
         private fun rect(k: Int, pt: Pair<Int, Int>, isStart: Boolean): android.graphics.Rect? {
             val xy = spotXY(pt) ?: return null
@@ -2051,11 +2074,10 @@ class NoteActivity : Activity(), EditorView.Host {
         }
 
         override fun onDraw(c: android.graphics.Canvas) {
-            if (multi == null || mLinesMode) return
-            for ((idx, p) in pts().withIndex()) {
-                val (k, pt) = p
-                val r = rect(k, pt, idx == 0) ?: continue
-                val d = (if (idx == 0) hl else hr) ?: continue
+            if (multi == null) return
+            for ((k, pt, isStart) in pts()) {
+                val r = rect(k, pt, isStart) ?: continue
+                val d = (if (isStart) hl else hr) ?: continue
                 d.bounds = r
                 d.alpha = if (drag == k) 255 else 235
                 d.draw(c)
@@ -2063,9 +2085,8 @@ class NoteActivity : Activity(), EditorView.Host {
         }
 
         private fun hit(x: Float, y: Float): Int {
-            for ((idx, p) in pts().withIndex()) {
-                val (k, pt) = p
-                val r = rect(k, pt, idx == 0) ?: continue
+            for ((k, pt, isStart) in pts()) {
+                val r = rect(k, pt, isStart) ?: continue
                 val big = android.graphics.Rect(r); big.inset(-dp(14), -dp(10))
                 if (big.contains(x.toInt(), y.toInt())) {
                     val xy = spotXY(pt)!!
@@ -2079,7 +2100,7 @@ class NoteActivity : Activity(), EditorView.Host {
         private fun move() {
             val tx = lastX + grabDx; val ty = lastY + grabDy
             val s = spotAt(tx, ty) ?: return
-            if (drag == 1) mA = s else mB = s
+            setPt(drag, s)
             multiPaint(false)
             // 🔍 la lupa sigue al dedo
             spotXY(s)?.let { xy -> try { mag?.show(xy[0], (xy[1] + xy[2]) / 2) } catch (_: Throwable) {} }
@@ -2090,7 +2111,7 @@ class NoteActivity : Activity(), EditorView.Host {
         override fun onTouchEvent(e: android.view.MotionEvent): Boolean {
             when (e.actionMasked) {
                 android.view.MotionEvent.ACTION_DOWN -> {
-                    if (multi == null || mLinesMode) return false
+                    if (multi == null) return false
                     drag = hit(e.x, e.y); if (drag == 0) return false
                     parent.requestDisallowInterceptTouchEvent(true)
                     lastX = e.x; lastY = e.y
@@ -2129,15 +2150,17 @@ class NoteActivity : Activity(), EditorView.Host {
         stylePanel?.let { closeStyle() }
         mEdits = allEdits()
         if (mEdits.isEmpty()) return
-        mLinesMode = lines; mLines.clear()
+        mLinesMode = lines; mRanges.clear()
         val i = from?.let { mEdits.indexOf(it).coerceAtLeast(0) } ?: 0
         when {
             all || from == null -> { mA = 0 to 0; mB = (mEdits.size - 1) to mEdits.last().text.length }
             a >= 0 && b >= 0 -> { mA = i to a; mB = i to b }
             else -> { mA = i to minOf(from.selectionStart, from.selectionEnd).coerceAtLeast(0); mB = i to maxOf(from.selectionStart, from.selectionEnd) }
         }
-        if (lines && from != null) mLines.add(i to lineOf(from, mA.second))
+        if (lines && from != null) toggleLine(i, mA.second)
         multi = LinearLayout(this)            // (marca de que la selección está activa)
+        // 🔍 se "cancela" el toque del teléfono: así su lupa se cierra y no se queda trabada
+        from?.let { f -> try { val t = android.os.SystemClock.uptimeMillis(); val c = android.view.MotionEvent.obtain(t, t, android.view.MotionEvent.ACTION_CANCEL, 0f, 0f, 0); f.onTouchEvent(c); c.recycle() } catch (_: Throwable) {} }
         // primero se pinta lo seleccionado; después se quita la del teléfono (así no parpadea)
         multiPaint(false)
         RichEdit.toolbar?.finish()
@@ -2166,9 +2189,8 @@ class NoteActivity : Activity(), EditorView.Host {
                     mine = false
                     val off = (v as EditText).getOffsetForPosition(ev.x, ev.y).coerceIn(0, v.text.length)
                     if (mLinesMode) {
-                        val key = k to lineOf(v, off)
-                        if (!mLines.remove(key)) mLines.add(key)
-                        multiPaint(false); placeSelBar()
+                        toggleLine(k, off)
+                        multiPaint(false); placeSelBar(); Anim.bump(v, 1.02f)
                     } else {
                         // tocar el texto = se acaba la selección y escribes ahí (como siempre)
                         multiEnd()
@@ -2194,7 +2216,7 @@ class NoteActivity : Activity(), EditorView.Host {
             val bw = if (bar.width > 0) bar.width else bar.measuredWidth
             val bh = if (bar.height > 0) bar.height else bar.measuredHeight
             val (s, _) = mRange()
-            val first = if (mLinesMode) mLines.firstOrNull()?.let { (i, l) -> mEdits.getOrNull(i)?.let { e -> lineRange(e, l)?.let { i to it.first } } } else s
+            val first = if (mLinesMode) mRanges.map { ordered(it).first }.minWithOrNull(compareBy({ it.first }, { it.second })) else s
             val xy = first?.let { spotXY(it) }
             val top = (xy?.get(1) ?: dp(80).toFloat()) - bh - dp(10)
             // si no cabe arriba, va debajo de donde TERMINA lo seleccionado (abajo de la gotita)
@@ -2225,7 +2247,7 @@ class NoteActivity : Activity(), EditorView.Host {
             item(L.t("selAll")) { mLinesMode = false; mA = 0 to 0; mB = (mEdits.size - 1) to mEdits.last().text.length; multiPaint(true); placeSelBar() },
             item("☰ " + L.t("selLoose")) {
                 mLinesMode = !mLinesMode
-                if (mLinesMode && mLines.isEmpty()) mPiecesFromRangeToLines()
+                if (mLinesMode && mRanges.isEmpty()) mPiecesFromRangeToLines()
                 multiPaint(true); placeSelBar()
             }.also { mLinesBtn = it },
         )
@@ -2236,15 +2258,10 @@ class NoteActivity : Activity(), EditorView.Host {
 
     private val scrollInv = android.view.ViewTreeObserver.OnScrollChangedListener { handles?.invalidate(); placeSelBar() }
 
-    /** Al pasar a "líneas sueltas": los renglones que ya estaban seleccionados quedan marcados. */
+    /** Al pasar a "líneas sueltas": lo que ya estaba seleccionado queda como el primer pedazo. */
     private fun mPiecesFromRangeToLines() {
-        val (s, e) = mRange()
-        for (i in s.first..e.first) {
-            val ed = mEdits.getOrNull(i) ?: continue
-            val a = if (i == s.first) lineOf(ed, s.second) else 0
-            val b = if (i == e.first) lineOf(ed, e.second) else lineOf(ed, ed.text.length)
-            for (l in a..b) mLines.add(i to l)
-        }
+        val (a, b) = mRange()
+        if (a != b) mRanges.add(arrayOf(a, b))
     }
 
     private fun multiCopy() {
@@ -2306,7 +2323,7 @@ class NoteActivity : Activity(), EditorView.Host {
         }
         scroll.viewTreeObserver.removeOnScrollChangedListener(scrollInv)
         handles?.let { h -> noteHolder.removeView(h) }
-        handles = null; mLinesBtn = null; mLinesMode = false
+        handles = null; mLinesBtn = null; mLinesMode = false; mRanges.clear()
         selBar?.let { b -> b.animate().alpha(0f).scaleX(0.9f).scaleY(0.9f).setDuration(140).withEndAction { noteHolder.removeView(b) }.start() }
         selBar = null
     }

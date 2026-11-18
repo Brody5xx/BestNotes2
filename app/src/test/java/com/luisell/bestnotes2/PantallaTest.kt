@@ -472,8 +472,8 @@ class PantallaTest {
         @Suppress("UNCHECKED_CAST") val edits = f("mEdits").get(act) as List<android.widget.EditText>
         // edits: título, línea 1, línea 2, línea 3
         f("mLinesMode").setBoolean(act, true)
-        @Suppress("UNCHECKED_CAST") val lines = f("mLines").get(act) as java.util.TreeSet<Pair<Int, Int>>
-        lines.clear(); lines.add(1 to 0); lines.add(3 to 0)
+        val tog = c.getDeclaredMethod("toggleLine", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType).apply { isAccessible = true }
+        (f("mRanges").get(act) as ArrayList<*>).clear(); tog.invoke(act, 1, 2); tog.invoke(act, 3, 2)
         c.getDeclaredMethod("multiCopy").apply { isAccessible = true }.invoke(act)
         val clip = (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).primaryClip!!.getItemAt(0).text.toString()
         assertEquals("línea 1\nlínea 3", clip)

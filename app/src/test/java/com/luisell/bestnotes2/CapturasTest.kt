@@ -384,7 +384,8 @@ class CapturasTest {
         shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(800))
         shot(act.window.decorView, "80_seleccion")
         f("mLinesMode").setBoolean(act, true)
-        @Suppress("UNCHECKED_CAST") (f("mLines").get(act) as java.util.TreeSet<Pair<Int, Int>>).apply { clear(); add(2 to 0); add(4 to 0) }
+        (f("mRanges").get(act) as ArrayList<*>).clear()
+        c.getDeclaredMethod("toggleLine", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType).apply { isAccessible = true }.let { it.invoke(act, 2, 3); it.invoke(act, 4, 3) }
         c.getDeclaredMethod("multiPaint", Boolean::class.javaPrimitiveType).apply { isAccessible = true }.invoke(act, false)
         shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(800))
         shot(act.window.decorView, "81_sueltas")
