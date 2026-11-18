@@ -380,6 +380,7 @@ class CapturasTest {
         fun f(n: String) = c.getDeclaredField(n).apply { isAccessible = true }
         f("mA").set(act, 2 to 4); f("mB").set(act, 4 to 9)
         c.getDeclaredMethod("multiPaint", Boolean::class.javaPrimitiveType).apply { isAccessible = true }.invoke(act, false)
+        c.getDeclaredMethod("placeSelBar").apply { isAccessible = true }.invoke(act)
         shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(800))
         shot(act.window.decorView, "80_seleccion")
         f("mLinesMode").setBoolean(act, true)
