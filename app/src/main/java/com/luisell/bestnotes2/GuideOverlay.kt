@@ -27,15 +27,18 @@ class GuideOverlay(ctx: Context) : View(ctx) {
     // 📏 la línea roja larga cuando dos fotos quedan parejitas (crece desde el medio, con brillo)
     private var ex = -1f; private var et = 0f; private var eb = 0f; private var ek = 0f
     private var eAnim: android.animation.ValueAnimator? = null
+    private var hiding = false
     private val glowP = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x55FF3B30; strokeCap = Paint.Cap.ROUND }
     fun edge(nx: Float, top: Float, bottom: Float) {
         if (nx < 0) {
-            if (ex < 0) return
+            if (ex < 0 || hiding) return          // ya se está yendo: no la reinicies (si no, se queda pegada)
+            hiding = true
             eAnim?.cancel(); eAnim = android.animation.ValueAnimator.ofFloat(ek, 0f).apply { duration = 160
-                addUpdateListener { ek = it.animatedValue as Float; if (ek <= 0f) ex = -1f; invalidate() } }.also { it.start() }
+                addUpdateListener { ek = it.animatedValue as Float; if (ek <= 0f) { ex = -1f; hiding = false }; invalidate() } }.also { it.start() }
             return
         }
-        val fresh = ex < 0 || Math.abs(nx - ex) > 1f
+        val fresh = ex < 0 || hiding || Math.abs(nx - ex) > 1f
+        hiding = false
         ex = nx; et = top; eb = bottom
         if (fresh) { eAnim?.cancel(); ek = 0f; eAnim = android.animation.ValueAnimator.ofFloat(0f, 1f).apply { duration = 260
             interpolator = android.view.animation.DecelerateInterpolator(); addUpdateListener { ek = it.animatedValue as Float; invalidate() } }.also { it.start() } }

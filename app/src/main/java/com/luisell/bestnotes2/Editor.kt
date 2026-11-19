@@ -1028,21 +1028,22 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                         2 -> nh = (ph0 + dy).toInt().coerceIn(minS, dp(1400))
                         3 -> if (side() == "r") nl = (l0 + dx).toInt().coerceIn(maxOf(0, r0 - W), r0 - minS) else nr = (r0 + dx).toInt().coerceIn(l0 + minS, W)
                     }
-                    // 📏 ¿quedó pareja con la orilla de otra foto? → se pega y sale la línea roja
+                    // 📏 ¿quedó del MISMO ANCHO que otra foto? → se pega y sale la línea roja
                     val movingLeft = which == 0 || (which == 3 && side() == "r")
                     var edgeX = Float.NaN; var span: android.graphics.RectF? = null
                     if (which != 2) {
-                        val cur = screenL + (if (movingLeft) nl else nr).toFloat()
-                        var best = dp(9).toFloat()
+                        val cw = (nr - nl).toFloat()
+                        var best = dp(9).toFloat(); var bestW = -1
                         for (o in ed.views) {
                             if (o === this@FotoView || o !is FotoView) continue
                             val rr = o.edgesOnScreen() ?: continue
-                            for (ex in floatArrayOf(rr.left, rr.right)) {
-                                val dd = Math.abs(ex - cur)
-                                if (dd < best) { best = dd; edgeX = ex; span = rr }
-                            }
+                            val dd = Math.abs(rr.width() - cw)
+                            if (dd < best) { best = dd; bestW = Math.round(rr.width()); span = rr }
                         }
-                        if (!edgeX.isNaN()) { val local = (edgeX - screenL).toInt(); if (movingLeft) nl = local.coerceIn(0, r0 - minS) else nr = local.coerceIn(l0 + minS, W) }
+                        if (bestW > 0) {
+                            if (movingLeft) nl = (nr - bestW).coerceAtLeast(0) else nr = (nl + bestW).coerceAtMost(W)
+                            if (nr - nl == bestW) edgeX = screenL + (if (movingLeft) nl else nr).toFloat() else span = null
+                        }
                     }
                     val nw = nr - nl
                     if (which == 3) nh = (nw * ph0.toFloat() / pw0).toInt()        // la esquina: crece sin deformar
@@ -1067,7 +1068,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                         val win = IntArray(2); flow.getLocationInWindow(win); val off = win[1] - flow.let { val q = IntArray(2); it.getLocationOnScreen(q); q[1] }
                         ed.host.showEdge(edgeX - (screenL - win[0]), top + off, bot + off)
                     } else ed.host.showEdge(-1f, 0f, 0f)
-                    val label = when { orig -> "✓ Forma original"; which == 2 -> "↕ ${nh * 100 / maxOf(1, nw)}%"; !edgeX.isNaN() -> "📏 Parejita con la otra foto"; else -> "↔ ${block.pct.toInt()}%" }
+                    val label = when { orig -> "✓ Forma original"; which == 2 -> "↕ ${nh * 100 / maxOf(1, nw)}%"; !edgeX.isNaN() -> "📏 Mismo ancho que la otra foto"; else -> "↔ ${block.pct.toInt()}%" }
                     ed.host.showGuides(-1f, -1f, "", label)
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {

@@ -447,7 +447,7 @@ class PantallaTest {
         val bm = android.graphics.Bitmap.createBitmap(60, 40, android.graphics.Bitmap.Config.ARGB_8888)
         val r1 = Photos.saveNew(bm); val r2 = Photos.saveNew(bm)
         val m = Store.createNote("Estirar", mutableListOf(Block.Text(mutableListOf(Run("Hola"))),
-            Block.Img(r1.file, 60f, "", 0f, 0f, 60, 40), Block.Text(mutableListOf(Run("Medio"))), Block.Img(r2.file, 40f, "", 0f, 0f, 60, 40)))
+            Block.Img(r1.file, 60f, "", 25f, 0f, 60, 40), Block.Text(mutableListOf(Run("Medio"))), Block.Img(r2.file, 40f, "", 0f, 0f, 60, 40)))
         waitIo(); idle()
         val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
         waitIo(); idle()
@@ -471,7 +471,7 @@ class PantallaTest {
         drag(right, W * 0.2f - 5f, 0f)
         assertEquals(60f, f.block.pct, 0.6f)
         org.junit.Assert.assertTrue("ahora tiene forma propia", f.block.ar > 0f)
-        assertEquals(fs[0].edgesOnScreen()!!.right, f.edgesOnScreen()!!.right, 2f)
+        assertEquals("mismo ancho que la de arriba", fs[0].edgesOnScreen()!!.width(), f.edgesOnScreen()!!.width(), 2f)
         // abajo: más alta
         val ar0 = f.block.ar
         drag(f.dots[2], 0f, 150f)

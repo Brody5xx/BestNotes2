@@ -419,7 +419,7 @@ class CapturasTest {
             return Photos.saveNew(bm)
         }
         val r1 = pic(0xFF00897B.toInt(), 0xFFFFEB3B.toInt()); val r2 = pic(0xFF3949AB.toInt(), 0xFFFFC107.toInt())
-        val m = Store.createNote("Estirar fotos", mutableListOf(Block.Text(mutableListOf(Run("Primera foto"))), Block.Img(r1.file, 70f, "", 0f, 0f, 800, 600),
+        val m = Store.createNote("Estirar fotos", mutableListOf(Block.Text(mutableListOf(Run("Primera foto"))), Block.Img(r1.file, 70f, "", 30f, 0f, 800, 600),
             Block.Text(mutableListOf(Run("Segunda foto"))), Block.Img(r2.file, 45f, "", 0f, 0f, 800, 600), Block.Text(mutableListOf(Run("Fin")))))
         waitIo(); idle()
         val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
