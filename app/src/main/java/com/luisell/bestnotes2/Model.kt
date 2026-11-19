@@ -111,6 +111,8 @@ sealed class Block {
         var file: String, var pct: Float = 40f, var side: String = "", var x: Float = 30f, var y: Float = 0f,
         var w: Int = 0, var h: Int = 0, var stamp: String = "", var rot: Float = 0f, var taken: Long = 0L,
         var beside: MutableList<Run> = ArrayList(), var pin: Boolean = false,
+        /** ar = forma estirada (alto/ancho). 0 = la forma original de la foto. */
+        var ar: Float = 0f,
     ) : Block()
 
     /** Audio o video (kind = "audio" / "video"). */
@@ -130,7 +132,7 @@ sealed class Block {
         }
         is Img -> JSONObject().put("t", "img").put("f", file).put("pct", pct.toDouble()).put("side", side)
             .put("x", x.toDouble()).put("y", y.toDouble()).put("w", w).put("h", h).put("stamp", stamp)
-            .put("rot", rot.toDouble()).put("tk", taken).put("bs", runsJson(beside)).put("pin", if (pin) 1 else 0)
+            .put("rot", rot.toDouble()).put("tk", taken).put("bs", runsJson(beside)).put("pin", if (pin) 1 else 0).apply { if (ar > 0f) put("ar", ar.toDouble()) }
         is Media -> JSONObject().put("t", "media").put("k", kind).put("f", file).put("dur", dur)
             .put("sz", size).put("mu", if (muted) 1 else 0)
     }
@@ -154,7 +156,7 @@ sealed class Block {
                 o.optString("f"), o.optDouble("pct", 40.0).toFloat(), o.optString("side"),
                 o.optDouble("x", 30.0).toFloat(), o.optDouble("y", 0.0).toFloat(), o.optInt("w"), o.optInt("h"),
                 o.optString("stamp"), o.optDouble("rot", 0.0).toFloat(), o.optLong("tk"),
-                runsFromJson(o.optJSONArray("bs")), o.optInt("pin") == 1,
+                runsFromJson(o.optJSONArray("bs")), o.optInt("pin") == 1, o.optDouble("ar", 0.0).toFloat(),
             )
             "media" -> Media(o.optString("k", "audio"), o.optString("f"), o.optDouble("dur", 0.0), o.optLong("sz"), o.optInt("mu") == 1)
             else -> Text(runsFromJson(o.optJSONArray("r")))

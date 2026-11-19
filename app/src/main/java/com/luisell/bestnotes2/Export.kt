@@ -129,7 +129,7 @@ p{margin:6px 0;white-space:normal}a{color:#64d2ff}.f{text-align:center;color:rgb
                     }
                     is Block.Img -> {
                         val f = File(Store.mediaDir, b.file)
-                        if (f.isFile) { w.write("<img src=\""); dataUri(w, f); w.write("\" style=\"width:${b.pct.toInt()}%\">") }
+                        if (f.isFile) { w.write("<img src=\""); dataUri(w, f); w.write("\" style=\"width:${b.pct.toInt()}%${if (b.ar > 0f) ";aspect-ratio:1/" + b.ar + ";object-fit:fill" else ""}\">") }
                         if (b.beside.isNotEmpty()) w.write("<p>${runsHtml(b.beside)}</p>")
                     }
                     is Block.Media -> {
@@ -187,9 +187,10 @@ p{margin:6px 0;white-space:normal}a{color:#64d2ff}.f{text-align:center;color:rgb
                 y += bot - top
             }
         }
-        fun drawBitmap(bm: Bitmap, maxH: Float, wPct: Float = 100f) {
-            var w = cw * (wPct / 100f).coerceIn(0.2f, 1f); var h = w * bm.height / bm.width
-            if (h > maxH) { h = maxH; w = h * bm.width / bm.height }
+        fun drawBitmap(bm: Bitmap, maxH: Float, wPct: Float = 100f, ar: Float = 0f) {
+            val k = if (ar > 0f) ar else bm.height.toFloat() / bm.width       // estirada: con su forma nueva
+            var w = cw * (wPct / 100f).coerceIn(0.2f, 1f); var h = w * k
+            if (h > maxH) { h = maxH; w = h / k }
             need(h + 8); y += 4
             c!!.drawBitmap(bm, null, android.graphics.RectF(m, y, m + w, y + h), Paint(Paint.FILTER_BITMAP_FLAG))
             y += h + 6
@@ -213,7 +214,7 @@ p{margin:6px 0;white-space:normal}a{color:#64d2ff}.f{text-align:center;color:rgb
                     val pre = when (b.kind) { "check" -> if (x.done) "☑  " else "☐  "; "ol" -> "${i + 1}.  "; else -> "•  " }
                     drawRuns(x.runs, body, 10f, pre)
                 }; y += 4 }
-                is Block.Img -> { loadBm(File(Store.mediaDir, b.file), 1400)?.let { bm -> drawBitmap(bm, 360f, b.pct); bm.recycle() }; if (b.beside.isNotEmpty()) drawRuns(b.beside, body) }
+                is Block.Img -> { loadBm(File(Store.mediaDir, b.file), 1400)?.let { bm -> drawBitmap(bm, 360f, b.pct, b.ar); bm.recycle() }; if (b.beside.isNotEmpty()) drawRuns(b.beside, body) }
                 is Block.Media -> {
                     if (b.kind == "video") loadBm(File(Store.mediaDir, MediaFiles.thumbName(b.file)), 900)?.let { bm -> drawBitmap(bm, 220f, 60f); bm.recycle() }
                     drawRuns(listOf(Run((if (b.kind == "video") "🎬 " + L.t("video") else "🎙️ " + L.t("audio")) + " · " + MediaFiles.timeText(b.dur), St.PLAIN.copy(i = true))), muted)

@@ -280,6 +280,7 @@ object L {
         "anchorSame" to "Anclar igual", "anchoredSame" to "Anclada igual que la anterior", "photoAnchored" to "Foto anclada", "photoUnanchored" to "Foto suelta: ya la puedes mover",
         "viewBig" to "Ver en grande",
         "photoNoGain" to "Esta foto ya es pequeña",
+        "origShape" to "Forma original",
     )
 
     private val EN = mapOf(
@@ -463,5 +464,6 @@ object L {
         "anchorSame" to "Anchor the same", "anchoredSame" to "Anchored like the previous one", "photoAnchored" to "Photo anchored", "photoUnanchored" to "Photo unanchored: you can move it",
         "viewBig" to "View full size",
         "photoNoGain" to "This photo is already small",
+        "origShape" to "Original shape",
     )
 }

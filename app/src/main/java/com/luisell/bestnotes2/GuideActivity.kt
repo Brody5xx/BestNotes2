@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-19" to ("⇔ Estira las fotos con las bolitas de las orillas: a los lados (ancho), abajo (alto) y en la esquina (sin deformar). 📏 Cuando la orilla queda pareja con la de otra foto, se pega y sale una línea roja larga. ✓ Abajo también se pega a la forma original" to
+            "⇔ Stretch photos with the dots on their edges: sides (width), bottom (height) and corner (no distortion). 📏 When an edge lines up with another photo it snaps and a long red line appears. ✓ The bottom dot also snaps back to the original shape"),
         "2026-11-19" to ("↻ La perilla de girar es más chiquita y flota afuera de la foto sin tocarla (y responde aunque esté encima del texto) y se cambia sola a la esquina que se ve en la pantalla. 📐 Las fotos ya llegan al 100% (si tenían texto al lado, el texto pasa debajo)" to
             "↻ The rotate knob is smaller and floats outside the photo (and works even over text) and moves by itself to the corner you can see. 📐 Photos now go up to 100% (text beside them moves below)"),
         "2026-11-19" to ("↻ Perilla para girar la foto con un solo dedo (en la esquina, se pega en 0°, 45°, 90°…). 🖼 La barrita de la foto es del mismo ancho que la foto. ⌫ Borrar sigue en el texto de al lado de la foto" to

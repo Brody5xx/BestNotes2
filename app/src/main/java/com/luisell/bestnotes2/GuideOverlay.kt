@@ -24,6 +24,24 @@ class GuideOverlay(ctx: Context) : View(ctx) {
 
     init { isClickable = false }
 
+    // 📏 la línea roja larga cuando dos fotos quedan parejitas (crece desde el medio, con brillo)
+    private var ex = -1f; private var et = 0f; private var eb = 0f; private var ek = 0f
+    private var eAnim: android.animation.ValueAnimator? = null
+    private val glowP = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x55FF3B30; strokeCap = Paint.Cap.ROUND }
+    fun edge(nx: Float, top: Float, bottom: Float) {
+        if (nx < 0) {
+            if (ex < 0) return
+            eAnim?.cancel(); eAnim = android.animation.ValueAnimator.ofFloat(ek, 0f).apply { duration = 160
+                addUpdateListener { ek = it.animatedValue as Float; if (ek <= 0f) ex = -1f; invalidate() } }.also { it.start() }
+            return
+        }
+        val fresh = ex < 0 || Math.abs(nx - ex) > 1f
+        ex = nx; et = top; eb = bottom
+        if (fresh) { eAnim?.cancel(); ek = 0f; eAnim = android.animation.ValueAnimator.ofFloat(0f, 1f).apply { duration = 260
+            interpolator = android.view.animation.DecelerateInterpolator(); addUpdateListener { ek = it.animatedValue as Float; invalidate() } }.also { it.start() } }
+        invalidate()
+    }
+
     fun set(nx: Float, ny: Float, s: String, l: String?) {
         x = nx; y = ny; snap = s; label = l
         invalidate()
@@ -41,6 +59,14 @@ class GuideOverlay(ctx: Context) : View(ctx) {
                 line.strokeWidth = 3f * d
                 when (snap) { "l" -> c.drawLine(1.5f * d, 0f, 1.5f * d, height.toFloat(), line); "r" -> c.drawLine(width - 1.5f * d, 0f, width - 1.5f * d, height.toFloat(), line) }
             }
+        }
+        if (ex >= 0 && ek > 0f) {
+            val pad = 28 * d
+            val mid = (et + eb) / 2f; val half = ((eb - et) / 2f + pad) * ek
+            glowP.strokeWidth = 7f * d; glowP.alpha = (85 * ek).toInt(); c.drawLine(ex, mid - half, ex, mid + half, glowP)
+            line.strokeWidth = 2f * d; line.alpha = (255 * ek).toInt(); c.drawLine(ex, mid - half, ex, mid + half, line)
+            line.style = Paint.Style.FILL; c.drawCircle(ex, mid - half, 3.2f * d * ek, line); c.drawCircle(ex, mid + half, 3.2f * d * ek, line)
+            line.alpha = 255
         }
         val l = label ?: return
         txt.textSize = 13 * d

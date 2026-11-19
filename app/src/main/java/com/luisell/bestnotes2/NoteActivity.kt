@@ -817,6 +817,11 @@ class NoteActivity : Activity(), EditorView.Host {
         guideView.set(if (x < 0) -1f else x - loc[0], if (y < 0) -1f else y - loc[1], snap, label)
     }
 
+    override fun showEdge(x: Float, top: Float, bottom: Float) {
+        val loc = IntArray(2); guideView.getLocationInWindow(loc)
+        guideView.edge(if (x < 0) -1f else x - loc[0], top - loc[1], bottom - loc[1])
+    }
+
     override fun hint(msg: String) {
         hintTv.text = msg
         // ✨ el aviso cae desde arriba con un rebotito
@@ -892,7 +897,7 @@ class NoteActivity : Activity(), EditorView.Host {
             gravity = Gravity.CENTER; background = roundBg(0, dp(22).toFloat(), tw(0x40), dp(1)); setOnClickListener { pop(it); a() }
         }
         r3.addView(round("−") { f.setPct(b.pct - 5) }, lp(dp(44), dp(44)))
-        val pctTv = tv("${b.pct.toInt()}%", 15f, T.text, true).apply { minWidth = dp(52); gravity = Gravity.END }
+        val pctTv = tv("${Math.round(b.pct)}%", 15f, T.text, true).apply { minWidth = dp(52); gravity = Gravity.END }
         val sb = android.widget.SeekBar(this).apply {
             max = 90; progress = (b.pct - 10).toInt()
             progressTintList = android.content.res.ColorStateList.valueOf(0xFFE0E0E0.toInt())
@@ -1266,7 +1271,7 @@ class NoteActivity : Activity(), EditorView.Host {
                 val t = cropTarget ?: return
                 val nf = data?.getStringExtra(CropActivity.OUT) ?: return
                 editor.flushAll()
-                t.file = nf; t.w = data.getIntExtra(CropActivity.OUT_W, 0); t.h = data.getIntExtra(CropActivity.OUT_H, 0)
+                t.file = nf; t.w = data.getIntExtra(CropActivity.OUT_W, 0); t.h = data.getIntExtra(CropActivity.OUT_H, 0); t.ar = 0f      // recortada: vuelve a su forma
                 editor.rebuild(null, t); onDirty()
             }
         }
@@ -1304,7 +1309,7 @@ class NoteActivity : Activity(), EditorView.Host {
             val r = Photos.rotate90(b.file)
             runOnUiThread {
                 if (r == null) return@runOnUiThread
-                b.file = r.file; b.w = r.w; b.h = r.h
+                b.file = r.file; b.w = r.w; b.h = r.h; if (b.ar > 0f) b.ar = 1f / b.ar
                 f.reload(); onDirty()
             }
         }

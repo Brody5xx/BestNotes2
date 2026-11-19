@@ -441,6 +441,45 @@ class PantallaTest {
         }
     }
 
+    /** ⇔ Estirar a lo ancho: al llegar a la orilla de la otra foto se pega (quedan parejitas). Abajo: cambia el alto. */
+    @Test fun estirarFotoSePegaALaOtra() {
+        reload()
+        val bm = android.graphics.Bitmap.createBitmap(60, 40, android.graphics.Bitmap.Config.ARGB_8888)
+        val r1 = Photos.saveNew(bm); val r2 = Photos.saveNew(bm)
+        val m = Store.createNote("Estirar", mutableListOf(Block.Text(mutableListOf(Run("Hola"))),
+            Block.Img(r1.file, 60f, "", 0f, 0f, 60, 40), Block.Text(mutableListOf(Run("Medio"))), Block.Img(r2.file, 40f, "", 0f, 0f, 60, 40)))
+        waitIo(); idle()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
+        waitIo(); idle()
+        val ed = find(act.window.decorView, EditorView::class.java).first()
+        val fs = ed.views.filterIsInstance<FotoView>()
+        val f = fs[1]
+        ed.selectImage(f); idle()
+        fun drag(dot: View, dx: Float, dy: Float, up: Boolean = true) {
+            val l = IntArray(2); dot.getLocationOnScreen(l)
+            val x = l[0] + dot.width / 2f; val y = l[1] + dot.height / 2f
+            ed.dispatchTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, x, y, 0))
+            ed.dispatchTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_MOVE, x + dx / 2, y + dy / 2, 0))
+            ed.dispatchTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_MOVE, x + dx, y + dy, 0))
+            if (up) ed.dispatchTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_UP, x + dx, y + dy, 0))
+            idle()
+        }
+        val right = f.dots[1]
+        org.junit.Assert.assertEquals(View.VISIBLE, right.visibility)
+        val W = ed.width - ed.paddingLeft - ed.paddingRight
+        // casi hasta la orilla de la de arriba (le faltan 5 px): se pega exacto
+        drag(right, W * 0.2f - 5f, 0f)
+        assertEquals(60f, f.block.pct, 0.6f)
+        org.junit.Assert.assertTrue("ahora tiene forma propia", f.block.ar > 0f)
+        assertEquals(fs[0].edgesOnScreen()!!.right, f.edgesOnScreen()!!.right, 2f)
+        // abajo: más alta
+        val ar0 = f.block.ar
+        drag(f.dots[2], 0f, 150f)
+        org.junit.Assert.assertTrue("más alta: ${f.block.ar} > $ar0", f.block.ar > ar0 + 0.05f)
+        // se guarda
+        assertEquals(f.block.ar, (Block.fromJson(f.block.toJson()) as Block.Img).ar, 0.001f)
+    }
+
     /** Bajaste la foto: tocando el espacio de arriba escribes JUSTO arriba de la foto. */
     @Test fun escribirJustoArribaDeLaFoto() {
         reload()

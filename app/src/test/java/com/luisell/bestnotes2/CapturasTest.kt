@@ -410,6 +410,48 @@ class CapturasTest {
         shot(act.window.decorView, "91_anclada_igual")
     }
 
+    @Test fun capturasEstirar() {
+        if (System.getenv("CAPTURAS") == null) return
+        var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
+        fun pic(c1: Int, c2: Int): Photos.Result {
+            val bm = android.graphics.Bitmap.createBitmap(800, 600, android.graphics.Bitmap.Config.ARGB_8888)
+            android.graphics.Canvas(bm).apply { drawColor(c1); drawCircle(400f, 300f, 200f, android.graphics.Paint().apply { color = c2 }) }
+            return Photos.saveNew(bm)
+        }
+        val r1 = pic(0xFF00897B.toInt(), 0xFFFFEB3B.toInt()); val r2 = pic(0xFF3949AB.toInt(), 0xFFFFC107.toInt())
+        val m = Store.createNote("Estirar fotos", mutableListOf(Block.Text(mutableListOf(Run("Primera foto"))), Block.Img(r1.file, 70f, "", 0f, 0f, 800, 600),
+            Block.Text(mutableListOf(Run("Segunda foto"))), Block.Img(r2.file, 45f, "", 0f, 0f, 800, 600), Block.Text(mutableListOf(Run("Fin")))))
+        waitIo(); idle()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
+        waitIo(); idle(); Thread.sleep(300); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        val dv = act.window.decorView
+        dv.measure(View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(2340, View.MeasureSpec.EXACTLY)); dv.layout(0, 0, 1080, 2340)
+        fun <T> find(x: View, c: Class<T>): T? { if (c.isInstance(x)) return c.cast(x); if (x is android.view.ViewGroup) for (k in 0 until x.childCount) find(x.getChildAt(k), c)?.let { return it }; return null }
+        val ed = find(dv, EditorView::class.java)!!
+        val f = ed.views.filterIsInstance<FotoView>()[1]
+        ed.selectImage(f); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(900))
+        shot(dv, "a0_estirar_bolitas")
+        val d = f.dots[1]; val l = IntArray(2); d.getLocationOnScreen(l)
+        val x = l[0] + d.width / 2f; val y = l[1] + d.height / 2f
+        val W = ed.width - ed.paddingLeft - ed.paddingRight
+        ed.dispatchTouchEvent(android.view.MotionEvent.obtain(0, 0, android.view.MotionEvent.ACTION_DOWN, x, y, 0))
+        ed.dispatchTouchEvent(android.view.MotionEvent.obtain(0, 0, android.view.MotionEvent.ACTION_MOVE, x + W * 0.25f - 6, y, 0))
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(500))
+        dv.measure(View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(2340, View.MeasureSpec.EXACTLY)); dv.layout(0, 0, 1080, 2340)
+        ed.dispatchTouchEvent(android.view.MotionEvent.obtain(0, 0, android.view.MotionEvent.ACTION_MOVE, x + W * 0.25f - 5, y, 0))
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(500))
+        shot(dv, "a1_estirar_linea")
+        ed.dispatchTouchEvent(android.view.MotionEvent.obtain(0, 0, android.view.MotionEvent.ACTION_UP, x + W * 0.25f - 5, y, 0))
+        val b = f.dots[2]; b.getLocationOnScreen(l)
+        val bx = l[0] + b.width / 2f; val by = l[1] + b.height / 2f
+        ed.dispatchTouchEvent(android.view.MotionEvent.obtain(0, 0, android.view.MotionEvent.ACTION_DOWN, bx, by, 0))
+        ed.dispatchTouchEvent(android.view.MotionEvent.obtain(0, 0, android.view.MotionEvent.ACTION_MOVE, bx, by + 200, 0))
+        ed.dispatchTouchEvent(android.view.MotionEvent.obtain(0, 0, android.view.MotionEvent.ACTION_UP, bx, by + 200, 0))
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(600))
+        shot(dv, "a2_estirar_alto")
+        ed.selectImage(null); idle()
+    }
+
     @Test fun capturasFotoOpciones() {
         if (System.getenv("CAPTURAS") == null) return
         var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
