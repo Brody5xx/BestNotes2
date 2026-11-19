@@ -309,7 +309,8 @@ class EditorView(ctx: Context, val host: Host) : LinearLayout(ctx) {
         flushAll()
         val nb = blocks.toMutableList(); nb.add(i + 1, Block.Text())
         setBlocks(nb); host.onDirty()
-        post { views.getOrNull(i + 1)?.focusAt(0, 0) }
+        val fi = blocks.indexOf(v.block)
+        post { views.getOrNull(fi + 1)?.focusAt(0, 0) }
     }
 
     fun selectImage(f: FotoView?) {
@@ -362,6 +363,19 @@ class EditorView(ctx: Context, val host: Host) : LinearLayout(ctx) {
         if (b.beside.isNotEmpty()) blocks.add(i, Block.Text(b.beside))
         blocks = normalize(blocks)
         rebuild(null); host.onDirty()
+    }
+
+    /** ⏎ El texto que ya no cabe al lado de la foto sigue debajo (todo el ancho) y el cursor se va ahí. */
+    fun textBelow(f: FotoView, runs: List<Run>) {
+        val i = views.indexOf(f); if (i < 0) return
+        flushAll()
+        val nb = Block.Text(runs.toMutableList())
+        blocks.add(i + 1, nb)
+        blocks = normalize(blocks)
+        rebuild(null); host.onDirty()
+        // se busca la foto otra vez (al acomodar, puede que arriba se haya agregado un renglón)
+        val fi = blocks.indexOf(f.block)
+        post { views.getOrNull(fi + 1)?.focusAt(0, 0) }
     }
 
     /** Pone [runs] como texto justo debajo de la foto (al dejar de estar "a un lado"). */
@@ -677,6 +691,8 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         private set
     private var loadedW = 0
     private var glow: GlowBorder? = null
+    private val infoBar = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(ed.dp(4), ed.dp(2), 0, 0) }
+    private val infoLabel = ctx.tv("", 12.5f, T.muted)
     /** El brillo sigue a la foto (también mientras la mueves). */
     private fun placeGlow() {
         val g = glow ?: return
@@ -726,6 +742,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             if (e.actionMasked == MotionEvent.ACTION_DOWN) return true
             if (e.actionMasked == MotionEvent.ACTION_UP) {
                 if (e.y < box.top) ed.writeInGap(this@FotoView, e.y)
+                else if (e.y > box.bottom && (edit.visibility != View.VISIBLE || e.y > edit.bottom)) ed.writeBelow(this@FotoView)
                 else if (side().isNotEmpty()) focusAt(0, -1)
                 else ed.writeBelow(this@FotoView)
             }
@@ -799,9 +816,83 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         ed.wire(edit)
         flow.addView(box); flow.addView(edit)
         root.addView(flow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        // 🖼 la barrita de abajo, igual que la de los videos: tamaño · ⛶ ver en grande · ⋮ opciones
+        infoBar.addView(IconView(ctx, Icons.IMAGE, 6.5f).apply { color = T.muted; isClickable = false }, LinearLayout.LayoutParams(dp(18), dp(18)))
+        infoBar.addView(infoLabel.apply { setPadding(dp(6), 0, 0, 0) }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        infoBar.addView(ctx.iconBtn(MoreIcons.FULL, 7.5f, T.muted) { v -> Anim.bump(v); viewBig() }.apply { layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)) })
+        infoBar.addView(ctx.iconBtn(MoreIcons.DOTS_V, 8f, T.muted) { options() }.apply { layoutParams = LinearLayout.LayoutParams(dp(36), dp(38)) })
+        root.addView(infoBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        paintInfo()
+        // ⏎ escribiendo al lado: cuando el texto ya pasó el final de la foto, sigue ABAJO de la foto (todo el ancho)
+        edit.onEnter = { e, at ->
+            val lay = e.layout
+            val pastPhoto = side().isNotEmpty() && lay != null && e.top + lay.getLineTop(lay.getLineForOffset(minOf(at + 1, e.text.length))) >= box.bottom - dp(4)
+            if (pastPhoto) {
+                val runs = e.runs(); val len = runsPlain(runs).length
+                val after = sliceRuns(runs, minOf(at + 1, len), len)
+                val before = sliceRuns(runs, 0, at)
+                e.setRuns(before); block.beside = before
+                ed.textBelow(this, after)
+            }
+            pastPhoto
+        }
         paint()
         box.setOnTouchListener(Touch())
         if (block.pin) box.post { paintPin(false) }
+    }
+
+
+    /** "1080×2340 · 345 KB" */
+    private fun paintInfo() {
+        Loader.pool.execute {
+            val f = File(Store.mediaDir, block.file)
+            val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeFile(f.path, o)
+            val t = (if (o.outWidth > 0) "${o.outWidth}×${o.outHeight} · " else "") + MediaFiles.sizeText(f.length())
+            Store.main.post { infoLabel.text = t }
+        }
+    }
+
+    /** ⛶ La foto en grande. */
+    fun viewBig() { (ctx as? android.app.Activity)?.let { PhotoViewer.show(it, block.file) } }
+
+    /** ⋮ Igual que los videos: ver en grande, achicar, subir, bajar, abrir con…, quitar. */
+    private fun options() {
+        val items = listOf<Pair<String, () -> Unit>>(
+            ("⛶  " + L.t("viewBig")) to { viewBig() },
+            L.t("shrink") to { shrinkPhoto() },
+            L.t("moveUp") to { ed.moveBlock(this, -1) },
+            L.t("moveDown") to { ed.moveBlock(this, 1) },
+            L.t("openWith") to { ed.host.openMedia(block.file, "image/jpeg") },
+            L.t("remove") to { ctx.confirm(L.t("remove"), null, L.t("remove"), true) { ed.removeImage(this) } },
+        )
+        ctx.dialog().setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }.show()
+    }
+
+    /** Achicar la foto (pesa menos): máximo 1600 px y un poquito más comprimida. */
+    private fun shrinkPhoto() {
+        infoLabel.text = L.t("working")
+        Loader.pool.execute {
+            val src = File(Store.mediaDir, block.file)
+            val before = src.length()
+            val bm = Thumbs.decode(src, 1600)
+            var res: Photos.Result? = null
+            if (bm != null) {
+                val name = "f" + newId() + ".jpg"
+                val out = File(Store.mediaDir, name)
+                java.io.FileOutputStream(out).use { bm.compress(android.graphics.Bitmap.CompressFormat.JPEG, 78, it) }
+                if (out.length() in 1 until before) res = Photos.Result(name, bm.width, bm.height, 0L) else out.delete()
+            }
+            Store.main.post {
+                val r = res
+                if (r == null) { ctx.toast(L.t("photoNoGain")); paintInfo(); return@post }
+                val after = File(Store.mediaDir, r.file).length()
+                block.file = r.file; block.w = r.w; block.h = r.h
+                reload(); paintInfo(); ed.host.onDirty()
+                ctx.toast(L.t("shrinkOk", "a" to MediaFiles.sizeText(before), "b" to MediaFiles.sizeText(after)))
+                Anim.sparkle(box, 60f, 600)
+            }
+        }
     }
 
     private fun loadImg(pw: Int) {

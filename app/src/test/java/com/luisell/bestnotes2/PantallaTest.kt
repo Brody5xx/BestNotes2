@@ -531,4 +531,27 @@ class PantallaTest {
         val b = fotos[1].block
         assertEquals(40f, b.pct); assertEquals(5f, b.x); assertEquals(10f, b.y); assertTrue(b.pin)
     }
+
+    /** ⏎ Escribiendo al lado de la foto: al pasar el final de la foto, el Enter manda el cursor ABAJO de la foto. */
+    @Test fun enterAlLadoPasaDebajoDeLaFoto() {
+        reload()
+        val bm = android.graphics.Bitmap.createBitmap(60, 30, android.graphics.Bitmap.Config.ARGB_8888)
+        val r = Photos.saveNew(bm)
+        val m = Store.createNote("Foto", mutableListOf(Block.Img(r.file, 30f, "l", 0f, 0f, 60, 30, beside = mutableListOf(Run("uno")))))
+        waitIo(); idle()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
+        waitIo(); idle()
+        val ed = find(act.window.decorView, EditorView::class.java).first()
+        val f = ed.views.first { it is FotoView } as FotoView
+        val e = f.edits().first()
+        e.requestFocus()
+        e.text.append("\ndos\ntres\ncuatro\ncinco\nseis")      // ya pasó el final de la foto (que es bajita)
+        act.window.decorView.let { v -> v.measure(View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(2340, View.MeasureSpec.EXACTLY)); v.layout(0, 0, 1080, 2340) }
+        e.setSelection(e.text.length); e.text.insert(e.text.length, "\n")
+        idle(); shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(300))
+        val i = ed.blocks.indexOfFirst { it is Block.Img }
+        assertTrue("debe haber texto debajo de la foto", ed.blocks.getOrNull(i + 1) is Block.Text)
+        assertTrue("el texto de al lado no termina en Enter: «${runsPlain((ed.blocks[i] as Block.Img).beside)}»", !runsPlain((ed.blocks[i] as Block.Img).beside).endsWith("\n"))
+        assertTrue("el cursor debe estar abajo de la foto", ed.views.getOrNull(i + 1)?.edits()?.any { it.hasFocus() } == true)
+    }
 }

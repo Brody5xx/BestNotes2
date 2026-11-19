@@ -85,7 +85,7 @@ class GlassBuilder(private val ctx: Context) {
         val card = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL; isClickable = true
             background = android.graphics.drawable.LayerDrawable(arrayOf(roundBg(if (T.light) 0xF7FAFAFC.toInt() else 0xF2202024.toInt(), dp(28).toFloat()), Glass.make(ctx, 28f, strong = true)))
-            setPadding(dp(22), dp(22), dp(22), dp(16)); elevation = dp(18).toFloat()
+            setPadding(dp(22), if (title == null && message == null) dp(10) else dp(22), dp(22), dp(16)); elevation = dp(18).toFloat()
         }
         d.card = card
         title?.let { card.addView(ctx.tv(it, 20f, T.text, true).apply { gravity = Gravity.CENTER; setPadding(dp(4), 0, dp(4), dp(8)) }) }

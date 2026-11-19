@@ -409,4 +409,27 @@ class CapturasTest {
         fotos[1].anchorLike(fotos[0]); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1200))
         shot(act.window.decorView, "91_anclada_igual")
     }
+
+    @Test fun capturasFotoOpciones() {
+        if (System.getenv("CAPTURAS") == null) return
+        var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
+        val bm = android.graphics.Bitmap.createBitmap(900, 1400, android.graphics.Bitmap.Config.ARGB_8888)
+        android.graphics.Canvas(bm).apply { drawColor(0xFF3949AB.toInt()); drawCircle(450f, 700f, 300f, android.graphics.Paint().apply { color = 0xFFFFC107.toInt() }) }
+        val r = Photos.saveNew(bm)
+        val m = Store.createNote("Foto con opciones", mutableListOf(Block.Text(mutableListOf(Run("Arriba"))), Block.Img(r.file, 60f, "", 20f, 0f, 900, 1400), Block.Text(mutableListOf(Run("Abajo")))))
+        waitIo(); idle()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
+        waitIo(); idle(); Thread.sleep(300); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        shot(act.window.decorView, "95_foto_barra")
+        fun <T> find(x: View, c: Class<T>): T? { if (c.isInstance(x)) return c.cast(x); if (x is android.view.ViewGroup) for (k in 0 until x.childCount) find(x.getChildAt(k), c)?.let { return it }; return null }
+        val ed = find(act.window.decorView, EditorView::class.java)!!
+        val f = ed.views.filterIsInstance<FotoView>().first()
+        FotoView::class.java.getDeclaredMethod("options").apply { isAccessible = true }.invoke(f)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(800))
+        val d = org.robolectric.shadows.ShadowDialog.getLatestDialog()!!
+        shot(d.window!!.decorView, "96_foto_menu"); d.dismiss(); idle()
+        f.viewBig(); Thread.sleep(500); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(800))
+        val v = org.robolectric.shadows.ShadowDialog.getLatestDialog()!!
+        shot(v.window!!.decorView, "97_foto_grande")
+    }
 }

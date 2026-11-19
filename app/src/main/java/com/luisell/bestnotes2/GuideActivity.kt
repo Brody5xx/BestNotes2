@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-18" to ("🖼 Las fotos tienen la barrita de los videos: ⛶ verla en grande (con zoom) y ⋮ achicar, subir, bajar, abrir con… y quitar. ⏎ Escribiendo al lado de una foto, al pasar su final el texto sigue debajo" to
+            "🖼 Photos now have the video bar: ⛶ view full size (with zoom) and ⋮ shrink, move up, move down, open with… and remove. ⏎ Typing beside a photo, past its end the text continues below"),
         "2026-11-18" to ("⚓ «Anclar igual»: una foto nueva toma el mismo tamaño y lugar que la foto anclada de arriba, con un toque. 📌 Las fotos ancladas llevan su tachuela" to
             "⚓ “Anchor the same”: a new photo takes the same size and place as the anchored photo above, in one tap. 📌 Anchored photos show a pin"),
         "2026-11-18" to ("💧 Las gotitas para seleccionar ahora cruzan renglones: dejas presionada una palabra y arrastras por toda la nota. ☰ «Líneas sueltas» para copiar renglones separados juntos" to

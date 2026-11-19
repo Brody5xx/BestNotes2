@@ -278,6 +278,8 @@ object L {
         "selDrag" to "arrastra las gotitas", "selAll" to "Todo", "selLoose" to "Líneas sueltas", "selLinesLoose" to "{n} renglón(es) · toca los renglones que quieras",
         "cut" to "Cortar",
         "anchorSame" to "Anclar igual", "anchoredSame" to "Anclada igual que la anterior", "photoAnchored" to "Foto anclada", "photoUnanchored" to "Foto suelta: ya la puedes mover",
+        "viewBig" to "Ver en grande",
+        "photoNoGain" to "Esta foto ya es pequeña",
     )
 
     private val EN = mapOf(
@@ -459,5 +461,7 @@ object L {
         "selDrag" to "drag the handles", "selAll" to "All", "selLoose" to "Separate lines", "selLinesLoose" to "{n} line(s) · tap the lines you want",
         "cut" to "Cut",
         "anchorSame" to "Anchor the same", "anchoredSame" to "Anchored like the previous one", "photoAnchored" to "Photo anchored", "photoUnanchored" to "Photo unanchored: you can move it",
+        "viewBig" to "View full size",
+        "photoNoGain" to "This photo is already small",
     )
 }
