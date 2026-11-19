@@ -429,6 +429,10 @@ class CapturasTest {
             ed2.selectImage(f2); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(900))
             f2.setRot(20f); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(900))
             shot(act.window.decorView, "98_perilla")
+            f2.setPct(100f); f2.setRot(90f); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(900))
+            act.window.decorView.let { v -> v.measure(View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(2340, View.MeasureSpec.EXACTLY)); v.layout(0, 0, 1080, 2340) }
+            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(500))
+            shot(act.window.decorView, "99_perilla_lado")
             ed2.selectImage(null); idle()
         }
         fun <T> find(x: View, c: Class<T>): T? { if (c.isInstance(x)) return c.cast(x); if (x is android.view.ViewGroup) for (k in 0 until x.childCount) find(x.getChildAt(k), c)?.let { return it }; return null }

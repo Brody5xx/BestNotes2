@@ -900,7 +900,7 @@ class NoteActivity : Activity(), EditorView.Host {
             thumbTintList = android.content.res.ColorStateList.valueOf(0xFFFF3B30.toInt())
         }
         sb.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: android.widget.SeekBar?, p: Int, fromUser: Boolean) { if (fromUser) { b.pct = (p + 10f).coerceAtMost(if (b.side.isEmpty()) 100f else 75f); b.x = b.x.coerceIn(0f, 100f - b.pct); f.relayout(); pctTv.text = "${b.pct.toInt()}%" } }
+            override fun onProgressChanged(s: android.widget.SeekBar?, p: Int, fromUser: Boolean) { if (fromUser) { b.pct = (p + 10f).coerceAtMost(100f); if (b.pct > 75f && b.side.isNotEmpty()) b.side = ""; b.x = b.x.coerceIn(0f, 100f - b.pct); f.relayout(); pctTv.text = "${b.pct.toInt()}%" } }
             override fun onStartTrackingTouch(s: android.widget.SeekBar?) {}
             override fun onStopTrackingTouch(s: android.widget.SeekBar?) { onDirty() }
         })

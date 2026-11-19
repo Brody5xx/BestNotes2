@@ -722,6 +722,9 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
     private val infoLabel = ctx.tv("", 11.5f, T.muted).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
     /** ↻ La perilla para GIRAR la foto con un solo dedo (en la esquina de arriba a la derecha). */
     private val knob = RotKnob(ctx).apply { visibility = View.GONE }
+    private var knobCorner = -1
+    private var knobHeld = false
+    private val knobScroll = android.view.ViewTreeObserver.OnScrollChangedListener { placeKnob() }
     /** El brillo sigue a la foto (también mientras la mueves). */
     private fun placeGlow() {
         val g = glow ?: return
@@ -789,7 +792,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             val (bw, bh0) = rotBox(pw, ph)
             // 🖼 la barrita va pegada debajo de la foto y es del MISMO ancho (cambia de tamaño con ella)
             infoBar.measure(MeasureSpec.makeMeasureSpec(maxOf(pw, dp(96)), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
-            knob.measure(MeasureSpec.makeMeasureSpec(dp(36), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(36), MeasureSpec.EXACTLY))
+            knob.measure(MeasureSpec.makeMeasureSpec(dp(28), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(28), MeasureSpec.EXACTLY))
             val bh = bh0 + infoBar.measuredHeight
             val top = dp(block.y.toInt())
             var h = top + bh
@@ -823,7 +826,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             val iw = infoBar.measuredWidth; val ix = (left + pw / 2 - iw / 2).coerceIn(0, maxOf(0, W - iw))
             infoBar.layout(ix, top + bh0, ix + iw, top + bh0 + infoBar.measuredHeight)
             if (changed || infoLabel.text.isEmpty()) post { fitInfo() }
-            placeKnob()
+            placeKnob(); if (knob.visibility == View.VISIBLE) post { placeKnob() }     // otra vez, ya con la pantalla acomodada
             placeGlow()
             if (edit.visibility != View.GONE) {
                 val gap = dp(12)
@@ -900,22 +903,52 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
     private fun showKnob(on: Boolean) {
         if (on == (knob.visibility == View.VISIBLE)) return
         if (on) {
-            knob.visibility = View.VISIBLE; knob.angle = block.rot; placeKnob()
+            knob.visibility = View.VISIBLE; knob.angle = block.rot; knobCorner = -1; placeKnob()
+            flow.viewTreeObserver.addOnScrollChangedListener(knobScroll)
             knob.scaleX = 0f; knob.scaleY = 0f; knob.rotation = -120f
             knob.animate().scaleX(1f).scaleY(1f).rotation(0f).setDuration(420).setInterpolator(android.view.animation.OvershootInterpolator(2.2f)).start()
-        } else knob.animate().scaleX(0f).scaleY(0f).setDuration(150).withEndAction { knob.visibility = View.GONE }.start()
+        } else {
+            flow.viewTreeObserver.removeOnScrollChangedListener(knobScroll)
+            knob.animate().scaleX(0f).scaleY(0f).setDuration(150).withEndAction { knob.visibility = View.GONE }.start()
+        }
     }
 
-    /** La perilla va en la esquina de arriba a la derecha de la foto y gira con ella. */
+    /**
+     * La perilla va en una esquina de la foto (y gira con ella). Primero arriba a la derecha;
+     * si ahí no se ve (se sale de la pantalla o queda tapada arriba), se pasa a otra esquina que SÍ se vea.
+     */
     private fun placeKnob() {
         if (knob.visibility != View.VISIBLE || box.width == 0) return
         val cx = (box.left + box.right) / 2f; val cy = (box.top + box.bottom) / 2f + box.translationY
         val a = Math.toRadians(box.rotation.toDouble())
-        val dx = box.width / 2f + dp(4); val dy = -box.height / 2f - dp(4)
-        val x = cx + (dx * Math.cos(a) - dy * Math.sin(a)).toFloat()
-        val y = cy + (dx * Math.sin(a) + dy * Math.cos(a)).toFloat()
-        val s = knob.measuredWidth.takeIf { it > 0 } ?: dp(36)
-        knob.layout((x - s / 2).toInt(), (y - s / 2).toInt(), (x + s / 2).toInt(), (y + s / 2).toInt())
+        val s2 = (knob.measuredWidth.takeIf { it > 0 } ?: dp(28)) / 2f
+        // esquinas: abajo-der, arriba-der, abajo-izq, arriba-izq (m>0 = por fuera de la foto, m<0 = metida adentro)
+        fun cornersAt(m: Float) = listOf(1f to 1f, 1f to -1f, -1f to 1f, -1f to -1f).map { (sx, sy) ->
+            val dx = sx * (box.width / 2f + m); val dy = sy * (box.height / 2f + m)
+            (cx + (dx * Math.cos(a) - dy * Math.sin(a)).toFloat()) to (cy + (dx * Math.sin(a) + dy * Math.cos(a)).toFloat())
+        }
+        val corners = cornersAt(dp(2).toFloat()) + cornersAt(-s2 - dp(6))
+        // ¿dónde se ve? (dentro del pedazo de la nota que está en la pantalla)
+        val vis = android.graphics.Rect()
+        var sv: View? = flow; while (sv != null && sv !is android.widget.ScrollView) sv = sv.parent as? View
+        (sv ?: flow.rootView).getGlobalVisibleRect(vis)
+        val fl = IntArray(2); flow.getLocationOnScreen(fl)
+        val screenW = flow.rootView.width.takeIf { it > 0 } ?: flow.resources.displayMetrics.widthPixels
+        // tiene que caber entero: dentro de la nota (si no, se corta) y dentro de la pantalla
+        fun ok(p: Pair<Float, Float>) = p.first - s2 >= 0 && p.first + s2 <= flow.width &&
+            fl[0] + p.first - s2 >= dp(4) && fl[0] + p.first + s2 <= screenW - dp(4) &&
+            (vis.isEmpty || (fl[1] + p.second - s2 >= vis.top + dp(2) && fl[1] + p.second + s2 <= vis.bottom - dp(2)))
+        // mientras la agarras no se cambia de esquina (si no, se te escaparía del dedo)
+        val pick = if (knobHeld && knobCorner >= 0) knobCorner else (corners.indices.firstOrNull { ok(corners[it]) } ?: 0)
+        val (x, y) = corners[pick]
+        val oldL = knob.left; val oldT = knob.top
+        knob.layout((x - s2).toInt(), (y - s2).toInt(), (x + s2).toInt(), (y + s2).toInt())
+        // al cambiar de esquina se desliza suavecito hasta la nueva
+        if (knobCorner >= 0 && pick != knobCorner && oldL != 0) {
+            knob.translationX = (oldL - knob.left).toFloat(); knob.translationY = (oldT - knob.top).toFloat()
+            knob.animate().translationX(0f).translationY(0f).setDuration(260).setInterpolator(android.view.animation.OvershootInterpolator(1.4f)).start()
+        }
+        knobCorner = pick
     }
 
     /** Girar con un dedo: arrastras la perilla alrededor de la foto. Se "pega" en 0°, 45°, 90°… */
@@ -933,7 +966,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                     cx = bl[0] + box.left + p[0]; cy = bl[1] + box.top + p[1]
                     a0 = Math.toDegrees(Math.atan2((e.rawY - cy).toDouble(), (e.rawX - cx).toDouble())).toFloat(); r0 = block.rot
                     v.parent.requestDisallowInterceptTouchEvent(true)
-                    knob.grab(true)
+                    knob.grab(true); knobHeld = true
                     v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -953,7 +986,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                     ed.host.showGuides(loc[0] + box.width / 2f, loc[1] + box.height / 2f, "", "↻ ${r.toInt()}°")
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    knob.grab(false)
+                    knob.grab(false); knobHeld = false; placeKnob()
                     ed.host.showGuides(-1f, -1f, "", null)
                     ed.host.onDirty(); ed.host.onImageChanged(this@FotoView)
                 }
@@ -1119,7 +1152,8 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
 
     fun setPct(p: Float) {
         animateChange()
-        block.pct = p.coerceIn(10f, if (block.side.isEmpty()) 100f else 75f)
+        block.pct = p.coerceIn(10f, 100f)
+        if (block.pct > 75f && block.side.isNotEmpty()) { block.side = ""; liveSide = null }   // muy grande: el texto de al lado pasa abajo
         block.x = block.x.coerceIn(0f, 100f - block.pct)
         relayout(); ed.host.onDirty(); ed.host.onImageChanged(this)
     }
@@ -1209,7 +1243,8 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                     if (multi && e.pointerCount >= 2) {
                         // dos dedos: tamaño EN VIVO (el texto se acomoda) y giro
                         val k = (dist(e) / maxOf(1f, startDist)).coerceIn(0.25f, 4f)
-                        block.pct = (startPct * k).coerceIn(10f, if (side().isEmpty()) 100f else 75f)
+                        block.pct = (startPct * k).coerceIn(10f, 100f)
+                        if (block.pct > 75f && side().isNotEmpty()) { block.side = ""; liveSide = null; paint() }
                         var r = startRot + (ang(e) - startAng)
                         while (r > 180) r -= 360; while (r < -180) r += 360
                         if (Math.abs(r) < 4) r = 0f                 // se endereza sola cerca de 0°
@@ -1528,30 +1563,22 @@ class RotKnob(ctx: Context) : View(ctx) {
     }
 
     override fun onDraw(c: android.graphics.Canvas) {
+        // minimalista: un circulito chiquito con una flechita que da la vuelta
         val cx = width / 2f; val cy = height / 2f; val r = minOf(width, height) / 2f - d
-        // anillo de luz al agarrarla / al pegarse
-        val ring = maxOf(held * 0.55f, glowK)
-        if (ring > 0f) { p.style = android.graphics.Paint.Style.STROKE; p.strokeWidth = 3f * d; p.color = (accent and 0xFFFFFF) or ((150 * ring).toInt() shl 24); c.drawCircle(cx, cy, r + 2f * d * ring, p) }
-        // el circulito de vidrio
+        val ring = maxOf(held * 0.6f, glowK)
+        if (ring > 0f) { p.style = android.graphics.Paint.Style.FILL; p.color = (accent and 0xFFFFFF) or ((70 * ring).toInt() shl 24); c.drawCircle(cx, cy, r + 3f * d * ring, p) }
         p.style = android.graphics.Paint.Style.FILL
-        p.color = if (T.light) 0xF2FFFFFF.toInt() else 0xE6262629.toInt(); c.drawCircle(cx, cy, r, p)
-        p.style = android.graphics.Paint.Style.STROKE; p.strokeWidth = 1.2f * d; p.color = if (T.light) 0x33000000 else 0x55FFFFFF; c.drawCircle(cx, cy, r, p)
-        // la flecha que da la vuelta (gira un poquito con el ángulo)
+        p.color = if (T.light) 0xE6FFFFFF.toInt() else 0xD91E1E22.toInt(); c.drawCircle(cx, cy, r, p)
+        p.style = android.graphics.Paint.Style.STROKE; p.strokeWidth = 1.3f * d
+        p.color = if (held > 0.1f || glowK > 0.1f) accent else (if (T.light) 0x55000000 else 0x66FFFFFF); c.drawCircle(cx, cy, r, p)
         c.save(); c.rotate(angle, cx, cy)
-        val ar = r * 0.48f
-        p.color = if (held > 0.1f || glowK > 0.1f) accent else T.text; p.strokeWidth = 2.2f * d; p.strokeCap = android.graphics.Paint.Cap.ROUND
-        val rect = android.graphics.RectF(cx - ar, cy - ar, cx + ar, cy + ar)
-        c.drawArc(rect, -60f, 270f, false, p)
-        // la puntita de la flecha
-        val ea = Math.toRadians(210.0)
+        val ar = r * 0.46f
+        p.color = if (held > 0.1f || glowK > 0.1f) accent else T.text; p.strokeWidth = 1.6f * d; p.strokeCap = android.graphics.Paint.Cap.ROUND
+        c.drawArc(android.graphics.RectF(cx - ar, cy - ar, cx + ar, cy + ar), -50f, 280f, false, p)
+        val ea = Math.toRadians(230.0)
         val ex = cx + (ar * Math.cos(ea)).toFloat(); val ey = cy + (ar * Math.sin(ea)).toFloat()
         p.style = android.graphics.Paint.Style.FILL
-        val path = android.graphics.Path().apply { moveTo(ex - 3.2f * d, ey - 1f * d); lineTo(ex + 3.2f * d, ey - 1.5f * d); lineTo(ex + 0.5f * d, ey + 3.8f * d); close() }
-        c.drawPath(path, p)
-        c.restore()
-        // rayita que marca hacia dónde apunta la foto (arriba)
-        c.save(); c.rotate(angle, cx, cy)
-        p.color = accent; c.drawCircle(cx, cy - r + 3.5f * d, 1.8f * d, p)
+        c.drawPath(android.graphics.Path().apply { moveTo(ex - 2.4f * d, ey + 0.6f * d); lineTo(ex + 1.8f * d, ey - 2.2f * d); lineTo(ex + 1.6f * d, ey + 2.4f * d); close() }, p)
         c.restore()
     }
 }
