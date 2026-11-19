@@ -554,4 +554,23 @@ class PantallaTest {
         assertTrue("el texto de al lado no termina en Enter: «${runsPlain((ed.blocks[i] as Block.Img).beside)}»", !runsPlain((ed.blocks[i] as Block.Img).beside).endsWith("\n"))
         assertTrue("el cursor debe estar abajo de la foto", ed.views.getOrNull(i + 1)?.edits()?.any { it.hasFocus() } == true)
     }
+
+    /** ⌫ Dejar presionado borrar: al llegar arriba sigue borrando en el texto de AL LADO de la foto. */
+    @Test fun borrarSigueAlLadoDeLaFoto() {
+        reload()
+        val bm = android.graphics.Bitmap.createBitmap(60, 40, android.graphics.Bitmap.Config.ARGB_8888)
+        val r = Photos.saveNew(bm)
+        val m = Store.createNote("Borrar", mutableListOf(Block.Img(r.file, 40f, "l", 0f, 0f, 60, 40, beside = mutableListOf(Run("Bzbz"))), Block.Text(mutableListOf(Run("")))))
+        waitIo(); idle()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
+        waitIo(); idle()
+        val ed = find(act.window.decorView, EditorView::class.java).first()
+        val fi = ed.blocks.indexOfFirst { it is Block.Img }
+        val below = ed.views[fi + 1] as TextoView
+        assertTrue(ed.backAtStartOfText(below)); idle()
+        val f = ed.views.first { it is FotoView } as FotoView
+        val side = f.edits().first()
+        assertTrue("el cursor debe estar al lado de la foto", side.hasFocus())
+        assertEquals("al final de «Bzbz»", 4, side.selectionStart)
+    }
 }

@@ -421,6 +421,16 @@ class CapturasTest {
         val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
         waitIo(); idle(); Thread.sleep(300); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
         shot(act.window.decorView, "95_foto_barra")
+        run {
+            fun <T> find2(x: View, c: Class<T>): T? { if (c.isInstance(x)) return c.cast(x); if (x is android.view.ViewGroup) for (k in 0 until x.childCount) find2(x.getChildAt(k), c)?.let { return it }; return null }
+            val ed2 = find2(act.window.decorView, EditorView::class.java)!!
+            val f2 = ed2.views.filterIsInstance<FotoView>().first()
+            f2.block.pct = 45f; f2.relayout()
+            ed2.selectImage(f2); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(900))
+            f2.setRot(20f); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(900))
+            shot(act.window.decorView, "98_perilla")
+            ed2.selectImage(null); idle()
+        }
         fun <T> find(x: View, c: Class<T>): T? { if (c.isInstance(x)) return c.cast(x); if (x is android.view.ViewGroup) for (k in 0 until x.childCount) find(x.getChildAt(k), c)?.let { return it }; return null }
         val ed = find(act.window.decorView, EditorView::class.java)!!
         val f = ed.views.filterIsInstance<FotoView>().first()
