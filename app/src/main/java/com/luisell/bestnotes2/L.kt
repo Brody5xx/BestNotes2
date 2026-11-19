@@ -277,6 +277,7 @@ object L {
         "selMore" to "Seleccionar varias líneas", "selLines" to "{n} renglón(es) seleccionados", "selTapEnd" to "toca dónde termina", "selCopied" to "Copiado ✓", "selDeleted" to "Borrado ✓ (puedes deshacer ↶)",
         "selDrag" to "arrastra las gotitas", "selAll" to "Todo", "selLoose" to "Líneas sueltas", "selLinesLoose" to "{n} renglón(es) · toca los renglones que quieras",
         "cut" to "Cortar",
+        "anchorSame" to "Anclar igual", "anchoredSame" to "Anclada igual que la anterior", "photoAnchored" to "Foto anclada", "photoUnanchored" to "Foto suelta: ya la puedes mover",
     )
 
     private val EN = mapOf(
@@ -457,5 +458,6 @@ object L {
         "selMore" to "Select several lines", "selLines" to "{n} line(s) selected", "selTapEnd" to "tap where it ends", "selCopied" to "Copied ✓", "selDeleted" to "Deleted ✓ (you can undo ↶)",
         "selDrag" to "drag the handles", "selAll" to "All", "selLoose" to "Separate lines", "selLinesLoose" to "{n} line(s) · tap the lines you want",
         "cut" to "Cut",
+        "anchorSame" to "Anchor the same", "anchoredSame" to "Anchored like the previous one", "photoAnchored" to "Photo anchored", "photoUnanchored" to "Photo unanchored: you can move it",
     )
 }

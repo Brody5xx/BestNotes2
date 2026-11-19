@@ -672,7 +672,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
     private val img = ImageView(ctx)
     private val stampTv = TextView(ctx)
     private val edit = RichEdit(ctx)                    // el texto de al lado
-    private var anchorPill: TextView? = null
+    private var anchorPill: View? = null
     var selected = false
         private set
     private var loadedW = 0
@@ -801,6 +801,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         root.addView(flow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         paint()
         box.setOnTouchListener(Touch())
+        if (block.pin) box.post { paintPin(false) }
     }
 
     private fun loadImg(pw: Int) {
@@ -849,19 +850,62 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         }
     }
 
-    /** El botón "Anclar" debajo de la foto. */
-    private fun showAnchor() {
-        anchorPill?.let { root.removeView(it) }
-        val t = ctx.tv((if (block.pin) "⚓ " + L.t("anchored") else "⚓ " + L.t("imgPin")), 14f, if (block.pin) T.onPill else T.text, true)
-        t.setPadding(dp(16), dp(7), dp(16), dp(7))
-        if (block.pin) t.pressBg(T.text, 18f) else t.background = Glass.make(ctx, 18f)
-        t.setOnClickListener { setPin(!block.pin) }
-        anchorPill = t
-        root.addView(t, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(8) })
-        t.alpha = 0f; t.translationY = -dp(6).toFloat(); t.animate().alpha(1f).translationY(0f).setDuration(200).start()
+    /** La foto anclada más cercana de ARRIBA (para "Anclar igual"). */
+    private fun prevAnchored(): FotoView? {
+        val i = ed.views.indexOf(this)
+        for (k in i - 1 downTo 0) { val v = ed.views[k]; if (v is FotoView && v.block.pin) return v }
+        return null
     }
 
-    fun setPin(on: Boolean) { block.pin = on; ed.host.onDirty(); showAnchor(); ed.host.onImageChanged(this) }
+    /** Los botones debajo de la foto: "Anclar" y, si arriba hay una foto anclada, "Anclar igual". */
+    private fun showAnchor() {
+        anchorPill?.let { root.removeView(it) }
+        val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+        fun pill(text: String, on: Boolean, act: () -> Unit) = ctx.tv(text, 14f, if (on) T.onPill else T.text, true).apply {
+            setPadding(dp(16), dp(7), dp(16), dp(7))
+            if (on) pressBg(T.text, 18f) else background = Glass.make(ctx, 18f)
+            setOnClickListener { v -> Anim.bump(v, 1.1f); act() }
+        }
+        row.addView(pill("⚓ " + L.t(if (block.pin) "anchored" else "imgPin"), block.pin) { setPin(!block.pin) })
+        val prev = if (block.pin) null else prevAnchored()
+        if (prev != null) row.addView(pill("⚓ " + L.t("anchorSame"), false) { anchorLike(prev) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(8) })
+        anchorPill = row
+        root.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(8) })
+        for (k in 0 until row.childCount) Anim.popIn(row.getChildAt(k), 40L * k)
+    }
+
+    /** ⚓ "Anclar igual": la foto toma el mismo tamaño, lado y lugar que la foto anclada de arriba, y se ancla. */
+    fun anchorLike(prev: FotoView) {
+        flush()
+        animateChange()
+        val p = prev.block
+        block.pct = p.pct; block.side = p.side; block.x = p.x; block.y = p.y; block.rot = p.rot
+        liveSide = null; dragLeft = -1f
+        block.pin = true
+        relayout(); paintPin(true)
+        ed.host.onDirty(); showAnchor(); ed.host.onImageChanged(this)
+        ed.host.hint("📌 " + L.t("anchoredSame"))
+        box.postDelayed({ Anim.sparkle(box, 70f, 650) }, 240)
+    }
+
+    /** 📌 La tachuela en la esquina de las fotos ancladas. */
+    private val pinTv = TextView(ctx).apply {
+        text = "📌"; setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18f); rotation = -20f
+        setShadowLayer(4f, 0f, 1f, 0xAA000000.toInt()); visibility = View.GONE
+    }
+    private fun paintPin(animate: Boolean) {
+        if (pinTv.parent == null) box.addView(pinTv, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.START).apply { setMargins(dp(4), dp(2), 0, 0) })
+        val show = block.pin
+        if (show && pinTv.visibility != View.VISIBLE) {
+            pinTv.visibility = View.VISIBLE
+            if (animate) { pinTv.translationY = -dp(30).toFloat(); pinTv.alpha = 0f; pinTv.animate().translationY(0f).alpha(1f).setDuration(380).setInterpolator(android.view.animation.BounceInterpolator()).start() }
+        } else if (!show) pinTv.visibility = View.GONE
+    }
+
+    fun setPin(on: Boolean) {
+        block.pin = on; ed.host.onDirty(); showAnchor(); paintPin(true); ed.host.onImageChanged(this)
+        ed.host.hint(if (on) "📌 " + L.t("photoAnchored") else L.t("photoUnanchored"))
+    }
 
     fun setPct(p: Float) {
         animateChange()

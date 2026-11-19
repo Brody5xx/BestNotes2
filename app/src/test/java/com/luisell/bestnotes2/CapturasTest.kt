@@ -390,4 +390,23 @@ class CapturasTest {
         shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(800))
         shot(act.window.decorView, "81_sueltas")
     }
+
+    @Test fun capturasAnclarIgual() {
+        if (System.getenv("CAPTURAS") == null) return
+        var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
+        val bm = android.graphics.Bitmap.createBitmap(600, 1000, android.graphics.Bitmap.Config.ARGB_8888); android.graphics.Canvas(bm).drawColor(0xFF3949AB.toInt())
+        val bm2 = android.graphics.Bitmap.createBitmap(600, 1000, android.graphics.Bitmap.Config.ARGB_8888); android.graphics.Canvas(bm2).drawColor(0xFF00897B.toInt())
+        val r1 = Photos.saveNew(bm); val r2 = Photos.saveNew(bm2)
+        val m = Store.createNote("Fotos ancladas", mutableListOf(Block.Img(r1.file, 35f, "", 3f, 0f, 600, 1000, pin = true), Block.Img(r2.file, 45f, "", 30f, 20f, 600, 1000)))
+        waitIo(); idle()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
+        waitIo(); idle(); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        fun <T> find(x: View, c: Class<T>): T? { if (c.isInstance(x)) return c.cast(x); if (x is android.view.ViewGroup) for (k in 0 until x.childCount) find(x.getChildAt(k), c)?.let { return it }; return null }
+        val ed = find(act.window.decorView, EditorView::class.java)!!
+        val fotos = ed.views.filterIsInstance<FotoView>()
+        ed.selectImage(fotos[1]); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(900))
+        shot(act.window.decorView, "90_anclar_igual")
+        fotos[1].anchorLike(fotos[0]); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1200))
+        shot(act.window.decorView, "91_anclada_igual")
+    }
 }

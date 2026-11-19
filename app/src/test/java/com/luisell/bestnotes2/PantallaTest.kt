@@ -510,4 +510,25 @@ class PantallaTest {
         tl.onTouch(e, ev(android.view.MotionEvent.ACTION_DOWN)); tl.onTouch(e, ev(android.view.MotionEvent.ACTION_UP)); idle()
         assertTrue(multi.get(act) == null)
     }
+
+    /** ⚓ "Anclar igual": la foto nueva toma el tamaño y lugar de la foto anclada de arriba. */
+    @Test fun anclarIgualQueLaAnterior() {
+        reload()
+        val bm = android.graphics.Bitmap.createBitmap(60, 100, android.graphics.Bitmap.Config.ARGB_8888)
+        val r1 = Photos.saveNew(bm); val r2 = Photos.saveNew(bm)
+        val m = Store.createNote("Fotos", mutableListOf(Block.Text(mutableListOf(Run("a"))),
+            Block.Img(r1.file, 40f, "", 5f, 10f, 60, 100, pin = true), Block.Text(mutableListOf(Run("b"))), Block.Img(r2.file, 70f, "", 20f, 0f, 60, 100)))
+        waitIo(); idle()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
+        waitIo(); idle()
+        val ed = find(act.window.decorView, EditorView::class.java).first()
+        val fotos = ed.views.filterIsInstance<FotoView>()
+        ed.selectImage(fotos[1]); idle()
+        // aparece el botón "Anclar igual"
+        val labels = find(act.window.decorView, android.widget.TextView::class.java).map { it.text.toString() }
+        assertTrue("debe salir «Anclar igual»: $labels", labels.any { it.contains(L.t("anchorSame")) })
+        fotos[1].anchorLike(fotos[0]); idle()
+        val b = fotos[1].block
+        assertEquals(40f, b.pct); assertEquals(5f, b.x); assertEquals(10f, b.y); assertTrue(b.pin)
+    }
 }
