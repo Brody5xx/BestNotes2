@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
+import android.view.MotionEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -410,6 +411,34 @@ class PantallaTest {
         val b = whiteBox(700, 600)          // la misma foto, movida
         org.junit.Assert.assertTrue("debe haber líneas blancas", a.right > 0)
         org.junit.Assert.assertTrue("las líneas blancas deben estar dentro de la foto movida: $b", b.left >= 700 && b.top >= 600 && b.right <= 1000 && b.bottom <= 1000)
+    }
+
+    /** La perilla flota afuera de la foto (encima del texto): igual tiene que responder cada vez que la tocas. */
+    @Test fun perillaRespondeAunqueEsteEncimaDelTexto() {
+        reload()
+        val bm = android.graphics.Bitmap.createBitmap(60, 40, android.graphics.Bitmap.Config.ARGB_8888)
+        val r = Photos.saveNew(bm)
+        val m = Store.createNote("Perilla", mutableListOf(Block.Text(mutableListOf(Run("Hola mundo"))), Block.Img(r.file, 50f, "", 0f, 0f, 60, 40)))
+        waitIo(); idle()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
+        waitIo(); idle()
+        val ed = find(act.window.decorView, EditorView::class.java).first()
+        val f = ed.views.first { it is FotoView } as FotoView
+        f.setSelected(true); idle()
+        val k = ed.knobView!!
+        val img = ed.blocks.first { it is Block.Img } as Block.Img
+        repeat(2) { vez ->
+            val l = IntArray(2); k.getLocationOnScreen(l)
+            val x = l[0] + k.width / 2f; val y = l[1] + k.height / 2f
+            fun ev(a: Int, dx: Float, dy: Float) = MotionEvent.obtain(0, 0, a, x + dx, y + dy, 0)     // en la prueba rawX = x
+            val before = img.rot
+            // el toque llega al editor (el padre), no a la perilla: el editor se lo pasa
+            ed.dispatchTouchEvent(ev(MotionEvent.ACTION_DOWN, 0f, 0f))
+            ed.dispatchTouchEvent(ev(MotionEvent.ACTION_MOVE, -80f, 120f))
+            ed.dispatchTouchEvent(ev(MotionEvent.ACTION_UP, -80f, 120f))
+            idle()
+            org.junit.Assert.assertNotEquals("vez ${vez + 1}: la perilla debe girar la foto", before, img.rot)
+        }
     }
 
     /** Bajaste la foto: tocando el espacio de arriba escribes JUSTO arriba de la foto. */

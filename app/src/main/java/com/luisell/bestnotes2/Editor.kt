@@ -73,6 +73,28 @@ interface BlockView {
 
 @SuppressLint("ViewConstructor")
 class EditorView(ctx: Context, val host: Host) : LinearLayout(ctx) {
+    /** La perilla de girar flota afuera de la foto (encima del texto). Android solo le da los toques a una vista
+     *  si caen dentro de su "cajita", así que aquí los atrapamos primero y se los pasamos a la perilla. */
+    var knobView: View? = null
+    var knobTouch: View.OnTouchListener? = null
+    private var knobRoute = false
+    override fun dispatchTouchEvent(e: MotionEvent): Boolean {
+        val k = knobView; val t = knobTouch
+        if (e.actionMasked == MotionEvent.ACTION_DOWN) {
+            knobRoute = false
+            if (k != null && t != null && k.isShown && k.width > 0) {
+                val l = IntArray(2); k.getLocationOnScreen(l); val slop = 8 * resources.displayMetrics.density
+                if (e.rawX >= l[0] - slop && e.rawX <= l[0] + k.width + slop && e.rawY >= l[1] - slop && e.rawY <= l[1] + k.height + slop)
+                    knobRoute = t.onTouch(k, e)
+            }
+            if (knobRoute) return true
+        } else if (knobRoute && k != null && t != null) {
+            t.onTouch(k, e)
+            if (e.actionMasked == MotionEvent.ACTION_UP || e.actionMasked == MotionEvent.ACTION_CANCEL) knobRoute = false
+            return true
+        }
+        return super.dispatchTouchEvent(e)
+    }
     interface Host {
         fun onDirty()
         fun onFocusEdit(e: RichEdit?)
@@ -724,6 +746,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
     private val knob = RotKnob(ctx).apply { visibility = View.GONE }
     private var knobCorner = -1
     private var knobHeld = false
+    private val knobTouchL by lazy { KnobTouch() }
     private val knobScroll = android.view.ViewTreeObserver.OnScrollChangedListener { placeKnob() }
     /** El brillo sigue a la foto (también mientras la mueves). */
     private fun placeGlow() {
@@ -866,7 +889,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         infoBar.addView(ctx.iconBtn(MoreIcons.DOTS_V, 8f, T.muted) { options() }.apply { layoutParams = LinearLayout.LayoutParams(dp(36), dp(38)) })
         flow.addView(infoBar)
         flow.addView(knob)
-        knob.setOnTouchListener(KnobTouch())
+        knob.setOnTouchListener(knobTouchL)
         paintInfo()
         // ⏎ escribiendo al lado: cuando el texto ya pasó el final de la foto, sigue ABAJO de la foto (todo el ancho)
         edit.onBackAtStart = { ed.backFromSide(this) }
@@ -904,11 +927,13 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         if (on == (knob.visibility == View.VISIBLE)) return
         if (on) {
             knob.visibility = View.VISIBLE; knob.angle = block.rot; knobCorner = -1; placeKnob()
+            ed.knobView = knob; ed.knobTouch = knobTouchL
             flow.viewTreeObserver.addOnScrollChangedListener(knobScroll)
             knob.scaleX = 0f; knob.scaleY = 0f; knob.rotation = -120f
             knob.animate().scaleX(1f).scaleY(1f).rotation(0f).setDuration(420).setInterpolator(android.view.animation.OvershootInterpolator(2.2f)).start()
         } else {
             flow.viewTreeObserver.removeOnScrollChangedListener(knobScroll)
+            if (ed.knobView === knob) { ed.knobView = null; ed.knobTouch = null }
             knob.animate().scaleX(0f).scaleY(0f).setDuration(150).withEndAction { knob.visibility = View.GONE }.start()
         }
     }
