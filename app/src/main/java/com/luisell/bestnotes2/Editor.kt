@@ -922,12 +922,12 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         val cx = (box.left + box.right) / 2f; val cy = (box.top + box.bottom) / 2f + box.translationY
         val a = Math.toRadians(box.rotation.toDouble())
         val s2 = (knob.measuredWidth.takeIf { it > 0 } ?: dp(28)) / 2f
-        // esquinas: abajo-der, arriba-der, abajo-izq, arriba-izq (m>0 = por fuera de la foto, m<0 = metida adentro)
-        fun cornersAt(m: Float) = listOf(1f to 1f, 1f to -1f, -1f to 1f, -1f to -1f).map { (sx, sy) ->
+        // esquinas: arriba-der, arriba-izq, abajo-der, abajo-izq (m>0 = por fuera de la foto, m<0 = metida adentro)
+        fun cornersAt(m: Float) = listOf(1f to -1f, -1f to -1f, 1f to 1f, -1f to 1f).map { (sx, sy) ->
             val dx = sx * (box.width / 2f + m); val dy = sy * (box.height / 2f + m)
             (cx + (dx * Math.cos(a) - dy * Math.sin(a)).toFloat()) to (cy + (dx * Math.sin(a) + dy * Math.cos(a)).toFloat())
         }
-        val corners = cornersAt(dp(2).toFloat()) + cornersAt(-s2 - dp(6))
+        val corners = cornersAt(s2 + dp(5)) + cornersAt(-s2 - dp(6))     // flotando afuera, sin tocar la foto
         // ¿dónde se ve? (dentro del pedazo de la nota que está en la pantalla)
         val vis = android.graphics.Rect()
         var sv: View? = flow; while (sv != null && sv !is android.widget.ScrollView) sv = sv.parent as? View

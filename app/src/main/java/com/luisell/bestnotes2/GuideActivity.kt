@@ -15,8 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
-        "2026-11-19" to ("↻ La perilla de girar es más chiquita y se cambia sola a la esquina que se ve en la pantalla. 📐 Las fotos ya llegan al 100% (si tenían texto al lado, el texto pasa debajo)" to
-            "↻ The rotate knob is smaller and moves by itself to the corner you can see. 📐 Photos now go up to 100% (text beside them moves below)"),
+        "2026-11-19" to ("↻ La perilla de girar es más chiquita y flota afuera de la foto sin tocarla y se cambia sola a la esquina que se ve en la pantalla. 📐 Las fotos ya llegan al 100% (si tenían texto al lado, el texto pasa debajo)" to
+            "↻ The rotate knob is smaller and floats outside the photo and moves by itself to the corner you can see. 📐 Photos now go up to 100% (text beside them moves below)"),
         "2026-11-19" to ("↻ Perilla para girar la foto con un solo dedo (en la esquina, se pega en 0°, 45°, 90°…). 🖼 La barrita de la foto es del mismo ancho que la foto. ⌫ Borrar sigue en el texto de al lado de la foto" to
             "↻ Knob to rotate a photo with one finger (in the corner, snaps to 0°, 45°, 90°…). 🖼 The photo bar is as wide as the photo. ⌫ Delete continues into the text beside the photo"),
         "2026-11-18" to ("🖼 Las fotos tienen la barrita de los videos: ⛶ verla en grande (con zoom) y ⋮ achicar, subir, bajar, abrir con… y quitar. ⏎ Escribiendo al lado de una foto, al pasar su final el texto sigue debajo" to
