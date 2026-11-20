@@ -230,7 +230,7 @@ p{margin:6px 0;white-space:normal}a{color:#64d2ff}.f{text-align:center;color:rgb
 }
 
 /** 📤 El panel para compartir una o varias notas. */
-fun android.app.Activity.shareNotes(ids: List<String>, onDone: () -> Unit = {}) {
+fun android.app.Activity.shareNotes(ids: List<String>, direct: String? = null, onDone: () -> Unit = {}) {
     val many = ids.size > 1
     fun run(kind: String) {
         val box = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.VERTICAL; gravity = android.view.Gravity.CENTER_HORIZONTAL; setPadding(dp(24), dp(20), dp(24), dp(10)) }
@@ -257,6 +257,8 @@ fun android.app.Activity.shareNotes(ids: List<String>, onDone: () -> Unit = {}) 
                     kind == "pdf" -> Share.send(this, res as File, "application/pdf", name)
                     else -> {
                         val f = res as File
+                        // si cabe por correo y mensaje, se manda de una vez (sin otra ventanita)
+                        if (f.length() <= 20L * 1048576) { toast(L.t("sizeSend", "s" to Export.sizeText(f.length()))); Share.send(this, f, "text/html", name); return@runOnUiThread }
                         Sheet(this, "🌐 " + L.t("sharePage"), L.t("sizeSend", "s" to Export.sizeText(f.length())))
                             .custom(tv(Export.sizeAdvice(f.length()), 14f, T.text).apply { gravity = android.view.Gravity.CENTER; setPadding(dp(18), dp(2), dp(18), dp(12)) })
                             .quick(Icons.SEND, L.t("share"), Sheet.BLUE) { Share.send(this, f, "text/html", name) }
@@ -266,6 +268,7 @@ fun android.app.Activity.shareNotes(ids: List<String>, onDone: () -> Unit = {}) 
             }
         }.start()
     }
+    if (direct != null) { run(direct); return }
     Sheet(this, "📤 " + L.t("share"), if (many) L.t("shareMany", "n" to ids.size) else L.t("shareHint"))
         .item(MoreIcons.VIDEO, L.t("sharePage"), Sheet.ORANGE, L.t("sharePageSub")) { run("page") }
         .item(Icons.BOOK, L.t("sharePdf"), Sheet.RED, "Gmail, Outlook…") { run("pdf") }

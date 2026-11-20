@@ -726,7 +726,7 @@ class NoteActivity : Activity(), EditorView.Host {
 
     private fun shareMenu() {
         Sheet(this, L.t("share"), L.t("shareHint"))
-            .item(MoreIcons.VIDEO, L.t("sharePage"), Sheet.ORANGE, L.t("sharePageSub")) { save(); Store.io.execute { Store.main.post { shareNotes(listOf(meta.id)) } } }
+            .item(MoreIcons.VIDEO, L.t("sharePage"), Sheet.ORANGE, L.t("sharePageSub")) { save(); Store.io.execute { Store.main.post { shareNotes(listOf(meta.id), "page") } } }
             .item(Icons.IMAGE, L.t("shareImg"), Sheet.PINK, "WhatsApp, Gmail…") { shareAs("img") }
             .item(Icons.BOOK, L.t("sharePdf"), Sheet.RED, "Gmail, Outlook…") { shareAs("pdf") }
             .item(MoreIcons.TEXT_T, L.t("shareText"), Sheet.BLUE) { editor.flushAll(); Share.sendText(this, title.text.toString(), Share.text(title.text.toString(), editor.blocks)) }
