@@ -480,6 +480,26 @@ class PantallaTest {
         assertEquals(f.block.ar, (Block.fromJson(f.block.toJson()) as Block.Img).ar, 0.001f)
     }
 
+    /** 👔 La IA solo cambia las letras: las fotos y las listas se quedan en su lugar. */
+    @Test fun iaSoloCambiaLasLetras() {
+        reload()
+        val bm = android.graphics.Bitmap.createBitmap(60, 40, android.graphics.Bitmap.Config.ARGB_8888)
+        val r = Photos.saveNew(bm)
+        val li = Block.ListB("ol", mutableListOf(Item(mutableListOf(Run("dos cables")))))
+        val m = Store.createNote("Casa", mutableListOf(Block.Text(mutableListOf(Run("hola amigo\nfoto abajo"))), Block.Img(r.file, 50f, "", 25f, 0f, 60, 40), li))
+        waitIo(); idle()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
+        waitIo(); idle()
+        val ed = find(act.window.decorView, EditorView::class.java).first()
+        val f = NoteActivity::class.java.getDeclaredMethod("applyPieces", Map::class.java).apply { isAccessible = true }
+        f.invoke(act, mapOf(0 to "Hola, estimado", 1 to "La foto está abajo", 3 to "Dos cables"))
+        idle()
+        val bl = ed.blocks.filter { !(it is Block.Text && runsPlain(it.runs).isBlank()) }
+        assertEquals("Hola, estimado\nLa foto está abajo", runsPlain((bl[0] as Block.Text).runs))
+        org.junit.Assert.assertTrue("la foto sigue en su lugar", bl[1] is Block.Img && (bl[1] as Block.Img).file == r.file)
+        assertEquals("Dos cables", runsPlain((bl[2] as Block.ListB).items[0].runs))
+    }
+
     /** Bajaste la foto: tocando el espacio de arriba escribes JUSTO arriba de la foto. */
     @Test fun escribirJustoArribaDeLaFoto() {
         reload()

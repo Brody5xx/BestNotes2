@@ -607,14 +607,14 @@ class NoteActivity : Activity(), EditorView.Host {
             "english" to L.t("aiEnglish"), "todo" to L.t("aiTodo"), "summary" to L.t("aiSummary"), "steps" to L.t("aiSteps"))
         dialog().setTitle("✨ " + L.t("aiAssistant")).setItems(opts.map { it.second }.toTypedArray()) { _, i ->
             val (style, label) = opts[i]
+            if (style == "pronote") { aiProNote(label); return@setItems }
             val langs = if (style == "english") listOf("en") else listOf("es", "en")
             val jobs = langs.map { lg -> AiJob(if (lg == "es") "Español" else "English") { Ai.ask(Ai.system(style, lg), txt) } }
             val actions = ArrayList<AiAction>()
             if (style == "todo") actions.add(AiAction(L.t("aiAddChecklist"), true) { out -> appendBlocks(aiToBlocks(out, checklist = true)) })
             else {
-                actions.add(AiAction(L.t("aiNewNote"), true) { out -> openNew(label + " · " + title.text.toString().ifBlank { L.t("untitled") }, aiToBlocks(out)) })
+                actions.add(AiAction(L.t("aiNewNote"), true) { out -> openNew(titled(label), aiToBlocks(out)) })
                 actions.add(AiAction(L.t("aiAppend")) { out -> appendBlocks(aiToBlocks(out)) })
-                if (style == "pronote") actions.add(AiAction(L.t("aiReplaceNote")) { out -> replaceAll(aiToBlocks(out)) })
             }
             actions.add(AiAction(L.t("share")) { out -> Share.sendText(this, title.text.toString(), out) })
             aiDialog(label, jobs, actions)
@@ -654,9 +654,14 @@ class NoteActivity : Activity(), EditorView.Host {
         }
     }
 
-    /** ✅ Revisar ortografía de toda la nota (renglón por renglón, sin perder el orden). */
-    private fun aiSpell() {
-        editor.flushAll()
+    /** "Nota nueva" con un nombre: no se repite lo de adelante (antes salía "Toda la nota profesional · Toda la nota profesional · …"). */
+    private fun titled(label: String): String {
+        val t = title.text.toString().trim().ifBlank { return label }
+        return if (t.startsWith(label)) t else "$label · $t"
+    }
+
+    /** La nota en pedacitos (cada renglón de texto, cada renglón de lista y el texto al lado de cada foto), en orden. */
+    private fun notePieces(): List<String> {
         val pieces = ArrayList<String>()
         for (bl in editor.blocks) when (bl) {
             is Block.Text -> runsPlain(bl.runs).split('\n').forEach { pieces.add(it) }
@@ -664,21 +669,67 @@ class NoteActivity : Activity(), EditorView.Host {
             is Block.Img -> runsPlain(bl.beside).split('\n').forEach { pieces.add(it) }
             else -> {}
         }
+        return pieces
+    }
+    private val PIECES_RULE = " IMPORTANT: the text is a note split into numbered pieces like \"[1] ...\". Return EVERY piece, each on its own line starting with the same number (\"[n] new text\"), in the same order. Never merge, split, add or drop pieces. Never add a title, greeting or extra lines."
+    private fun parsePieces(out: String): HashMap<Int, String> {
+        val fixed = HashMap<Int, String>()
+        Regex("^\\[(\\d+)]\\s?(.*)$", RegexOption.MULTILINE).findAll(out).forEach { m -> fixed[m.groupValues[1].toInt() - 1] = m.groupValues[2] }
+        return fixed
+    }
+
+    /**
+     * 👔 Toda la nota profesional: SOLO cambia las letras, renglón por renglón, en su mismo lugar.
+     * Las fotos, videos, listas y el título se quedan donde estaban (como en Best Notes viejo).
+     */
+    private fun aiProNote(label: String) {
+        editor.flushAll()
+        val pieces = notePieces()
         val idx = pieces.indices.filter { pieces[it].isNotBlank() }
         if (idx.isEmpty()) { toast(L.t("aiEmpty")); return }
         val input = idx.joinToString("\n") { "[${it + 1}] " + pieces[it] }
-        val sys = Ai.system("fix", "") + " IMPORTANT: the text is a note split into numbered pieces like \"[1] ...\". Return EVERY piece, each on its own line starting with the same number (\"[n] new text\"), in the same order. Never merge, split, add or drop pieces."
+        val got = java.util.concurrent.ConcurrentHashMap<String, Map<Int, String>>()
+        val jobs = listOf("es", "en").map { lg -> AiJob(if (lg == "es") "Español" else "English") {
+            val raw = Ai.ask(Ai.system("pronote", lg) + PIECES_RULE, input) ?: return@AiJob null
+            val fixed = parsePieces(raw)
+            if (fixed.isEmpty()) return@AiJob raw
+            val shown = idx.joinToString("\n") { fixed[it] ?: pieces[it] }      // lo que ves: la nota sin los numeritos
+            got[shown] = fixed; shown
+        } }
+        aiDialog(label, jobs, listOf(
+            AiAction(L.t("aiChangeInNote"), true) { out -> got[out]?.let { applyPieces(it) } ?: toast(L.t("vFail")) },
+            AiAction(L.t("aiNewNote")) { out ->
+                val f = got[out] ?: run { toast(L.t("vFail")); return@AiAction }
+                val copy = blocksFromJson(blocksJson(editor.blocks)).toMutableList()
+                fixBlocks(copy, f)
+                openNew(titled(label), copy)
+            },
+            AiAction(L.t("share")) { out -> Share.sendText(this, title.text.toString(), out) },
+        ))
+    }
+
+    /** ✅ Revisar ortografía de toda la nota (renglón por renglón, sin perder el orden). */
+    private fun aiSpell() {
+        editor.flushAll()
+        val pieces = notePieces()
+        val idx = pieces.indices.filter { pieces[it].isNotBlank() }
+        if (idx.isEmpty()) { toast(L.t("aiEmpty")); return }
+        val input = idx.joinToString("\n") { "[${it + 1}] " + pieces[it] }
+        val sys = Ai.system("fix", "") + PIECES_RULE
         aiDialog(L.t("aiSpell"), listOf(AiJob("") { Ai.ask(sys, input) }), listOf(AiAction(L.t("aiApplyFix"), true) { out ->
-            val fixed = HashMap<Int, String>()
-            Regex("^\\[(\\d+)]\\s?(.*)$", RegexOption.MULTILINE).findAll(out).forEach { m -> fixed[m.groupValues[1].toInt() - 1] = m.groupValues[2] }
-            applyPieces(fixed)
+            applyPieces(parsePieces(out))
         }))
     }
 
     /** Cambia los renglones arreglados (cada renglón conserva el estilo de su principio). */
     private fun applyPieces(fixed: Map<Int, String>) {
         if (fixed.isEmpty()) return
-        editor.change { bl ->
+        editor.change { bl -> fixBlocks(bl, fixed); null }
+        toast(L.t("aiFixed"))
+    }
+
+    /** Pone cada renglón nuevo en su lugar (lo demás no se toca). */
+    private fun fixBlocks(bl: MutableList<Block>, fixed: Map<Int, String>) {
             var k = 0
             fun fix(runs: MutableList<Run>): MutableList<Run> {
                 val lines = runsPlain(runs).split('\n'); val out = ArrayList<Run>(); var pos = 0
@@ -697,9 +748,6 @@ class NoteActivity : Activity(), EditorView.Host {
                 is Block.Img -> b.beside = fix(b.beside)
                 else -> {}
             }
-            null
-        }
-        toast(L.t("aiFixed"))
     }
 
     private fun replaceRange(e: RichEdit, a: Int, b: Int, text: String) {

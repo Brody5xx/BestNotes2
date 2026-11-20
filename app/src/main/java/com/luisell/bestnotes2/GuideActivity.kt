@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-20" to ("✨ \"Toda la nota profesional\" ahora SOLO cambia las letras, renglón por renglón: las fotos, videos y listas se quedan en su lugar y el título no se toca. Botón nuevo: Cambiar en la nota" to
+            "✨ \"Whole note professional\" now ONLY changes the words, line by line: photos, videos and lists stay in place and the title isn't touched. New button: Change in the note"),
         "2026-11-20" to ("🎬 Achicar ahora te pregunta cuánto: Normal (720p), Liviano (480p) o Mínimo (360p, pesa KB), y te dice cuánto va a pesar. 🎞 Nuevo: achicar TODOS los videos de la nota de una vez. 📤 Compartir la página con videos ya no repite el panel de Compartir" to
             "🎬 Shrink now asks how much: Normal (720p), Light (480p) or Tiny (360p, KB), showing the expected size. 🎞 New: shrink ALL the videos in a note at once. 📤 Sharing the video page no longer repeats the Share panel"),
         "2026-11-20" to ("🎬 Achicar videos ya funciona de verdad: mide el video real, lo baja a 720p, a 30 cuadros y con menos datos por segundo (pesa mucho menos). 📤 Al compartir, el título ya no sale doble" to
