@@ -28,6 +28,7 @@ object AppLock {
             override fun onActivityStopped(a: Activity) { started--; if (started == 0) bgAt = System.currentTimeMillis() }
             override fun onActivityResumed(a: Activity) {
                 if (a is LockActivity || unlocked || !on(a)) return
+                if (a is MainActivity && MainActivity.introRunning) return     // primero la presentación, después el PIN
                 a.startActivity(android.content.Intent(a, LockActivity::class.java))
                 a.overridePendingTransition(0, 0)
             }

@@ -66,10 +66,14 @@ class MainActivity : Activity() {
         if (savedInstanceState == null && !introShown && android.os.Build.FINGERPRINT != "robolectric") { introShown = true; intro() }
     }
 
-    override fun onDestroy() { Store.removeListener(listener); super.onDestroy() }
+    override fun onDestroy() { Store.removeListener(listener); introRunning = false; super.onDestroy() }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handleIntent(intent) }
+    /** Lo que falta de la presentación cuando ya pusiste el PIN. */
+    private var afterLock: (() -> Unit)? = null
+
     override fun onResume() {
         super.onResume(); if (Store.loaded) refresh()
+        afterLock?.let { f -> if (AppLock.unlocked) root.postDelayed({ f() }, 120) }
         pendingTrash?.let { ids -> pendingTrash = null; root.postDelayed({ trashSnack(ids) }, 350) }
     }
 
@@ -176,13 +180,22 @@ class MainActivity : Activity() {
             .withEndAction { Anim.sparkle(logo, 110f, 800) }.start()
         name.animate().alpha(1f).translationY(0f).setStartDelay(260).setDuration(520).setInterpolator(android.view.animation.DecelerateInterpolator(2f)).start()
         android.animation.ValueAnimator.ofFloat(0.8f, 0.3f).apply { startDelay = 260; duration = 620; addUpdateListener { name.letterSpacing = it.animatedValue as Float } }.start()
+        introRunning = true
         var gone = false
-        val leave = {
+        val reallyLeave = {
             if (!gone) {
-                gone = true
+                gone = true; introRunning = false; afterLock = null
                 ov.animate().alpha(0f).scaleX(1.12f).scaleY(1.12f).setDuration(380).setInterpolator(android.view.animation.AccelerateInterpolator())
                     .withEndAction { root.removeView(ov); dropHeader() }.start()
             }
+        }
+        val leave = {
+            // 🔒 con PIN: primero la presentación, DESPUÉS pide el PIN (la presentación se queda tapando las notas)
+            if (!gone && afterLock == null && AppLock.on(this) && !AppLock.unlocked) {
+                afterLock = reallyLeave
+                startActivity(Intent(this, LockActivity::class.java))
+                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            } else if (afterLock == null) reallyLeave()
         }
         ov.setOnClickListener { leave() }
         ov.postDelayed({ leave() }, 1250)
@@ -191,6 +204,8 @@ class MainActivity : Activity() {
     companion object {
         /** La presentación sale una sola vez cada vez que se abre la app. */
         private var introShown = false
+        /** Mientras sale la presentación, el candado espera (sale después). */
+        @Volatile var introRunning = false
         const val PICK_FILE = 41; const val REQ_WALL = 42; const val REQ_SAVE_BK = 43; const val REQ_AUTO_DIR = 44
         /** Notas que se acaban de mandar a la papelera desde una nota (para "Deshacer"). */
         var pendingTrash: List<String>? = null
