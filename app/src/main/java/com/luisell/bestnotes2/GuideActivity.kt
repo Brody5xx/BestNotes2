@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-20" to ("🎬 Achicar videos ya funciona de verdad: mide el video real, lo baja a 720p, a 30 cuadros y con menos datos por segundo (pesa mucho menos)" to
+            "🎬 Shrink video really works now: it reads the real video, makes it 720p, 30 fps and with a lower bitrate (much smaller)"),
         "2026-11-19" to ("⇔ Estira las fotos con las bolitas de las orillas: a los lados (ancho), abajo (alto) y en la esquina (sin deformar). 📏 Cuando queda del mismo ancho que otra foto, se pega y sale una línea roja larga. ✓ Abajo también se pega a la forma original" to
             "⇔ Stretch photos with the dots on their edges: sides (width), bottom (height) and corner (no distortion). 📏 When it gets the same width as another photo it snaps and a long red line appears. ✓ The bottom dot also snaps back to the original shape"),
         "2026-11-19" to ("↻ La perilla de girar es más chiquita y flota afuera de la foto sin tocarla (y responde aunque esté encima del texto) y se cambia sola a la esquina que se ve en la pantalla. 📐 Las fotos ya llegan al 100% (si tenían texto al lado, el texto pasa debajo)" to
