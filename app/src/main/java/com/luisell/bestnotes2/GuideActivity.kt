@@ -15,8 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
-        "2026-11-20" to ("🎬 Achicar ahora te pregunta cuánto: Normal (720p), Liviano (480p) o Mínimo (360p, pesa KB), y te dice cuánto va a pesar. 🎞 Nuevo: achicar TODOS los videos de la nota de una vez" to
-            "🎬 Shrink now asks how much: Normal (720p), Light (480p) or Tiny (360p, KB), showing the expected size. 🎞 New: shrink ALL the videos in a note at once"),
+        "2026-11-20" to ("🎬 Achicar ahora te pregunta cuánto: Normal (720p), Liviano (480p) o Mínimo (360p, pesa KB), y te dice cuánto va a pesar. 🎞 Nuevo: achicar TODOS los videos de la nota de una vez. 📤 Compartir la página con videos ya no repite el panel de Compartir" to
+            "🎬 Shrink now asks how much: Normal (720p), Light (480p) or Tiny (360p, KB), showing the expected size. 🎞 New: shrink ALL the videos in a note at once. 📤 Sharing the video page no longer repeats the Share panel"),
         "2026-11-20" to ("🎬 Achicar videos ya funciona de verdad: mide el video real, lo baja a 720p, a 30 cuadros y con menos datos por segundo (pesa mucho menos). 📤 Al compartir, el título ya no sale doble" to
             "🎬 Shrink video really works now: it reads the real video, makes it 720p, 30 fps and with a lower bitrate (much smaller). 📤 Sharing no longer repeats the title"),
         "2026-11-19" to ("⇔ Estira las fotos con las bolitas de las orillas: a los lados (ancho), abajo (alto) y en la esquina (sin deformar). 📏 Cuando queda del mismo ancho que otra foto, se pega y sale una línea roja larga. ✓ Abajo también se pega a la forma original" to

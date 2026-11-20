@@ -257,8 +257,6 @@ fun android.app.Activity.shareNotes(ids: List<String>, direct: String? = null, o
                     kind == "pdf" -> Share.send(this, res as File, "application/pdf", name)
                     else -> {
                         val f = res as File
-                        // si cabe por correo y mensaje, se manda de una vez (sin otra ventanita)
-                        if (f.length() <= 20L * 1048576) { toast(L.t("sizeSend", "s" to Export.sizeText(f.length()))); Share.send(this, f, "text/html", name); return@runOnUiThread }
                         Sheet(this, "🌐 " + L.t("sharePage"), L.t("sizeSend", "s" to Export.sizeText(f.length())))
                             .custom(tv(Export.sizeAdvice(f.length()), 14f, T.text).apply { gravity = android.view.Gravity.CENTER; setPadding(dp(18), dp(2), dp(18), dp(12)) })
                             .quick(Icons.SEND, L.t("share"), Sheet.BLUE) { Share.send(this, f, "text/html", name) }
