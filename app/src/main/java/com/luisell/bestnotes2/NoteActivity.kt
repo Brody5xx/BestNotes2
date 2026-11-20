@@ -607,9 +607,33 @@ class NoteActivity : Activity(), EditorView.Host {
             "english" to L.t("aiEnglish"), "todo" to L.t("aiTodo"), "summary" to L.t("aiSummary"), "steps" to L.t("aiSteps"))
         dialog().setTitle("✨ " + L.t("aiAssistant")).setItems(opts.map { it.second }.toTypedArray()) { _, i ->
             val (style, label) = opts[i]
-            if (style == "pronote") { aiProNote(label); return@setItems }
-            val langs = if (style == "english") listOf("en") else listOf("es", "en")
-            val jobs = langs.map { lg -> AiJob(if (lg == "es") "Español" else "English") { Ai.ask(Ai.system(style, lg), txt) } }
+            if (style == "english") { assistantRun(style, label, txt, listOf("en")); return@setItems }
+            pickLangs { langs -> if (style == "pronote") aiProNote(label, langs) else assistantRun(style, label, txt, langs) }
+        }.show()
+    }
+
+    /**
+     * 🌐 ¿En qué idioma? Español + English (los dos a la vez) o cualquier otro idioma.
+     * El último que escogiste sale primero (con ⭐) para que sea rápido.
+     */
+    private fun pickLangs(onPick: (List<String>) -> Unit) {
+        val prefs = getSharedPreferences("ai", MODE_PRIVATE)
+        val last = prefs.getString("langs", "es,en")!!.split(',').filter { it.isNotEmpty() }
+        val opts = ArrayList<List<String>>()
+        opts.add(last)
+        if (last != listOf("es", "en")) opts.add(listOf("es", "en"))
+        Ai.LANGS.forEach { (c, _, _) -> val l = listOf(c); if (l != last) opts.add(l) }
+        val labels = opts.mapIndexed { i, l -> (if (i == 0) "⭐ " else "") + l.joinToString(" + ") { Ai.langShow(it) } }
+        dialog().setTitle("🌐 " + L.t("aiLangQ")).setItems(labels.toTypedArray()) { _, i ->
+            val pick = opts[i]
+            prefs.edit().putString("langs", pick.joinToString(",")).apply()
+            onPick(pick)
+        }.show()
+    }
+
+    private fun assistantRun(style: String, label: String, txt: String, langs: List<String>) {
+        run {
+            val jobs = langs.map { lg -> AiJob(Ai.langShow(lg)) { Ai.ask(Ai.system(style, lg), txt) } }
             val actions = ArrayList<AiAction>()
             if (style == "todo") actions.add(AiAction(L.t("aiAddChecklist"), true) { out -> appendBlocks(aiToBlocks(out, checklist = true)) })
             else {
@@ -618,7 +642,7 @@ class NoteActivity : Activity(), EditorView.Host {
             }
             actions.add(AiAction(L.t("share")) { out -> Share.sendText(this, title.text.toString(), out) })
             aiDialog(label, jobs, actions)
-        }.show()
+        }
     }
 
     /** ✍️ Reescribir lo seleccionado (o el renglón donde está el cursor). Sale en español y en inglés. */
@@ -636,12 +660,13 @@ class NoteActivity : Activity(), EditorView.Host {
             "funny" to L.t("rwFunny"), "emoji" to L.t("rwEmoji"), "translate" to L.t("rwTranslate"))
         dialog().setTitle("✨ " + L.t("aiRewrite")).setItems(styles.map { it.second }.toTypedArray()) { _, i ->
             val (style, label) = styles[i]
-            val jobs = if (style == "translate") listOf(AiJob("") { Ai.ask(Ai.system("translate", ""), src) })
-                else listOf("es", "en").map { lg -> AiJob(if (lg == "es") "Español" else "English") { Ai.ask(Ai.system(style, lg), src) } }
-            aiDialog(label, jobs, listOf(
-                AiAction(L.t("aiUse"), true) { out -> replaceRange(e, a, b, out) },
-                AiAction(L.t("aiBelow")) { out -> replaceRange(e, b, b, "\n" + out) },
-            ))
+            pickLangs { langs ->
+                val jobs = langs.map { lg -> AiJob(Ai.langShow(lg)) { Ai.ask(Ai.system(style, lg), src) } }
+                aiDialog(label, jobs, listOf(
+                    AiAction(L.t("aiUse"), true) { out -> replaceRange(e, a, b, out) },
+                    AiAction(L.t("aiBelow")) { out -> replaceRange(e, b, b, "\n" + out) },
+                ))
+            }
         }.show()
     }
 
@@ -682,14 +707,14 @@ class NoteActivity : Activity(), EditorView.Host {
      * 👔 Toda la nota profesional: SOLO cambia las letras, renglón por renglón, en su mismo lugar.
      * Las fotos, videos, listas y el título se quedan donde estaban (como en Best Notes viejo).
      */
-    private fun aiProNote(label: String) {
+    private fun aiProNote(label: String, langs: List<String>) {
         editor.flushAll()
         val pieces = notePieces()
         val idx = pieces.indices.filter { pieces[it].isNotBlank() }
         if (idx.isEmpty()) { toast(L.t("aiEmpty")); return }
         val input = idx.joinToString("\n") { "[${it + 1}] " + pieces[it] }
         val got = java.util.concurrent.ConcurrentHashMap<String, Map<Int, String>>()
-        val jobs = listOf("es", "en").map { lg -> AiJob(if (lg == "es") "Español" else "English") {
+        val jobs = langs.map { lg -> AiJob(Ai.langShow(lg)) {
             val raw = Ai.ask(Ai.system("pronote", lg) + PIECES_RULE, input) ?: return@AiJob null
             val fixed = parsePieces(raw)
             if (fixed.isEmpty()) return@AiJob raw

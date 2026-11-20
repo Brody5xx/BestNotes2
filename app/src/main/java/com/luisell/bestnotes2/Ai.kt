@@ -61,7 +61,17 @@ object Ai {
         null
     }
 
-    fun langName(c: String) = if (c == "en") "English" else "Spanish"
+    /** 🌐 Idiomas para la IA: código, cómo se llama en su idioma (lo que ves), y en inglés (lo que entiende la IA). */
+    val LANGS = listOf(
+        Triple("es", "Español", "Spanish"), Triple("en", "English", "English"), Triple("fr", "Français", "French"),
+        Triple("pt", "Português", "Portuguese"), Triple("it", "Italiano", "Italian"), Triple("de", "Deutsch", "German"),
+        Triple("zh", "中文 (简体)", "Simplified Chinese"), Triple("zh-TW", "中文 (繁體)", "Traditional Chinese"), Triple("ja", "日本語", "Japanese"),
+        Triple("ko", "한국어", "Korean"), Triple("ru", "Русский", "Russian"), Triple("ar", "العربية", "Arabic"),
+        Triple("hi", "हिन्दी", "Hindi"), Triple("tl", "Tagalog", "Tagalog"), Triple("vi", "Tiếng Việt", "Vietnamese"),
+        Triple("nl", "Nederlands", "Dutch"), Triple("pl", "Polski", "Polish"), Triple("tr", "Türkçe", "Turkish"), Triple("ht", "Kreyòl ayisyen", "Haitian Creole"),
+    )
+    fun langName(c: String) = LANGS.firstOrNull { it.first == c }?.third ?: "Spanish"
+    fun langShow(c: String) = LANGS.firstOrNull { it.first == c }?.second ?: c
 
     /* ---------- Las mismas instrucciones de Best Notes ---------- */
     val HOW = mapOf(
@@ -92,7 +102,7 @@ object Ai {
 
     /** Instrucción completa. [lang] = idioma del resultado ("" = el mismo del texto). */
     fun system(style: String, lang: String): String {
-        val how = if (style == "translate") "If the text is written in Spanish, translate it into English; otherwise translate it into Spanish. Keep the meaning and tone."
+        val how = if (style == "translate") (if (lang.isNotEmpty()) "Translate the text into ${langName(lang)}. Keep the meaning and tone." else "If the text is written in Spanish, translate it into English; otherwise translate it into Spanish. Keep the meaning and tone.")
             else HOW[style] ?: HOW["pro"]!!
         val own = style in setOf("report", "pronote", "email", "chat", "english", "todo", "summary", "steps", "syn", "phrase")
         return "You are a writing assistant inside a notes app. " + how +
