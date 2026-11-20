@@ -115,7 +115,7 @@ p{margin:6px 0;white-space:normal}a{color:#64d2ff}.f{text-align:center;color:rgb
                     val bo = java.io.ByteArrayOutputStream(); bm.compress(Bitmap.CompressFormat.PNG, 100, bo); bm.recycle()
                     w.write("<img src=\"data:image/png;base64,${Base64.encodeToString(bo.toByteArray(), Base64.NO_WRAP)}\">")
                 }
-                for (b in it.blocks) when (b) {
+                for (b in Share.noTitleEcho(it.meta.title, it.blocks)) when (b) {
                     is Block.Text -> if (runsPlain(b.runs).isNotBlank()) w.write("<p>${runsHtml(b.runs)}</p>")
                     is Block.ListB -> {
                         val tag = if (b.kind == "ol") "ol" else "ul"
@@ -208,7 +208,7 @@ p{margin:6px 0;white-space:normal}a{color:#64d2ff}.f{text-align:center;color:rgb
             if (it.meta.title.isNotBlank()) drawRuns(titleRuns(it), paint(18f, bold = true))
             drawRuns(listOf(Run(df.format(java.util.Date(it.meta.updated)))), muted); y += 6
             inkBitmap(it, 1000)?.let { bm -> drawBitmap(bm, 300f); bm.recycle() }
-            for (b in it.blocks) when (b) {
+            for (b in Share.noTitleEcho(it.meta.title, it.blocks)) when (b) {
                 is Block.Text -> if (runsPlain(b.runs).isNotBlank()) { drawRuns(b.runs, body); y += 4 }
                 is Block.ListB -> { b.items.forEachIndexed { i, x ->
                     val pre = when (b.kind) { "check" -> if (x.done) "☑  " else "☐  "; "ol" -> "${i + 1}.  "; else -> "•  " }

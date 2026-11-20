@@ -125,4 +125,14 @@ class PruebasTest {
         // y si no cambió nada, no hay cambios
         assertTrue(Timeline.diff(post, post).changes.isEmpty())
     }
+
+    @Test fun compartirNoRepiteElTitulo() {
+        val b = listOf<Block>(Block.Text(mutableListOf(Run("CASA DE PRUEBA\n\nPreguntas:\nUno"))), Block.Text(mutableListOf(Run("Fin"))))
+        val t = Share.text("Casa de prueba", b)
+        org.junit.Assert.assertEquals("el título sale una sola vez: $t", 1, Regex("(?i)casa de prueba").findAll(t).count())
+        org.junit.Assert.assertTrue(t.contains("Preguntas:\nUno"))
+        // si la primera línea es otra cosa, no se toca
+        val t2 = Share.text("Otra", b)
+        org.junit.Assert.assertTrue(t2.contains("CASA DE PRUEBA"))
+    }
 }

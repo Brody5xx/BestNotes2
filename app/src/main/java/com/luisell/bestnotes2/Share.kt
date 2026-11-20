@@ -50,8 +50,26 @@ object Share {
     }
 
     /** Texto de la nota, con ☐ / ☑ en los checklist y • en las viñetas. */
-    fun text(title: String, blocks: List<Block>): String = buildString {
+    /** Si la nota empieza con una línea igualita al título, esa línea no se repite al compartir (si no, sale doble). */
+    fun noTitleEcho(title: String, blocks: List<Block>): List<Block> {
+        val t = title.trim(); if (t.isEmpty()) return blocks
+        val i = blocks.indexOfFirst { !(it is Block.Text && runsPlain(it.runs).isBlank()) }
+        val b = blocks.getOrNull(i) as? Block.Text ?: return blocks
+        val plain = runsPlain(b.runs)
+        val start = plain.indexOfFirst { !it.isWhitespace() }
+        val nl = plain.indexOf('\n', start).let { if (it < 0) plain.length else it }
+        if (!plain.substring(start, nl).trim().equals(t, ignoreCase = true)) return blocks
+        var end = nl; while (end < plain.length && plain[end] == '\n') end++      // también los renglones vacíos de después
+        val rest = sliceRuns(b.runs, end, plain.length)
+        val out = ArrayList<Block>(blocks.subList(0, i).filterNot { it is Block.Text })
+        if (runsPlain(rest).isNotEmpty()) out.add(Block.Text(rest))
+        out.addAll(blocks.subList(i + 1, blocks.size))
+        return out
+    }
+
+    fun text(title: String, blocks0: List<Block>): String = buildString {
         if (title.isNotBlank()) { append(title.trim()); append("\n\n") }
+        val blocks = noTitleEcho(title, blocks0)
         for (b in blocks) when (b) {
             is Block.Text -> { val t = runsPlain(b.runs); if (t.isNotEmpty()) { append(t); append('\n') } }
             is Block.ListB -> b.items.forEachIndexed { k, it ->
