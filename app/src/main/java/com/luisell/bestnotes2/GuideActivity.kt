@@ -15,7 +15,7 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
-        "2026-11-20" to ("🌐 La IA ahora te pregunta en qué idioma: Español + English a la vez, o cualquier otro (Français, Português, 中文, 日本語, 한국어, Tagalog…). El último que usaste sale primero con ⭐" to
+        "2026-11-20" to ("🌐 La IA ahora te pregunta en qué idioma: Español + English a la vez, o cualquier otro (Français, Português, 中文, 日本語, 한국어, Tagalog…). El último que usaste sale primero con ⭐. (\"En inglés profesional\" se quitó: ahora es Toda la nota profesional en English)" to
             "🌐 The AI now asks which language: Spanish + English together, or any other (French, Portuguese, Chinese, Japanese, Korean, Tagalog…). Your last choice shows first with ⭐"),
         "2026-11-20" to ("✨ \"Toda la nota profesional\" ahora SOLO cambia las letras, renglón por renglón: las fotos, videos y listas se quedan en su lugar y el título no se toca. Botón nuevo: Cambiar en la nota" to
             "✨ \"Whole note professional\" now ONLY changes the words, line by line: photos, videos and lists stay in place and the title isn't touched. New button: Change in the note"),

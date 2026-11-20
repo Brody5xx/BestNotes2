@@ -604,10 +604,9 @@ class NoteActivity : Activity(), EditorView.Host {
         val txt = noteText()
         if (txt.isBlank()) { toast(L.t("aiEmpty")); return }
         val opts = listOf("report" to L.t("aiReport"), "pronote" to L.t("aiProNote"), "email" to L.t("aiEmail"), "chat" to L.t("aiChat"),
-            "english" to L.t("aiEnglish"), "todo" to L.t("aiTodo"), "summary" to L.t("aiSummary"), "steps" to L.t("aiSteps"))
+            "todo" to L.t("aiTodo"), "summary" to L.t("aiSummary"), "steps" to L.t("aiSteps"))
         dialog().setTitle("✨ " + L.t("aiAssistant")).setItems(opts.map { it.second }.toTypedArray()) { _, i ->
             val (style, label) = opts[i]
-            if (style == "english") { assistantRun(style, label, txt, listOf("en")); return@setItems }
             pickLangs { langs -> if (style == "pronote") aiProNote(label, langs) else assistantRun(style, label, txt, langs) }
         }.show()
     }
