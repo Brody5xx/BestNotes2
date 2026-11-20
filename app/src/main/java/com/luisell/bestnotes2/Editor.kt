@@ -388,6 +388,26 @@ class EditorView(ctx: Context, val host: Host) : LinearLayout(ctx) {
         }
     }
 
+    /** 🎬 Achica TODOS los videos de la nota, uno detrás del otro. */
+    fun shrinkAllVideos() {
+        val vids = views.filterIsInstance<VideoCard>()
+        if (vids.isEmpty()) return
+        Shrink.askLevel(context, vids.map { it.block.file }) { level ->
+            var a = 0L; var b = 0L; var ok = 0
+            fun next(i: Int) {
+                if (i >= vids.size) {
+                    if (ok > 0) context.toast(L.t("shrinkAllOk", "n" to ok, "a" to MediaFiles.sizeText(a), "b" to MediaFiles.sizeText(b)))
+                    else context.toast(L.t("shrinkNoGain"))
+                    return
+                }
+                val v = vids[i]
+                v.view.parent?.requestChildFocus(v.view, v.view)
+                v.shrinkWith(level) { x, y -> if (y > 0) { ok++; a += x; b += y }; post { next(i + 1) } }
+            }
+            next(0)
+        }
+    }
+
     /** Sube (-1) o baja (+1) un bloque (la foto) un lugar. */
     fun moveBlock(v: BlockView, dir: Int) {
         val i = views.indexOf(v); val j = i + dir
@@ -1679,6 +1699,8 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
         val extra = ArrayList<Pair<String, () -> Unit>>()
         if (!block.muted) extra.add(L.t("mute") to { mute() })
         extra.add(L.t("shrink") to { shrink() })
+        val many = ed.views.count { it is VideoCard }
+        if (many > 1) extra.add(L.t("shrinkAll", "n" to many) to { ed.shrinkAllVideos() })
         mediaOptions(ed, this, block, extra)
     }
 
@@ -1699,16 +1721,24 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
         }
     }
 
+    /** Primero pregunta cuánto achicar (y te dice cuánto va a pesar más o menos). */
     private fun shrink() {
+        Shrink.askLevel(ctx, listOf(block.file)) { level -> shrinkWith(level) { a, b -> if (b > 0) ctx.toast(L.t("shrinkOk", "a" to MediaFiles.sizeText(a), "b" to MediaFiles.sizeText(b))) } }
+    }
+
+    /** Achica este video. [onDone] (antes, después); después = 0 si no se pudo o no ganó nada. */
+    fun shrinkWith(level: Int, onDone: (Long, Long) -> Unit) {
+        if (busy) { onDone(0, 0); return }
         busy = true; paintLabel(L.t("shrinking", "n" to 0))
-        val before = block.size
-        Shrink.run(ctx, block.file, vw, vh, { p -> paintLabel(L.t("shrinking", "n" to p)) }) { n ->
+        val before = File(Store.mediaDir, block.file).length().takeIf { it > 0 } ?: block.size
+        Shrink.run(ctx, block.file, vw, vh, level, { p -> paintLabel(L.t("shrinking", "n" to p)) }) { n ->
             busy = false
-            if (n == null) { ctx.toast(L.t("videoFail")); paintLabel(); return@run }
+            if (n == null) { ctx.toast(L.t("videoFail")); paintLabel(); onDone(before, 0); return@run }
             val after = File(Store.mediaDir, n).length()
-            if (after <= 0 || (before > 0 && after >= before)) { File(Store.mediaDir, n).delete(); ctx.toast(L.t("shrinkNoGain")); paintLabel(); return@run }
+            if (after <= 0 || (before > 0 && after >= before)) { File(Store.mediaDir, n).delete(); ctx.toast(L.t("shrinkNoGain")); paintLabel(); onDone(before, 0); return@run }
             replaceFile(n)
-            ctx.toast(L.t("shrinkOk", "a" to MediaFiles.sizeText(before), "b" to MediaFiles.sizeText(after)))
+            Anim.sparkle(col, 40f, 500)
+            onDone(before, after)
         }
     }
 }

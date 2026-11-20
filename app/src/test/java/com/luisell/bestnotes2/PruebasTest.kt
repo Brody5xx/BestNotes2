@@ -135,4 +135,17 @@ class PruebasTest {
         val t2 = Share.text("Otra", b)
         org.junit.Assert.assertTrue(t2.contains("CASA DE PRUEBA"))
     }
+
+    @Test fun achicarVideoNiveles() {
+        // una grabación de pantalla como la de prueba: 1080×2340, 27 s, 28.6 MB
+        val i = Shrink.Info(1080, 2340, 27_000, 30f, 28_600_000)
+        val e = (0..2).map { Shrink.estimate(i, it) }
+        println("Normal=${e[0]} Liviano=${e[1]} Minimo=${e[2]}")
+        org.junit.Assert.assertTrue("normal < 10 MB", e[0] < 10_000_000)
+        org.junit.Assert.assertTrue("liviano < 3.5 MB", e[1] < 3_500_000)
+        org.junit.Assert.assertTrue("mínimo en KB (< 1 MB)", e[2] < 1_000_000)
+        org.junit.Assert.assertTrue(e[0] > e[1] && e[1] > e[2])
+        assertEquals(360, Shrink.plan(i, 2).shortSide)
+        assertEquals(15f, Shrink.plan(i, 2).fps, 0.01f)
+    }
 }
