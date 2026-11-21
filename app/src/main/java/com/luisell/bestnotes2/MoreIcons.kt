@@ -55,6 +55,7 @@ object MoreIcons {
     const val WALLPAPER = 241
     const val ROTATE = 242
     const val INBOX = 243
+    const val INSERT = 244
 
     private val path = Path()
     private val r = RectF()
@@ -334,6 +335,17 @@ object MoreIcons {
                 path.lineTo(cx + s * 0.55f, cy + s * 0.45f)
                 c.drawPath(path, st)
                 c.drawCircle(cx + s * 0.28f, cy - s * 0.38f, s * 0.11f, fl)
+            }
+            INSERT -> {
+                // ⊞ cuadrito redondeado con un + y una chispita en la esquina (agregar cosas a la nota)
+                r.set(cx - s * 0.78f, cy - s * 0.6f, cx + s * 0.62f, cy + s * 0.8f)
+                c.drawRoundRect(r, s * 0.32f, s * 0.32f, st)
+                c.drawLine(cx - s * 0.08f - s * 0.34f, cy + s * 0.1f, cx - s * 0.08f + s * 0.34f, cy + s * 0.1f, st)
+                c.drawLine(cx - s * 0.08f, cy + s * 0.1f - s * 0.34f, cx - s * 0.08f, cy + s * 0.1f + s * 0.34f, st)
+                val sx = cx + s * 0.78f; val sy = cy - s * 0.78f; val k = s * 0.3f
+                path.reset()
+                path.moveTo(sx, sy - k); path.quadTo(sx, sy, sx + k, sy); path.quadTo(sx, sy, sx, sy + k); path.quadTo(sx, sy, sx - k, sy); path.quadTo(sx, sy, sx, sy - k)
+                path.close(); c.drawPath(path, fl)
             }
             INBOX -> {
                 // 📥 bandeja (sin carpeta)

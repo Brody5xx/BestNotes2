@@ -303,8 +303,19 @@ class MainActivity : Activity() {
             spread(); header.addView(glassBtn(if (T.light) MoreIcons.MOON else MoreIcons.SUN) { v -> switchTheme(!T.light, v) }.apply {
                 setOnLongClickListener { appearance(); true }
             })
+            // 💫 Nova (la IA) en la esquina de arriba, siempre moviéndose
+            spread(); header.addView(AiOrb(this).apply { setOnClickListener { burst(); Anim.sparkle(this, 34f, 650); postDelayed({ aiHub() }, 160) } }, lp(dp(44), dp(44)))
         }
         if (hChanged) dropHeader()
+    }
+
+    /** 💫 Lo que hace la IA desde la pantalla principal. */
+    private fun aiHub() {
+        Sheet(this, "✨ " + L.t("ai"), L.t("aiFree"))
+            .item(Icons.REPORT, L.t("report"), Sheet.VIOLET, L.t("reportHint")) { startActivity(Intent(this, ReportActivity::class.java)) }
+            .item(Icons.BOX, L.t("materials"), Sheet.AMBER, L.t("materialsHint")) { startActivity(Intent(this, MaterialsActivity::class.java)) }
+            .item(MoreIcons.PEN, L.t("aiInNote"), Sheet.SKY, L.t("aiInNoteSub")) { startActivity(Intent(this, NoteActivity::class.java)) }
+            .show()
     }
 
     private var headerMode: String? = null

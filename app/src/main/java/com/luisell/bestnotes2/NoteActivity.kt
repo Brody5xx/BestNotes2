@@ -193,7 +193,7 @@ class NoteActivity : Activity(), EditorView.Host {
             typeface = Typeface.DEFAULT_BOLD
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_MULTI_LINE
             imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_NEXT
-            setPadding(dp(18), dp(6), dp(18), dp(6))
+            setPadding(dp(18), dp(6), dp(60), dp(6))        // a la derecha queda lugar para 💫 Nova
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                 override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -238,6 +238,9 @@ class NoteActivity : Activity(), EditorView.Host {
             setPadding(dp(14), dp(8), dp(14), dp(8)); background = roundBg(0xF0303036.toInt(), dp(16).toFloat(), T.border, dp(1)); alpha = 0f
         }
         holder.addView(hintTv, android.widget.FrameLayout.LayoutParams(WRAP, WRAP, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(8) })
+        // 💫 Nova, la IA: siempre arriba en la esquina (se mueve sola); un toque abre la IA
+        val orb = AiOrb(this).apply { setOnClickListener { burst(); Anim.sparkle(this, 34f, 650); postDelayed({ aiMenu() }, 160) } }
+        holder.addView(orb, android.widget.FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP or Gravity.END).apply { setMargins(0, dp(2), dp(10), 0) })
         root.addView(holder, lp(MATCH, 0, 1f))
 
         // Barra de herramientas: dos filas, igual que en Best Notes
@@ -253,7 +256,17 @@ class NoteActivity : Activity(), EditorView.Host {
         }
         val r1 = rowL(); val r2 = rowL()
         tool(r1, "draw", MoreIcons.PEN) { setDrawMode(true) }
-        tool(r1, "photo", Icons.IMAGE) { insertMenu() }
+        tool(r1, "photo", MoreIcons.INSERT, 11f) { insertMenu() }
+        // ✨ el botón de agregar brilla de vez en cuando (un destello y un saltito)
+        toolBtns["photo"]?.let { ib ->
+            val shine = object : Runnable { override fun run() {
+                if (ib.isShown) { ib.animate().scaleX(1.18f).scaleY(1.18f).rotation(-8f).setDuration(160).withEndAction {
+                    ib.animate().scaleX(1f).scaleY(1f).rotation(0f).setDuration(380).setInterpolator(android.view.animation.OvershootInterpolator(3f)).start() }.start()
+                    Anim.sparkle(ib, 26f, 600) }
+                ib.postDelayed(this, 7000)
+            } }
+            ib.postDelayed(shine, 2500)
+        }
         sep(r1)
         tool(r1, "b", MoreIcons.BOLD) { style { s -> s.copy(b = !cur().b) } }
         tool(r1, "i", MoreIcons.ITALIC) { style { s -> s.copy(i = !cur().i) } }

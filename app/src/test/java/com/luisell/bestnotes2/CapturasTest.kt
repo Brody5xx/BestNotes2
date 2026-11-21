@@ -410,6 +410,19 @@ class CapturasTest {
         shot(act.window.decorView, "91_anclada_igual")
     }
 
+    @Test fun capturasNova() {
+        if (System.getenv("CAPTURAS") == null) return
+        var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
+        val m = Store.createNote("Cámaras del edificio que no funcionan bien", mutableListOf(Block.Text(mutableListOf(Run("Revisar el piso 3")))))
+        waitIo(); idle()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
+        waitIo(); idle(); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
+        shot(act.window.decorView, "c0_nova_nota")
+        val main = Robolectric.buildActivity(MainActivity::class.java).setup().visible().get()
+        waitIo(); idle(); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
+        shot(main.window.decorView, "c1_nova_inicio")
+    }
+
     @Test fun capturasCarpetas() {
         if (System.getenv("CAPTURAS") == null) return
         var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }

@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-20" to ("💫 Nova: el logo vivo de la IA, siempre arriba en la esquina (en las notas y en la pantalla principal). Una estrella de colores que gira, respira y tiene una lunita que le da vueltas. ⊞ El botón de Agregar tiene ícono nuevo y brilla de vez en cuando" to
+            "💫 Nova: the living AI logo, always in the top corner (in notes and on the main screen). A colorful star that spins, breathes and has a little moon orbiting it. ⊞ The Add button has a new icon and sparkles now and then"),
         "2026-11-20" to ("📁 Mover a carpeta nuevo (como Best Notes viejo): ← · Listo, cada carpeta con su color, ✓ en la que está, y ＋ Nueva carpeta abajo" to
             "📁 New Move to folder (like old Best Notes): ← · Done, each folder in its color, ✓ on the current one, and ＋ New folder at the bottom"),
         "2026-11-20" to ("🔒 Con PIN para entrar: primero sale la animación de inicio y después te pide el PIN" to
