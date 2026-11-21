@@ -1416,7 +1416,6 @@ class NoteActivity : Activity(), EditorView.Host {
         sh.item(Icons.SPELL, L.t("spellCheck"), Sheet.SKY, L.t("spellCheckSub")) { startSpell() }
         sh.item(Icons.REPORT, L.t("templates"), Sheet.BLUE, L.t("templatesSub")) { openTemplates() }
         sh.divider()
-        sh.item(MoreIcons.PALETTE, L.t("titleColor"), Sheet.PINK) { title.requestFocus(); pickColor("color") }
         sh.item(MoreIcons.WALLPAPER, L.t("noteWall"), Sheet.ORANGE, L.t("noteWallSub")) { wallMenu() }
         sh.item(MoreIcons.FOLDER, L.t("moveToFolder"), Sheet.ORANGE, Store.folders.firstOrNull { it.id == meta.folder }?.name) { moveFolder() }
         sh.item(Icons.LOCK, L.t(if (meta.locked) "unlock" else "lockPin"), Sheet.GRAY) { toggleLock() }
