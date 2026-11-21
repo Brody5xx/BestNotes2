@@ -257,16 +257,6 @@ class NoteActivity : Activity(), EditorView.Host {
         val r1 = rowL(); val r2 = rowL()
         tool(r1, "draw", MoreIcons.PEN) { setDrawMode(true) }
         tool(r1, "photo", MoreIcons.INSERT, 11f) { insertMenu() }
-        // ✨ el botón de agregar brilla de vez en cuando (un destello y un saltito)
-        toolBtns["photo"]?.let { ib ->
-            val shine = object : Runnable { override fun run() {
-                if (ib.isShown) { ib.animate().scaleX(1.18f).scaleY(1.18f).rotation(-8f).setDuration(160).withEndAction {
-                    ib.animate().scaleX(1f).scaleY(1f).rotation(0f).setDuration(380).setInterpolator(android.view.animation.OvershootInterpolator(3f)).start() }.start()
-                    Anim.sparkle(ib, 26f, 600) }
-                ib.postDelayed(this, 7000)
-            } }
-            ib.postDelayed(shine, 2500)
-        }
         sep(r1)
         tool(r1, "b", MoreIcons.BOLD) { style { s -> s.copy(b = !cur().b) } }
         tool(r1, "i", MoreIcons.ITALIC) { style { s -> s.copy(i = !cur().i) } }

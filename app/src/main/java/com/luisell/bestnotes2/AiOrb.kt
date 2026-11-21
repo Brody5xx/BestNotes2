@@ -37,9 +37,17 @@ class AiOrb(ctx: Context) : View(ctx) {
 
     init { isClickable = true; contentDescription = "IA" }
 
-    override fun onAttachedToWindow() { super.onAttachedToWindow(); anim.start() }
+    /** Se mueve solo cuando se ve; al volver a la app (desde recientes) sigue donde iba. */
+    private fun sync() {
+        val show = isAttachedToWindow && windowVisibility == VISIBLE && isShown
+        if (show) { if (!anim.isStarted) anim.start() else if (anim.isPaused) anim.resume() }
+        else if (anim.isStarted && !anim.isPaused) anim.pause()
+    }
+    override fun onAttachedToWindow() { super.onAttachedToWindow(); post { sync() } }
     override fun onDetachedFromWindow() { anim.cancel(); super.onDetachedFromWindow() }
-    override fun onVisibilityChanged(v: View, vis: Int) { super.onVisibilityChanged(v, vis); if (vis == VISIBLE && isAttachedToWindow) { if (!anim.isStarted) anim.start() } else anim.pause() }
+    override fun onVisibilityChanged(v: View, vis: Int) { super.onVisibilityChanged(v, vis); post { sync() } }
+    override fun onWindowVisibilityChanged(vis: Int) { super.onWindowVisibilityChanged(vis); post { sync() } }
+    override fun onWindowFocusChanged(has: Boolean) { super.onWindowFocusChanged(has); if (has) post { sync() } }
 
     /** Un toque: la estrella da un salto y gira rápido. */
     fun burst() {
