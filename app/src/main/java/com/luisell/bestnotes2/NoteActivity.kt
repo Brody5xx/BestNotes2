@@ -1407,16 +1407,11 @@ class NoteActivity : Activity(), EditorView.Host {
         }
         sh.quick(MoreIcons.PALETTE, L.t("colorShort"), Sheet.PINK, meta.color != 0) { noteColor() }
         sh.quick(MoreIcons.IMPORT, L.t("share"), Sheet.BLUE) { shareMenu() }
-        sh.item(Icons.STAR, L.t("aiAssistant"), Sheet.VIOLET, L.t("aiAssistantSub")) { aiAssistant() }
         sh.item(Icons.CLOCK, L.t("reminder"), Sheet.AMBER, Reminders.forNote(this, meta.id).firstOrNull()?.let { L.when_(it.at) }) {
             save(); remind(this, meta.id, (meta.title.ifEmpty { blocksPlain(editor.blocks).lineSequence().firstOrNull { it.isNotBlank() } ?: L.t("untitled") }).take(120)) { Store.changed() }
         }
-        sh.item(MoreIcons.MIC, L.t("dictate"), Sheet.GREEN, L.t("dictateSub")) { startDictation() }
         sh.item(MoreIcons.HISTORY, L.t("history"), Sheet.TEAL, L.t("historySub")) { openHistory() }
-        sh.item(Icons.SPELL, L.t("spellCheck"), Sheet.SKY, L.t("spellCheckSub")) { startSpell() }
-        sh.item(Icons.REPORT, L.t("templates"), Sheet.BLUE, L.t("templatesSub")) { openTemplates() }
         sh.divider()
-        sh.item(MoreIcons.WALLPAPER, L.t("noteWall"), Sheet.ORANGE, L.t("noteWallSub")) { wallMenu() }
         sh.item(MoreIcons.FOLDER, L.t("moveToFolder"), Sheet.ORANGE, Store.folders.firstOrNull { it.id == meta.folder }?.name) { moveFolder() }
         sh.item(Icons.LOCK, L.t(if (meta.locked) "unlock" else "lockPin"), Sheet.GRAY) { toggleLock() }
         sh.item(MoreIcons.INFO, L.t("info"), Sheet.GRAY) { info() }
