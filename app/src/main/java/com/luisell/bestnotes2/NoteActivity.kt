@@ -1462,12 +1462,9 @@ class NoteActivity : Activity(), EditorView.Host {
         d = dialog().setTitle(L.t("noteColor")).setView(v).setNegativeButton(L.t("cancel"), null).show()
     }
 
-    private fun moveFolder() {
-        val names = listOf(L.t("noFolder")) + Store.folders.map { it.name }
-        dialog().setTitle(L.t("moveToFolder")).setItems(names.toTypedArray()) { _, i ->
-            meta.folder = if (i == 0) null else Store.folders[i - 1].id
-            if (!isNew) { Store.saveMeta(meta); Store.changed() } else onDirty()
-        }.show()
+    private fun moveFolder() = pickFolder(meta.folder != null) { f ->
+        meta.folder = f
+        if (!isNew) { Store.saveMeta(meta); Store.changed() } else onDirty()
     }
 
     private fun toggleLock() {

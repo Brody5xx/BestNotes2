@@ -508,13 +508,7 @@ class MainActivity : Activity() {
     private fun selDeleteForever() {
         confirm(L.t("delForever"), L.t("delForeverMsg"), L.t("del"), true) { Store.deleteForever(selected.toList()); done() }
     }
-    private fun selFolder() {
-        val names = listOf(L.t("noFolder")) + Store.folders.map { it.name }
-        dialog().setTitle(L.t("moveToFolder")).setItems(names.toTypedArray()) { _, i ->
-            val f = if (i == 0) null else Store.folders[i - 1].id
-            sel().forEach { it.folder = f; Store.saveMeta(it) }; done()
-        }.show()
-    }
+    private fun selFolder() = pickFolder(sel().any { it.folder != null }) { f -> sel().forEach { it.folder = f; Store.saveMeta(it) }; done() }
     private fun selColor() {
         lateinit var d: GlassDialog
         val v = colorRow(T.noteColors, true, -1) { c -> d.dismiss(); sel().forEach { it.color = c; Store.saveMeta(it) }; done() }
@@ -814,29 +808,7 @@ class MainActivity : Activity() {
     }
 
     /** Crear o editar una carpeta (nombre + color). */
-    private fun folderDialog(f: Folder?) {
-        var color = f?.color ?: T.noteColors[5]
-        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(8), dp(8), dp(8), 0) }
-        val e = EditText(this).apply {
-            setText(f?.name ?: ""); hint = L.t("folderName"); setTextColor(T.text); setHintTextColor(T.faint)
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-        }
-        box.addView(e, lp(MATCH, WRAP).apply { setMargins(dp(14), 0, dp(14), dp(6)) })
-        val holder = FrameLayout(this)
-        fun row() { holder.removeAllViews(); holder.addView(colorRow(T.noteColors, false, color) { c -> color = c; row() }) }
-        row()
-        box.addView(holder)
-        val d = dialog().setTitle(L.t(if (f == null) "newFolder" else "editFolder")).setView(box)
-            .setPositiveButton(L.t("save")) { _, _ ->
-                val name = e.text.toString().trim()
-                if (name.isEmpty()) return@setPositiveButton
-                val ff = f ?: Folder(newId(), name, color, Store.folders.size)
-                ff.name = name; ff.color = color
-                Store.saveFolder(ff); Store.changed()
-            }.setNegativeButton(L.t("cancel"), null).create()
-        d.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
-        d.show(); e.requestFocus()
-    }
+    private fun folderDialog(f: Folder?) = folderEditDialog(f) {}
 
     private fun pickHourFmt() {
         val keys = arrayOf("auto", "12", "24")

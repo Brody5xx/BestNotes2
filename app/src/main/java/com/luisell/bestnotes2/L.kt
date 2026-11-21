@@ -284,6 +284,7 @@ object L {
         "shrinkHow" to "¿Cuánto lo achico?", "shrinkNow" to "Ahora pesa {a}", "shrinkL0" to "Normal · 720p", "shrinkL1" to "Liviano · 480p", "shrinkL2" to "Mínimo · 360p", "shrinkS0" to "Se ve bien, pesa menos", "shrinkS1" to "Se ve bien en el teléfono", "shrinkS2" to "Pesa poquito (KB). Letras chiquitas se ven borrosas", "shrinkAll" to "Achicar todos los videos ({n})", "shrinkAllOk" to "Listo: {n} videos, de {a} a {b}",
         "aiChangeInNote" to "Cambiar en la nota",
         "aiLangQ" to "¿En qué idioma?",
+        "addFolder" to "Agregar carpeta", "outOfFolder" to "Sacar de la carpeta",
     )
 
     private val EN = mapOf(
@@ -471,5 +472,6 @@ object L {
         "shrinkHow" to "How much should I shrink it?", "shrinkNow" to "Now it weighs {a}", "shrinkL0" to "Normal · 720p", "shrinkL1" to "Light · 480p", "shrinkL2" to "Tiny · 360p", "shrinkS0" to "Looks good, smaller", "shrinkS1" to "Looks fine on a phone", "shrinkS2" to "Very small (KB). Small text gets blurry", "shrinkAll" to "Shrink all videos ({n})", "shrinkAllOk" to "Done: {n} videos, from {a} to {b}",
         "aiChangeInNote" to "Change in the note",
         "aiLangQ" to "In which language?",
+        "addFolder" to "Add folder", "outOfFolder" to "Take out of the folder",
     )
 }
