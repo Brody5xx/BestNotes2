@@ -1520,8 +1520,6 @@ class NoteActivity : Activity(), EditorView.Host {
             .quick(MoreIcons.VIDEO, L.t("video"), Sheet.ORANGE) { videoMenu() }
             .quick(MoreIcons.MIC, L.t("audio"), Sheet.RED) { audioMenu() }
             .item(Icons.STAR, "✨ " + L.t("ai"), Sheet.VIOLET, L.t("aiFree")) { aiMenu() }
-            .item(MoreIcons.TEXT_T, L.t("dictate"), Sheet.GREEN, L.t("dictateSub")) { startDictation() }
-            .item(MoreIcons.PEN, L.t("newDraw"), Sheet.TEAL) { setDrawMode(true) }
             .item(Icons.REPORT, L.t("templates"), Sheet.BLUE, L.t("templatesSub")) { openTemplates() }
             .show()
     }
