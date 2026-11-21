@@ -410,6 +410,19 @@ class CapturasTest {
         shot(act.window.decorView, "91_anclada_igual")
     }
 
+    @Test fun capturasCarpetas() {
+        if (System.getenv("CAPTURAS") == null) return
+        var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
+        Store.saveFolder(Folder(newId(), "Trabajo", 0xFF42A5F5.toInt(), 0)); Store.saveFolder(Folder(newId(), "Casa", 0xFFEF5350.toInt(), 1)); Store.saveFolder(Folder(newId(), "Ideas", 0xFF66BB6A.toInt(), 2))
+        val m = Store.createNote("Una nota", mutableListOf(Block.Text(mutableListOf(Run("Hola")))))
+        waitIo(); idle()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
+        waitIo(); idle()
+        NoteActivity::class.java.getDeclaredMethod("moveFolder").apply { isAccessible = true }.invoke(act)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(900))
+        shot(act.window.decorView, "b0_carpetas")
+    }
+
     @Test fun capturasEstirar() {
         if (System.getenv("CAPTURAS") == null) return
         var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }

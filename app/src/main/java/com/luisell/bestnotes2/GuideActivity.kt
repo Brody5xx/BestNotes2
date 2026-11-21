@@ -15,8 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
-        "2026-11-20" to ("📁 Mover a carpeta: \"➕ Agregar carpeta\" la crea y mete la nota ahí de una vez. \"Sacar de la carpeta\" sale solo si la nota ya está en una" to
-            "📁 Move to folder: \"➕ Add folder\" creates it and puts the note there at once. \"Take out of the folder\" only shows if the note is in one"),
+        "2026-11-20" to ("📁 Mover a carpeta nuevo (como Best Notes viejo): ← · Listo, cada carpeta con su color, ✓ en la que está, y ＋ Nueva carpeta abajo" to
+            "📁 New Move to folder (like old Best Notes): ← · Done, each folder in its color, ✓ on the current one, and ＋ New folder at the bottom"),
         "2026-11-20" to ("🔒 Con PIN para entrar: primero sale la animación de inicio y después te pide el PIN" to
             "🔒 With an app PIN: the intro animation plays first, then it asks for the PIN"),
         "2026-11-20" to ("🌐 La IA ahora te pregunta en qué idioma: Español + English a la vez, o cualquier otro (Français, Português, 中文, 日本語, 한국어, Tagalog…). El último que usaste sale primero con ⭐. (\"En inglés profesional\" se quitó: ahora es Toda la nota profesional en English)" to

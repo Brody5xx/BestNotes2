@@ -54,6 +54,7 @@ object MoreIcons {
     const val HISTORY = 240
     const val WALLPAPER = 241
     const val ROTATE = 242
+    const val INBOX = 243
 
     private val path = Path()
     private val r = RectF()
@@ -333,6 +334,19 @@ object MoreIcons {
                 path.lineTo(cx + s * 0.55f, cy + s * 0.45f)
                 c.drawPath(path, st)
                 c.drawCircle(cx + s * 0.28f, cy - s * 0.38f, s * 0.11f, fl)
+            }
+            INBOX -> {
+                // 📥 bandeja (sin carpeta)
+                path.reset()
+                path.moveTo(cx - s * 0.9f, cy + s * 0.08f); path.lineTo(cx - s * 0.62f, cy - s * 0.62f)
+                path.lineTo(cx + s * 0.62f, cy - s * 0.62f); path.lineTo(cx + s * 0.9f, cy + s * 0.08f)
+                c.drawPath(path, st)
+                r.set(cx - s * 0.9f, cy + s * 0.08f, cx + s * 0.9f, cy + s * 0.72f); c.drawRoundRect(r, s * 0.14f, s * 0.14f, st)
+                path.reset()
+                path.moveTo(cx - s * 0.9f, cy + s * 0.08f); path.lineTo(cx - s * 0.36f, cy + s * 0.08f)
+                path.lineTo(cx - s * 0.24f, cy + s * 0.32f); path.lineTo(cx + s * 0.24f, cy + s * 0.32f)
+                path.lineTo(cx + s * 0.36f, cy + s * 0.08f); path.lineTo(cx + s * 0.9f, cy + s * 0.08f)
+                c.drawPath(path, st)
             }
             ROTATE -> {
                 // ↺ flecha redonda (girar a la izquierda)

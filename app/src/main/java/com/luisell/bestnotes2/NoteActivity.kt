@@ -1462,7 +1462,7 @@ class NoteActivity : Activity(), EditorView.Host {
         d = dialog().setTitle(L.t("noteColor")).setView(v).setNegativeButton(L.t("cancel"), null).show()
     }
 
-    private fun moveFolder() = pickFolder(meta.folder != null) { f ->
+    private fun moveFolder() = pickFolder(meta.folder) { f ->
         meta.folder = f
         if (!isNew) { Store.saveMeta(meta); Store.changed() } else onDirty()
     }

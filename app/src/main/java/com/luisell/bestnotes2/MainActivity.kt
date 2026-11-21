@@ -508,7 +508,7 @@ class MainActivity : Activity() {
     private fun selDeleteForever() {
         confirm(L.t("delForever"), L.t("delForeverMsg"), L.t("del"), true) { Store.deleteForever(selected.toList()); done() }
     }
-    private fun selFolder() = pickFolder(sel().any { it.folder != null }) { f -> sel().forEach { it.folder = f; Store.saveMeta(it) }; done() }
+    private fun selFolder() = pickFolder(sel().map { it.folder }.distinct().let { if (it.size == 1) it[0] else "?" }) { f -> sel().forEach { it.folder = f; Store.saveMeta(it) }; done() }
     private fun selColor() {
         lateinit var d: GlassDialog
         val v = colorRow(T.noteColors, true, -1) { c -> d.dismiss(); sel().forEach { it.color = c; Store.saveMeta(it) }; done() }
