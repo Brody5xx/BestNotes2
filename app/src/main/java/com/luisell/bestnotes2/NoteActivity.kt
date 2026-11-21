@@ -1614,7 +1614,7 @@ class NoteActivity : Activity(), EditorView.Host {
         val cur = extraObj.optString("wall", "")
         val sh = Sheet(this, "🖼️ " + L.t("noteWall"), L.t("noteWallSub"))
         sh.quick(Icons.IMAGE, L.t("wallPhoto"), Sheet.BLUE, cur.isNotEmpty() && !cur.startsWith("g:")) {
-            try { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*"), REQ_WALL) } catch (_: Exception) { toast(L.t("cantOpen")) }
+            pickOnePhoto(REQ_WALL)
         }
         if (cur.isNotEmpty()) sh.quick(Icons.CLOSE, L.t("wallNone"), Sheet.RED) { extraObj.remove("wall"); showWall(); dirty = true; save() }
         // degradados para tocar

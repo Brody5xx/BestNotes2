@@ -100,3 +100,13 @@ object Photos {
     fun stampOn(ctx: Context) = ctx.getSharedPreferences("ajustes", 0).getBoolean("stampOn", true)
     fun setStampOn(ctx: Context, on: Boolean) { ctx.getSharedPreferences("ajustes", 0).edit().putBoolean("stampOn", on).apply() }
 }
+
+/** 🖼 Abre la GALERÍA para escoger UNA foto (no Drive ni los archivos). Si el teléfono no tiene, usa lo que haya. */
+fun android.app.Activity.pickOnePhoto(req: Int) {
+    val tries = ArrayList<android.content.Intent>()
+    if (android.os.Build.VERSION.SDK_INT >= 33) tries.add(android.content.Intent(android.provider.MediaStore.ACTION_PICK_IMAGES).setType("image/*"))
+    tries.add(android.content.Intent(android.content.Intent.ACTION_PICK, android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI).setType("image/*"))
+    tries.add(android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).setType("image/*").addCategory(android.content.Intent.CATEGORY_OPENABLE))
+    for (i in tries) { try { startActivityForResult(i, req); return } catch (_: Exception) {} }
+    toast(L.t("cantOpen"))
+}

@@ -725,8 +725,7 @@ class MainActivity : Activity() {
     }
 
     private fun pickWallPhoto() {
-        val i = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*")
-        try { startActivityForResult(i, REQ_WALL) } catch (_: Exception) { toast(L.t("cantOpen")) }
+        pickOnePhoto(REQ_WALL)
     }
 
     private fun sep() = View(this).apply { setBackgroundColor(T.border) }.also { it.layoutParams = lp(MATCH, dp(1)).apply { setMargins(dp(14), dp(8), dp(14), dp(8)) } }
