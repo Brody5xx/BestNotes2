@@ -421,6 +421,10 @@ class CapturasTest {
         NoteActivity::class.java.getDeclaredMethod("moveFolder").apply { isAccessible = true }.invoke(act)
         shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(900))
         shot(act.window.decorView, "b0_carpetas")
+        Sheet.closeTop(act); idle()
+        NoteActivity::class.java.getDeclaredMethod("wallMenu").apply { isAccessible = true }.invoke(act)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(900))
+        shot(act.window.decorView, "b1_fondo")
     }
 
     @Test fun capturasEstirar() {

@@ -41,6 +41,13 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
         const val GRAY = 0xFFB0BEC5.toInt()
         const val RED = 0xFFFF6B6B.toInt()
         const val SKY = 0xFF4FC3F7.toInt()
+
+        /** Emoji del título → ícono moderno dibujado + su color. */
+        val TITLE_ICONS = mapOf(
+            "🖼" to (MoreIcons.WALLPAPER to PINK), "📁" to (MoreIcons.FOLDER to AMBER), "🕘" to (MoreIcons.HISTORY to TEAL),
+            "🎬" to (MoreIcons.VIDEO to ORANGE), "🎙" to (MoreIcons.MIC to GREEN), "☀" to (MoreIcons.SUN to AMBER),
+            "📤" to (MoreIcons.IMPORT to BLUE), "📥" to (MoreIcons.IMPORT to GREEN), "🌐" to (MoreIcons.VIDEO to ORANGE),
+        )
     }
 
     private val d = act.resources.displayMetrics.density
@@ -134,7 +141,24 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
         val head = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(0, dp(2f), 0, dp(6f)) }
         head.addView(View(act).apply { background = roundBg(tw(0x59), dp(3f).toFloat()) }, LinearLayout.LayoutParams(dp(40f), dp(5f)))
         if (title != null) {
-            head.addView(act.tv(title, 19f, T.text, true).apply {
+            // ✨ el emoji de adelante se cambia por un ícono moderno (dibujado, con su color y brillo)
+            val sp = title.indexOf(' ')
+            val lead = if (sp in 1..4) title.substring(0, sp) else ""
+            val mod = TITLE_ICONS[lead.replace("\uFE0F", "")]
+            if (mod != null) {
+                val row = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(dp(16f), dp(10f), dp(16f), 0) }
+                val c = mod.second
+                val badge = FrameLayout(act).apply {
+                    background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                        intArrayOf((c and 0xFFFFFF) or 0x55000000, (c and 0xFFFFFF) or 0x1A000000)).apply { cornerRadius = dp(11f).toFloat(); setStroke(dp(1f), (c and 0xFFFFFF) or 0x66000000) }
+                }
+                badge.addView(IconView(act, mod.first, 7.5f).apply { color = c; isClickable = false }, FrameLayout.LayoutParams(dp(34f), dp(34f)))
+                row.addView(badge, LinearLayout.LayoutParams(dp(34f), dp(34f)))
+                row.addView(act.tv(title.substring(sp + 1), 19f, T.text, true).apply { setPadding(dp(10f), 0, 0, 0); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
+                head.addView(row)
+                badge.scaleX = 0.4f; badge.scaleY = 0.4f; badge.rotation = -25f
+                badge.animate().scaleX(1f).scaleY(1f).rotation(0f).setStartDelay(120).setDuration(420).setInterpolator(OvershootInterpolator(2.4f)).start()
+            } else head.addView(act.tv(title, 19f, T.text, true).apply {
                 gravity = Gravity.CENTER; setPadding(dp(16f), dp(10f), dp(16f), 0); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
             })
             if (sub != null) head.addView(act.tv(sub, 12.5f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(16f), dp(2f), dp(16f), 0) })
