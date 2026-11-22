@@ -77,6 +77,7 @@ object Share {
                 append(runsPlain(it.runs)); append('\n')
             }
             is Block.Img -> if (b.beside.isNotEmpty()) { append(runsPlain(b.beside)); append('\n') }
+            is Block.Media -> if (b.beside.isNotEmpty()) { append(runsPlain(b.beside)); append('\n') }
             else -> {}
         }
     }.trimEnd()

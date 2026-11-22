@@ -170,7 +170,7 @@ class MainActivity : Activity() {
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
         val logo = ImageView(this).apply { setImageResource(R.mipmap.ic_launcher); clipToOutline = true; background = roundBg(0, dp(30).toFloat()); elevation = dp(12).toFloat() }
         col.addView(logo, lp(dp(116), dp(116)))
-        val name = tv("BEST NOTES 2", 22f, T.text, true).apply { letterSpacing = 0.3f; gravity = Gravity.CENTER; setPadding(0, dp(22), 0, 0) }
+        val name = tv("BEST NOTES", 22f, T.text, true).apply { letterSpacing = 0.3f; gravity = Gravity.CENTER; setPadding(0, dp(22), 0, 0) }
         col.addView(name)
         ov.addView(col, FrameLayout.LayoutParams(MATCH, MATCH))
         root.addView(ov, FrameLayout.LayoutParams(MATCH, MATCH))
@@ -1121,7 +1121,7 @@ class MainActivity : Activity() {
         val step = tv(L.t("bkWorking"), 15f, T.text).apply { gravity = Gravity.CENTER; setPadding(0, dp(12), 0, 0) }
         box.addView(step)
         val d = dialog().setView(box).setCancelable(false).show()
-        val name = "BestNotes2_respaldo_" + java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date()) + ".json"
+        val name = "BestNotes_respaldo_" + java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date()) + ".json"
         val out = File(File(cacheDir, "respaldo").apply { mkdirs(); listFiles()?.forEach { it.delete() } }, name)
         Thread {
             val ok = try { Backup.exportFile(this, pass, out) { m -> runOnUiThread { step.text = m } }; true } catch (_: Throwable) { false }

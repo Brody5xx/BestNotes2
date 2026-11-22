@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-22" to ("✨ Ahora se llama Best Notes (con su ícono de siempre). 🎬 Los videos se mueven como las fotos: déjalo presionado y arrástralo; a la orilla, el texto va al lado. Dos dedos: más grande o más chico. ⋮ → 📌 Anclar y Tamaño. 🖼 La barrita de las fotos solo sale cuando tocas la foto" to
+            "✨ It's now called Best Notes (with its classic icon). 🎬 Videos move like photos: long-press and drag; at the edge, text goes beside. Two fingers: bigger or smaller. ⋮ → 📌 Anchor and Size. 🖼 The photo bar only shows when you tap the photo"),
         "2026-11-22" to ("📤 Al compartir la página con videos te dice por dónde cabe: ✅/❌ correo, WhatsApp, mensajes RCS y MMS" to
             "📤 When sharing the video page it tells you where it fits: ✅/❌ email, WhatsApp, RCS messages and MMS"),
         "2026-11-22" to ("☀️ El botón del sol tiene una bolita 🖼: déjalo presionado para cambiar el fondo de pantalla. 🛡 Bóveda: al guardar una foto o video te pregunta si borras la original de la galería, y puedes sacarlos con \"A la galería\" o \"A una carpeta\"" to

@@ -853,7 +853,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             infoBar.measure(MeasureSpec.makeMeasureSpec(maxOf(pw, dp(96)), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
             knob.measure(MeasureSpec.makeMeasureSpec(dp(28), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(28), MeasureSpec.EXACTLY))
             for (d in dots) d.measure(MeasureSpec.makeMeasureSpec(dp(26), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(26), MeasureSpec.EXACTLY))
-            val bh = bh0 + infoBar.measuredHeight
+            val bh = bh0 + infoH()
             val top = dp(block.y.toInt())
             var h = top + bh
             val gap = dp(12)
@@ -872,7 +872,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
             val W = r - l; val pw = box.measuredWidth; val ph = box.measuredHeight
             val (bw, bh0) = rotBox(pw, ph)
-            val bh = bh0 + infoBar.measuredHeight
+            val bh = bh0 + infoH()
             val ox = (bw - pw) / 2; val oy = (bh0 - ph) / 2      // lo que sobresale al estar girada
             val top = dp(block.y.toInt())
             val left = when {
@@ -885,6 +885,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             // la barrita debajo de la foto (centrada con ella)
             val iw = infoBar.measuredWidth; val ix = (left + pw / 2 - iw / 2).coerceIn(0, maxOf(0, W - iw))
             infoBar.layout(ix, top + bh0, ix + iw, top + bh0 + infoBar.measuredHeight)
+            infoBar.visibility = if (infoShown) View.VISIBLE else View.INVISIBLE
             if (changed || infoLabel.text.isEmpty()) post { fitInfo() }
             placeKnob(); if (knob.visibility == View.VISIBLE) post { placeKnob() }     // otra vez, ya con la pantalla acomodada
             placeGlow()
@@ -933,7 +934,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         edit.onBackAtStart = { ed.backFromSide(this) }
         edit.onEnter = { e, at ->
             val lay = e.layout
-            val pastPhoto = side().isNotEmpty() && lay != null && e.top + lay.getLineTop(lay.getLineForOffset(minOf(at + 1, e.text.length))) >= infoBar.bottom - dp(4)
+            val pastPhoto = side().isNotEmpty() && lay != null && e.top + lay.getLineTop(lay.getLineForOffset(minOf(at + 1, e.text.length))) >= infoBar.top + infoH() - dp(4)
             if (pastPhoto) {
                 val runs = e.runs(); val len = runsPlain(runs).length
                 val after = sliceRuns(runs, minOf(at + 1, len), len)
@@ -1186,6 +1187,17 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         }
     }
 
+    /** 🖼 La barrita de la foto (tamaño · ⛶ · ⋮) solo sale cuando tocas la foto: así las capturas se ven limpias. */
+    private var infoShown = false
+    private fun infoH() = if (infoShown) infoBar.measuredHeight else 0
+    private fun showInfo(on: Boolean) {
+        if (on == infoShown) return
+        infoShown = on
+        if (on) { infoBar.alpha = 0f; infoBar.translationY = -dp(8).toFloat() + box.translationY
+            flow.requestLayout(); infoBar.post { infoBar.animate().alpha(1f).translationY(box.translationY).setDuration(240).setInterpolator(android.view.animation.DecelerateInterpolator()).start() } }
+        else flow.requestLayout()
+    }
+
     private var infoLong = ""; private var infoShort = ""
     /** Si la foto está chiquita, la barrita dice solo cuánto pesa (así no se corta). */
     private fun fitInfo() {
@@ -1277,12 +1289,14 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             flow.invalidate()
             placeGlow()
             showKnob(!block.pin); showDots(!block.pin)
+            showInfo(true)
             box.animate().scaleX(1.03f).scaleY(1.03f).setDuration(120).setInterpolator(android.view.animation.DecelerateInterpolator())
                 .withEndAction { box.animate().scaleX(1f).scaleY(1f).setDuration(180).setInterpolator(android.view.animation.OvershootInterpolator(2f)).start() }.start()
             showAnchor()
         } else {
             glow?.let { it.stop(); it.callback = null }; glow = null; flow.invalidate()
             showKnob(false); showDots(false)
+            showInfo(false)
             anchorPill?.let { p -> p.animate().alpha(0f).setDuration(120).withEndAction { root.removeView(p) }.start() }; anchorPill = null
         }
     }
@@ -1606,8 +1620,40 @@ class MediaView(val ed: EditorView, override val block: Block.Media) : BlockView
 @SuppressLint("ViewConstructor")
 class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView {
     private val ctx = ed.context
+    /** 🎬 La fila del video: el video (con su barrita) y, si quieres, texto al lado. Se mueve y cambia de tamaño como las fotos. */
+    private val flow = object : ViewGroup(ctx) {
+        override fun onMeasure(ws: Int, hs: Int) {
+            val W = MeasureSpec.getSize(ws)
+            val pw = (W * block.pct / 100f).toInt().coerceIn(ctx.dp(120), W)
+            card.measure(MeasureSpec.makeMeasureSpec(pw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+            var h = card.measuredHeight
+            if (side().isNotEmpty()) {
+                edit.visibility = View.VISIBLE
+                edit.measure(MeasureSpec.makeMeasureSpec(maxOf(ctx.dp(60), W - pw - ctx.dp(12)), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+                h = maxOf(h, edit.measuredHeight)
+            } else edit.visibility = View.GONE
+            setMeasuredDimension(W, h)
+        }
+        override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+            val W = r - l; val pw = card.measuredWidth
+            val left = when {
+                dragLeft >= 0 -> dragLeft.toInt()
+                side() == "l" -> 0
+                side() == "r" -> W - pw
+                else -> (W * block.x / 100f).toInt()
+            }.coerceIn(0, maxOf(0, W - pw))
+            card.layout(left, 0, left + pw, card.measuredHeight)
+            if (edit.visibility == View.VISIBLE) {
+                val gap = ctx.dp(12)
+                val x = if (side() == "l") left + pw + gap else maxOf(0, left - gap - edit.measuredWidth)
+                edit.layout(x, 0, x + edit.measuredWidth, maxOf(edit.measuredHeight, card.measuredHeight))
+            }
+        }
+    }
     private val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
     override val view: View get() = col
+    private val card = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+    private val edit = RichEdit(ctx)
     private val frame = object : FrameLayout(ctx) {
         override fun onMeasure(w: Int, h: Int) {
             val width = MeasureSpec.getSize(w)
@@ -1618,10 +1664,15 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
     }
     private val thumb = ImageView(ctx).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
     private val playBig = IconView(ctx, MoreIcons.PLAY, 12f)
+    private val pinTv = ctx.tv("📌", 15f).apply { visibility = View.GONE }
     private var vv: android.widget.VideoView? = null
     private val label = ctx.tv("", 12.5f, T.muted)
     private var vw = 0; private var vh = 0
     private var busy = false
+    // mientras lo mueves: dónde va (en vivo)
+    private var dragLeft = -1f
+    private var liveSide: String? = null
+    private fun side() = liveSide ?: block.side
 
     init {
         col.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = ctx.dp(6); bottomMargin = ctx.dp(6) }
@@ -1629,16 +1680,114 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
         frame.clipToOutline = true
         frame.addView(thumb, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         playBig.color = 0xFF16161A.toInt(); playBig.background = roundBg(0xE6FFFFFF.toInt(), ctx.dp(30).toFloat()); playBig.isClickable = false
-        frame.addView(playBig, FrameLayout.LayoutParams(ctx.dp(60), ctx.dp(60), Gravity.CENTER))
-        frame.setOnClickListener { toggle() }
-        col.addView(frame, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        frame.addView(playBig, FrameLayout.LayoutParams(ctx.dp(54), ctx.dp(54), Gravity.CENTER))
+        frame.addView(pinTv, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.START).apply { setMargins(ctx.dp(6), ctx.dp(4), 0, 0) })
+        frame.setOnTouchListener(MoveTouch())
+        card.addView(frame, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         val bar = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(ctx.dp(4), ctx.dp(2), 0, 0) }
         bar.addView(IconView(ctx, MoreIcons.VIDEO, 6.5f).apply { color = T.muted; isClickable = false }, lp(ctx.dp(18), ctx.dp(18)))
-        bar.addView(label.apply { setPadding(ctx.dp(6), 0, 0, 0) }, lp(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        bar.addView(label.apply { setPadding(ctx.dp(6), 0, 0, 0); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }, lp(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         bar.addView(ctx.iconBtn(MoreIcons.FULL, 7.5f, T.muted) { full() }.apply { layoutParams = lp(ctx.dp(38), ctx.dp(38)) })
         bar.addView(ctx.iconBtn(MoreIcons.DOTS_V, 8f, T.muted) { options() }.apply { layoutParams = lp(ctx.dp(36), ctx.dp(38)) })
-        col.addView(bar)
+        card.addView(bar)
+        edit.setRuns(block.beside); edit.hint = null; edit.minHeight = ctx.dp(40)
+        ed.wire(edit)
+        edit.onEdit = { block.beside = edit.runs(); ed.host.onDirty() }
+        flow.addView(card); flow.addView(edit)
+        col.addView(flow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        paintPin()
         load()
+    }
+
+    override fun flush() { if (edit.visibility == View.VISIBLE || edit.length() > 0) block.beside = edit.runs() }
+    override fun edits() = if (edit.visibility == View.VISIBLE) listOf(edit) else emptyList()
+
+    private fun paintPin() { pinTv.visibility = if (block.pin) View.VISIBLE else View.GONE }
+
+    /**
+     * Tocar = ver el video. Dejarlo presionado y arrastrar = moverlo (a la orilla: el texto va al lado).
+     * Dos dedos = más grande o más chico. Anclado (📌) no se mueve.
+     */
+    private inner class MoveTouch : View.OnTouchListener {
+        private var x0 = 0f; private var y0 = 0f; private var left0 = 0f
+        private var moving = false; private var pinching = false; private var moved = false
+        private var d0 = 0f; private var pct0 = 0f
+        private val slop = android.view.ViewConfiguration.get(ctx).scaledTouchSlop
+        private val longPress = Runnable {
+            if (block.pin || pinching) return@Runnable
+            moving = true; left0 = card.left.toFloat(); dragLeft = left0
+            frame.parent.requestDisallowInterceptTouchEvent(true)
+            frame.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+            card.animate().scaleX(1.03f).scaleY(1.03f).alpha(0.92f).setDuration(140).start()
+            ed.host.hint(L.t("videoMoveHint"))
+        }
+        private fun dist(e: MotionEvent) = Math.hypot((e.getX(0) - e.getX(1)).toDouble(), (e.getY(0) - e.getY(1)).toDouble()).toFloat()
+        @SuppressLint("ClickableViewAccessibility")
+        override fun onTouch(v: View, e: MotionEvent): Boolean {
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { x0 = e.rawX; y0 = e.rawY; moving = false; pinching = false; moved = false; frame.postDelayed(longPress, 380) }
+                MotionEvent.ACTION_POINTER_DOWN -> if (!block.pin && e.pointerCount == 2) {
+                    frame.removeCallbacks(longPress); pinching = true; d0 = dist(e); pct0 = block.pct
+                    frame.parent.requestDisallowInterceptTouchEvent(true)
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (pinching && e.pointerCount >= 2) {
+                        val W = flow.width.takeIf { it > 0 } ?: return true
+                        var p = (pct0 * dist(e) / maxOf(1f, d0)).coerceIn(30f, 100f)
+                        if (Math.abs(p - 100f) < 3f) p = 100f
+                        block.pct = p
+                        if (p > 75f && block.side.isNotEmpty()) { block.side = ""; liveSide = null }
+                        block.x = block.x.coerceIn(0f, 100f - p)
+                        flow.requestLayout()
+                        ed.host.showGuides(-1f, -1f, "", "↔ ${Math.round(p)}%")
+                        moved = true; W.let {}
+                    } else if (moving) {
+                        val W = flow.width; val pw = card.width
+                        dragLeft = (left0 + e.rawX - x0).coerceIn(0f, (W - pw).toFloat())
+                        val edge = ctx.dp(10)
+                        liveSide = when {
+                            block.pct > 75f -> ""
+                            dragLeft <= edge -> "l"
+                            dragLeft >= W - pw - edge -> "r"
+                            else -> ""
+                        }
+                        if (liveSide!!.isNotEmpty()) dragLeft = if (liveSide == "l") 0f else (W - pw).toFloat()
+                        ed.host.showGuides(-1f, -1f, "", when (liveSide) { "l" -> "▣ ✎  " + L.t("textRight"); "r" -> "✎ ▣  " + L.t("textLeft"); else -> "✥" })
+                        flow.requestLayout(); moved = true
+                    } else if (Math.abs(e.rawX - x0) > slop || Math.abs(e.rawY - y0) > slop) frame.removeCallbacks(longPress)
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    frame.removeCallbacks(longPress)
+                    ed.host.showGuides(-1f, -1f, "", null)
+                    if (moving) {
+                        val W = flow.width.coerceAtLeast(1)
+                        block.side = liveSide ?: block.side
+                        if (block.side.isEmpty()) block.x = (dragLeft * 100f / W).coerceIn(0f, 100f - block.pct)
+                        dragLeft = -1f; liveSide = null
+                        card.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(220).setInterpolator(android.view.animation.OvershootInterpolator(2f)).start()
+                        flow.requestLayout(); ed.host.onDirty()
+                        if (block.side.isNotEmpty()) edit.post { edit.requestFocus() }
+                    } else if (pinching) ed.host.onDirty()
+                    else if (e.actionMasked == MotionEvent.ACTION_UP && !moved) toggle()
+                    moving = false; pinching = false
+                }
+            }
+            return true
+        }
+    }
+
+    private fun toggleAnchor() {
+        block.pin = !block.pin; paintPin(); ed.host.onDirty()
+        ed.host.hint(if (block.pin) "📌 " + L.t("videoPinned") else L.t("videoUnpinned"))
+        if (block.pin) Anim.sparkle(frame, 60f, 600)
+    }
+
+    private fun setWidth(p: Float) {
+        android.transition.TransitionManager.beginDelayedTransition(ed, android.transition.ChangeBounds().setDuration(220))
+        block.pct = p
+        if (p > 75f && block.side.isNotEmpty()) block.side = ""
+        block.x = if (block.side.isEmpty()) ((100f - p) / 2f) else 0f
+        flow.requestLayout(); ed.host.onDirty()
     }
 
     private fun load() {
@@ -1701,6 +1850,12 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
         extra.add(L.t("shrink") to { shrink() })
         val many = ed.views.count { it is VideoCard }
         if (many > 1) extra.add(L.t("shrinkAll", "n" to many) to { ed.shrinkAllVideos() })
+        extra.add(0, (if (block.pin) "📌  " + L.t("unanchor") else "📌  " + L.t("anchor")) to { toggleAnchor() })
+        extra.add(1, ("↔  " + L.t("videoSize")) to {
+            val sizes = listOf(100f, 75f, 50f, 40f)
+            ctx.dialog().setTitle(L.t("videoSize")).setItems(sizes.map { "${it.toInt()}%" + if (Math.abs(it - block.pct) < 1f) "  ✓" else "" }.toTypedArray()) { _, k -> setWidth(sizes[k]) }.show()
+        })
+        if (block.side.isNotEmpty()) extra.add(2, ("⬇  " + L.t("textBelowVideo")) to { block.side = ""; block.x = (100f - block.pct) / 2f; flow.requestLayout(); ed.host.onDirty() })
         mediaOptions(ed, this, block, extra)
     }
 

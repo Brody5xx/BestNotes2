@@ -695,6 +695,7 @@ class NoteActivity : Activity(), EditorView.Host {
             is Block.Text -> runsPlain(bl.runs).split('\n').forEach { pieces.add(it) }
             is Block.ListB -> bl.items.forEach { pieces.add(runsPlain(it.runs)) }
             is Block.Img -> runsPlain(bl.beside).split('\n').forEach { pieces.add(it) }
+            is Block.Media -> runsPlain(bl.beside).split('\n').forEach { pieces.add(it) }
             else -> {}
         }
         return pieces
@@ -774,6 +775,7 @@ class NoteActivity : Activity(), EditorView.Host {
                 is Block.Text -> b.runs = fix(b.runs)
                 is Block.ListB -> b.items.forEach { it.runs = fix(it.runs) }
                 is Block.Img -> b.beside = fix(b.beside)
+                is Block.Media -> b.beside = fix(b.beside)
                 else -> {}
             }
     }

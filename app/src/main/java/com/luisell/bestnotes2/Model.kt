@@ -116,7 +116,10 @@ sealed class Block {
     ) : Block()
 
     /** Audio o video (kind = "audio" / "video"). */
-    class Media(var kind: String, var file: String, var dur: Double = 0.0, var size: Long = 0L, var muted: Boolean = false) : Block()
+    class Media(var kind: String, var file: String, var dur: Double = 0.0, var size: Long = 0L, var muted: Boolean = false,
+        /** Solo videos: ancho en %, borde izquierdo en %, lado del texto ("l"/"r"/""), texto al lado y anclado. */
+        var pct: Float = 100f, var x: Float = 0f, var side: String = "", var beside: MutableList<Run> = ArrayList(), var pin: Boolean = false,
+    ) : Block()
 
     fun toJson(): JSONObject = when (this) {
         is Text -> JSONObject().put("t", "x").put("r", runsJson(runs))
@@ -134,7 +137,10 @@ sealed class Block {
             .put("x", x.toDouble()).put("y", y.toDouble()).put("w", w).put("h", h).put("stamp", stamp)
             .put("rot", rot.toDouble()).put("tk", taken).put("bs", runsJson(beside)).put("pin", if (pin) 1 else 0).apply { if (ar > 0f) put("ar", ar.toDouble()) }
         is Media -> JSONObject().put("t", "media").put("k", kind).put("f", file).put("dur", dur)
-            .put("sz", size).put("mu", if (muted) 1 else 0)
+            .put("sz", size).put("mu", if (muted) 1 else 0).apply {
+                if (pct < 100f) put("pct", pct.toDouble()); if (x != 0f) put("x", x.toDouble()); if (side.isNotEmpty()) put("side", side)
+                if (beside.isNotEmpty()) put("bs", runsJson(beside)); if (pin) put("pin", 1)
+            }
     }
 
     /** Copia independiente (para deshacer / rehacer). */
@@ -158,7 +164,8 @@ sealed class Block {
                 o.optString("stamp"), o.optDouble("rot", 0.0).toFloat(), o.optLong("tk"),
                 runsFromJson(o.optJSONArray("bs")), o.optInt("pin") == 1, o.optDouble("ar", 0.0).toFloat(),
             )
-            "media" -> Media(o.optString("k", "audio"), o.optString("f"), o.optDouble("dur", 0.0), o.optLong("sz"), o.optInt("mu") == 1)
+            "media" -> Media(o.optString("k", "audio"), o.optString("f"), o.optDouble("dur", 0.0), o.optLong("sz"), o.optInt("mu") == 1,
+                o.optDouble("pct", 100.0).toFloat(), o.optDouble("x", 0.0).toFloat(), o.optString("side"), runsFromJson(o.optJSONArray("bs")), o.optInt("pin") == 1)
             else -> Text(runsFromJson(o.optJSONArray("r")))
         }
     }
@@ -186,6 +193,7 @@ fun blocksPlain(blocks: List<Block>): String = buildString {
             is Block.Text -> { append(runsPlain(b.runs)); append('\n') }
             is Block.ListB -> b.items.forEach { append(runsPlain(it.runs)); append('\n') }
             is Block.Img -> if (b.beside.isNotEmpty()) { append(runsPlain(b.beside)); append('\n') }
+            is Block.Media -> if (b.beside.isNotEmpty()) { append(runsPlain(b.beside)); append('\n') }
             else -> {}
         }
     }

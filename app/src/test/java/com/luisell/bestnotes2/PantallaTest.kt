@@ -500,6 +500,28 @@ class PantallaTest {
         assertEquals("Dos cables", runsPlain((bl[2] as Block.ListB).items[0].runs))
     }
 
+    /** 🎬 El video se mueve como las fotos: lo dejas presionado, lo llevas a la orilla y el texto va al lado. */
+    @Test fun videoSeMueveYTextoAlLado() {
+        reload()
+        val m = Store.createNote("Video", mutableListOf(Block.Text(mutableListOf(Run("Hola"))), Block.Media("video", "noexiste.mp4", pct = 50f, x = 25f)))
+        waitIo(); idle()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
+        waitIo(); idle()
+        val ed = find(act.window.decorView, EditorView::class.java).first()
+        val vc = ed.views.first { it is VideoCard } as VideoCard
+        val frame = find(vc.view, android.widget.FrameLayout::class.java).first { it.width > 0 && it.childCount >= 2 }
+        val l = IntArray(2); frame.getLocationOnScreen(l)
+        val x = l[0] + frame.width / 2f; val y = l[1] + frame.height / 2f
+        frame.dispatchTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, x, y, 0))
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(500))
+        frame.dispatchTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_MOVE, x - 2000f, y, 0))
+        frame.dispatchTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_UP, x - 2000f, y, 0))
+        idle()
+        assertEquals("a la orilla izquierda: texto a la derecha", "l", vc.block.side)
+        val back = Block.fromJson(vc.block.toJson()) as Block.Media
+        assertEquals("l", back.side); assertEquals(50f, back.pct, 0.01f)
+    }
+
     /** Bajaste la foto: tocando el espacio de arriba escribes JUSTO arriba de la foto. */
     @Test fun escribirJustoArribaDeLaFoto() {
         reload()

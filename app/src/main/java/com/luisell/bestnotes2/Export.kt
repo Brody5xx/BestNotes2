@@ -150,6 +150,7 @@ p{margin:6px 0;white-space:normal}a{color:#64d2ff}.f{text-align:center;color:rgb
                             if (b.kind == "video") { w.write("<video controls playsinline preload=\"metadata\"${if (b.muted) " muted" else ""} src=\""); dataUri(w, f); w.write("\"></video>") }
                             else { w.write("<audio controls preload=\"metadata\" src=\""); dataUri(w, f); w.write("\"></audio>") }
                         }
+                        if (b.beside.isNotEmpty()) w.write("<p>${runsHtml(b.beside)}</p>")
                     }
                 }
                 w.write("</div>")
@@ -231,6 +232,7 @@ p{margin:6px 0;white-space:normal}a{color:#64d2ff}.f{text-align:center;color:rgb
                     if (b.kind == "video") loadBm(File(Store.mediaDir, MediaFiles.thumbName(b.file)), 900)?.let { bm -> drawBitmap(bm, 220f, 60f); bm.recycle() }
                     drawRuns(listOf(Run((if (b.kind == "video") "🎬 " + L.t("video") else "🎙️ " + L.t("audio")) + " · " + MediaFiles.timeText(b.dur), St.PLAIN.copy(i = true))), muted)
                     y += 4
+                    if (b.beside.isNotEmpty()) drawRuns(b.beside, body)
                 }
             }
         }
