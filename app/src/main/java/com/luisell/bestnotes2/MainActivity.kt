@@ -81,6 +81,8 @@ class MainActivity : Activity() {
     private fun buildUi() {
         root = FrameLayout(this)
         edgeToEdge(root)
+        // cambio de tema con la cámara detrás: desde el primer instante se ve la pantalla de antes (sin negro)
+        snap?.let { if (Wall.current(this) == "phone" && Translucent.camera(this)) { window.setWindowAnimations(0); window.setBackgroundDrawable(android.graphics.drawable.BitmapDrawable(resources, it)) } }
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(10), dp(8), dp(10), 0) }
         col.addView(header, lp(MATCH, dp(60)))
@@ -210,16 +212,23 @@ class MainActivity : Activity() {
         /** Notas que se acaban de mandar a la papelera desde una nota (para "Deshacer"). */
         var pendingTrash: List<String>? = null
         private var snap: android.graphics.Bitmap? = null
+        private var camSnap = false
         private var sx = 0; private var sy = 0
     }
 
     private fun switchTheme(light: Boolean, from: View?) {
         if (T.light == light) return
         val dv = window.decorView
-        if (Wall.current(this) == "phone" && Translucent.camera(this)) snap = null      // con la cámara detrás, sin la foto de la pantalla (parpadeaba)
-        else try {
+        try {
             val bm = android.graphics.Bitmap.createBitmap(dv.width, dv.height, android.graphics.Bitmap.Config.ARGB_8888)
-            dv.draw(android.graphics.Canvas(bm)); snap = bm
+            val cv = android.graphics.Canvas(bm)
+            // 📷 con la cámara detrás: primero la imagen de la cámara, después la pantalla encima
+            val cam = CameraBg.of(this)
+            camSnap = false
+            cam?.frame()?.let { f -> val l = IntArray(2); cam.getLocationInWindow(l); cv.drawBitmap(f, null, android.graphics.Rect(l[0], l[1], l[0] + cam.width, l[1] + cam.height), null); camSnap = true }
+            cam?.stillHidden(true)
+            dv.draw(cv); snap = bm
+            cam?.stillHidden(false)
             val loc = IntArray(2)
             if (from != null) { from.getLocationInWindow(loc); sx = loc[0] + from.width / 2; sy = loc[1] + from.height / 2 } else { sx = dv.width - dp(40); sy = dp(60) }
         } catch (_: Throwable) { snap = null }
@@ -227,6 +236,8 @@ class MainActivity : Activity() {
         if (!prefs.getBoolean("themeTip", false)) { prefs.edit().putBoolean("themeTip", true).apply(); toast(L.t("themeTip")) }
         T.light = light
         Sheet.closeTop(this)
+        // 📷 con la cámara detrás: sin la animación del sistema al rearmar la pantalla (esa se veía negra)
+        if (Wall.current(this) == "phone" && Translucent.camera(this)) window.setWindowAnimations(0)
         recreate()
     }
 
@@ -234,6 +245,17 @@ class MainActivity : Activity() {
         val bm = snap ?: return
         snap = null
         val dv = window.decorView as ViewGroup
+        if (Wall.current(this) == "phone" && Translucent.camera(this)) {
+            // 📷 cámara detrás: la foto de antes va ENCIMA de todo (también de fondo de la ventana, para que nunca se vea negro)
+            // y se desvanece cuando la cámara ya prendió
+            window.setBackgroundDrawable(android.graphics.drawable.BitmapDrawable(resources, bm))
+            val cover = ImageView(this).apply { setImageBitmap(bm); scaleType = ImageView.ScaleType.FIT_XY; isClickable = false }
+            dv.addView(cover, ViewGroup.LayoutParams(MATCH, MATCH))
+            cover.postDelayed({
+                cover.animate().alpha(0f).setDuration(450).withEndAction { dv.removeView(cover); window.setBackgroundDrawable(Glass.background(this)) }.start()
+            }, 650)
+            return
+        }
         val old = ImageView(this).apply { setImageBitmap(bm); scaleType = ImageView.ScaleType.FIT_XY }
         dv.addView(old, 0, ViewGroup.LayoutParams(MATCH, MATCH))          // lo de antes queda DEBAJO
         root.background = Glass.background(this)

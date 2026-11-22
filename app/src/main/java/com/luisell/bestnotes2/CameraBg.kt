@@ -140,8 +140,13 @@ class CameraBg(ctx: Context) : FrameLayout(ctx) {
     }
     private fun stopThread() { thread?.quitSafely(); thread = null; bg = null }
 
+    /** Lo que se ve ahora mismo: la cámara de verdad (la foto normal de la pantalla no la captura). */
+    fun frame(): android.graphics.Bitmap? = try { if (tex.isAvailable && tex.alpha > 0.5f) tex.getBitmap() else null } catch (_: Throwable) { null }
+    fun stillHidden(h: Boolean) { still.visibility = if (h) View.INVISIBLE else View.VISIBLE }
+
     companion object {
         @Volatile private var last: android.graphics.Bitmap? = null
+        fun of(a: Activity): CameraBg? { val c = a.findViewById<ViewGroup>(android.R.id.content) ?: return null; return (0 until c.childCount).map { c.getChildAt(it) }.firstOrNull { it is CameraBg } as? CameraBg }
         /** Pone (o quita) la cámara detrás de toda la pantalla de [a]. */
         fun attach(a: Activity) {
             val content = a.findViewById<ViewGroup>(android.R.id.content) ?: return
