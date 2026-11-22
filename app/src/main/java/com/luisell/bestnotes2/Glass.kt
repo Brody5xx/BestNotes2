@@ -58,7 +58,8 @@ object Wall {
         val p = ctx.getSharedPreferences("ajustes", 0)
         val w = p.getString(if (T.light) "wallLight" else "wall", defaultId()) ?: defaultId()
         // un fondo del otro modo no sirve aquí
-        return if (w == "photo" || w == "phone" || w == "camera" || w == "best" && !T.light || GRADS.any { it[0] == w }) w else defaultId()
+        if (w == "camera") return "phone"          // "Cámara en vivo" ahora es Translúcido
+        return if (w == "photo" || w == "phone" || w == "best" && !T.light || GRADS.any { it[0] == w }) w else defaultId()
     }
     fun blur(ctx: Context): Boolean = ctx.getSharedPreferences("ajustes", 0).getBoolean("wallBlur", true)
     fun photoFile(ctx: Context) = java.io.File(ctx.filesDir, "fondo_app.jpg")
@@ -70,8 +71,7 @@ object Wall {
     fun phoneDim() = if (T.light) 0x8CFFFFFF.toInt() else 0x8C000000.toInt()
 
     fun drawable(ctx: Context, id: String = current(ctx)): Drawable {
-        if (id == "phone") return android.graphics.drawable.ColorDrawable(phoneDim())
-        if (id == "camera") return android.graphics.drawable.ColorDrawable(0xFF000000.toInt())      // detrás de la cámara
+        if (id == "phone") return android.graphics.drawable.ColorDrawable(if (Translucent.camera(ctx)) 0 else phoneDim())
         (DARK + LIGHT).firstOrNull { (it[0] as String) == id }?.let {
             return android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, it[3] as IntArray)
         }
@@ -268,4 +268,9 @@ class GlowBorder(private val d: Float, private val radiusDp: Float, private val 
     override fun setColorFilter(cf: ColorFilter?) {}
     @Deprecated("Deprecated in Java")
     override fun getOpacity() = PixelFormat.TRANSLUCENT
+}
+
+/** 📷 Translúcido = la cámara en vivo detrás de la app. Sin permiso de cámara, se ve el fondo del teléfono (como antes). */
+object Translucent {
+    fun camera(ctx: Context) = ctx.checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
 }

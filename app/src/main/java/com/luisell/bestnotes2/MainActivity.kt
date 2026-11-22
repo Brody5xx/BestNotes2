@@ -216,7 +216,8 @@ class MainActivity : Activity() {
     private fun switchTheme(light: Boolean, from: View?) {
         if (T.light == light) return
         val dv = window.decorView
-        try {
+        if (Wall.current(this) == "phone" && Translucent.camera(this)) snap = null      // con la cámara detrás, sin la foto de la pantalla (parpadeaba)
+        else try {
             val bm = android.graphics.Bitmap.createBitmap(dv.width, dv.height, android.graphics.Bitmap.Config.ARGB_8888)
             dv.draw(android.graphics.Canvas(bm)); snap = bm
             val loc = IntArray(2)
@@ -235,7 +236,7 @@ class MainActivity : Activity() {
         val dv = window.decorView as ViewGroup
         val old = ImageView(this).apply { setImageBitmap(bm); scaleType = ImageView.ScaleType.FIT_XY }
         dv.addView(old, 0, ViewGroup.LayoutParams(MATCH, MATCH))          // lo de antes queda DEBAJO
-        root.background = if (Wall.current(this) == "camera") null else Glass.background(this)
+        root.background = Glass.background(this)
         root.post {
             val r = Math.hypot(maxOf(sx, root.width - sx).toDouble(), maxOf(sy, root.height - sy).toDouble()).toFloat()
             val a = android.view.ViewAnimationUtils.createCircularReveal(root, sx, sy, 0f, r)
@@ -346,8 +347,9 @@ class MainActivity : Activity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_CAM_BG) {
-            if (grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) { Wall.set(this, "camera"); recreate() }
-            else toast(L.t("camPerm"))
+            // con permiso: cámara en vivo; sin permiso: el fondo del teléfono (como antes)
+            if (grantResults.firstOrNull() != android.content.pm.PackageManager.PERMISSION_GRANTED) toast(L.t("camPermWall"))
+            Wall.set(this, "phone"); recreate()
         }
     }
 
@@ -700,7 +702,7 @@ class MainActivity : Activity() {
     private fun appearance() {
         val cur = Wall.current(this)
         val opts = (if (T.light) emptyList() else listOf("best" to "Best Notes")) + Wall.GRADS.map { it[0] as String to (if (L.lang == "es") it[1] else it[2]) as String } +
-            ("photo" to L.t("wallPhoto")) + ("phone" to L.t("wallPhone")) + ("camera" to L.t("wallCamera"))
+            ("photo" to L.t("wallPhoto")) + ("phone" to L.t("wallPhone"))
         val sh = Sheet(this, "☀️ " + L.t("appearance"), L.t("appearanceSub"))
         // 🌙 oscuro / ☀️ claro
         fun setTheme(light: Boolean) { switchTheme(light, null) }
@@ -758,12 +760,9 @@ class MainActivity : Activity() {
                 th.addView(plus, FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER).apply { leftMargin = dp(36); topMargin = dp(36) })
                 c.post { c.animate().scaleX(1.06f).scaleY(1.06f).setDuration(1400).setInterpolator(android.view.animation.AccelerateDecelerateInterpolator()).withEndAction { c.animate().scaleX(1f).scaleY(1f).setDuration(1400).start() }.start() }
             }
-            else if (id == "phone") { th.addView(mini, FrameLayout.LayoutParams(MATCH, WRAP)); th.addView(tv("📱", 24f).apply { gravity = Gravity.CENTER }, FrameLayout.LayoutParams(MATCH, MATCH)) }
-            else if (id == "camera") {
-                // 📷 cámara en vivo: oscuro con un lente que "enfoca" y un puntito rojo de EN VIVO
-                th.background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
-                    intArrayOf(0xFF0E1B26.toInt(), 0xFF1B2B3A.toInt(), 0xFF0B0F14.toInt())).apply { cornerRadius = dp(18).toFloat() }
-                th.addView(mini.apply { alpha = 0.55f }, FrameLayout.LayoutParams(MATCH, WRAP))
+            else if (id == "phone") {
+                // 📷 translúcido = cámara en vivo: el degradado de siempre con un lente que "enfoca" y un puntito rojo de EN VIVO
+                th.addView(mini.apply { alpha = 0.7f }, FrameLayout.LayoutParams(MATCH, WRAP))
                 val lens = FrameLayout(this).apply {
                     background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; colors = intArrayOf(0xFF4FC3F7.toInt(), 0xFF1A237E.toInt()); gradientType = android.graphics.drawable.GradientDrawable.RADIAL_GRADIENT; gradientRadius = dp(26).toFloat(); setStroke(dp(3), 0xCCFFFFFF.toInt()) }
                 }
@@ -784,14 +783,14 @@ class MainActivity : Activity() {
             v.setOnClickListener {
                 th.animate().scaleX(0.92f).scaleY(0.92f).setDuration(80).withEndAction { th.animate().scaleX(1f).scaleY(1f).setDuration(260).setInterpolator(android.view.animation.OvershootInterpolator(3f)).start() }.start()
                 if (id == "photo" && (selected == "photo" || !Wall.photoFile(this).exists())) { Sheet.closeTop(this); Store.main.postDelayed({ pickWallPhoto() }, 250); return@setOnClickListener }
-                // 📷 la cámara necesita permiso primero
-                if (id == "camera" && checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                // 📷 translúcido usa la cámara: primero el permiso
+                if (id == "phone" && checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                     Sheet.closeTop(this); requestPermissions(arrayOf(android.Manifest.permission.CAMERA), REQ_CAM_BG); return@setOnClickListener
                 }
                 val was = selected
                 selected = id; Wall.set(this, id); paint()
                 // el modo translúcido y la cámara necesitan volver a armar la ventana
-                if (id == "phone" || was == "phone" || id == "camera" || was == "camera") { Sheet.closeTop(this); Store.main.postDelayed({ recreate() }, 300) } else fadeWall()
+                if (id == "phone" || was == "phone") { Sheet.closeTop(this); Store.main.postDelayed({ recreate() }, 300) } else fadeWall()
             }
             grid.addView(v)
         }

@@ -37,8 +37,12 @@ class CameraBg(ctx: Context) : FrameLayout(ctx) {
     private var size: Size? = null
     private var opening = false
 
+    /** La última imagen de la cámara: se ve mientras la cámara vuelve a prender (así no parpadea en negro). */
+    private val still = android.widget.ImageView(ctx).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP; last?.let { setImageBitmap(it) } }
+
     init {
         setBackgroundColor(0xFF000000.toInt())
+        addView(still, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         isClickable = false; isFocusable = false; importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
         addView(tex, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         addView(dim, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -48,7 +52,7 @@ class CameraBg(ctx: Context) : FrameLayout(ctx) {
             override fun onSurfaceTextureSizeChanged(s: SurfaceTexture, w: Int, h: Int) { fit() }
             override fun onSurfaceTextureDestroyed(s: SurfaceTexture): Boolean { close(); return true }
             override fun onSurfaceTextureUpdated(s: SurfaceTexture) {
-                if (tex.alpha == 0f) tex.animate().alpha(1f).setDuration(500).start()      // aparece suavecito
+                if (tex.alpha == 0f) tex.animate().alpha(1f).setDuration(if (last != null) 200 else 500).start()      // aparece suavecito
             }
         }
     }
@@ -124,6 +128,9 @@ class CameraBg(ctx: Context) : FrameLayout(ctx) {
     }
 
     private fun close() {
+        if (cam != null && tex.isAvailable && tex.alpha > 0.5f) try {
+            tex.getBitmap(maxOf(1, tex.width / 3), maxOf(1, tex.height / 3))?.let { last = it; still.setImageBitmap(it) }
+        } catch (_: Throwable) {}
         try { session?.close() } catch (_: Exception) {}
         session = null
         try { cam?.close() } catch (_: Exception) {}
@@ -134,11 +141,12 @@ class CameraBg(ctx: Context) : FrameLayout(ctx) {
     private fun stopThread() { thread?.quitSafely(); thread = null; bg = null }
 
     companion object {
+        @Volatile private var last: android.graphics.Bitmap? = null
         /** Pone (o quita) la cámara detrás de toda la pantalla de [a]. */
         fun attach(a: Activity) {
             val content = a.findViewById<ViewGroup>(android.R.id.content) ?: return
             val has = (0 until content.childCount).map { content.getChildAt(it) }.firstOrNull { it is CameraBg }
-            if (Wall.current(a) == "camera") { if (has == null) content.addView(CameraBg(a), 0, ViewGroup.LayoutParams(-1, -1)) }
+            if (Wall.current(a) == "phone" && Translucent.camera(a)) { if (has == null) content.addView(CameraBg(a), 0, ViewGroup.LayoutParams(-1, -1)) }
             else if (has != null) content.removeView(has)
         }
     }

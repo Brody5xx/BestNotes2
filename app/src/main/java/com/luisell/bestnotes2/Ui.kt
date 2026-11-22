@@ -176,7 +176,7 @@ fun Activity.edgeToEdge(root: View, windowBg: Boolean = true) {
     // 🌍 árabe, hebreo, persa y urdu: la pantalla se acomoda de derecha a izquierda
     window.decorView.layoutDirection = if (L.isRtl) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
     // 📱 modo translúcido: se ve el fondo de pantalla del teléfono detrás de la app
-    if (Wall.current(this) == "phone") {
+    if (Wall.current(this) == "phone" && !Translucent.camera(this)) {
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
         window.setFormat(android.graphics.PixelFormat.TRANSLUCENT)
     } else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
