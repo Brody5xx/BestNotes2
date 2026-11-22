@@ -733,7 +733,23 @@ class MainActivity : Activity() {
                 card.addView(View(this).apply { background = roundBg(tw(0x59), dp(2).toFloat()) }, lp((cell * 0.35f).toInt(), dp(3)).apply { topMargin = dp(4) })
                 mini.addView(card, lp(MATCH, WRAP).apply { bottomMargin = dp(6) })
             }
-            if (id == "photo" && !Wall.photoFile(this).exists()) th.addView(tv("🖼️", 28f).apply { gravity = Gravity.CENTER }, FrameLayout.LayoutParams(MATCH, MATCH))
+            if (id == "photo" && !Wall.photoFile(this).exists()) {
+                // 🖼 moderno: degradado suave + círculo de vidrio con el ícono de foto y un ＋ (escoger de la galería)
+                th.background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                    intArrayOf(0xFF2A2440.toInt(), 0xFF1E3A4A.toInt(), 0xFF3A2236.toInt())).apply { cornerRadius = dp(18).toFloat() }
+                val c = FrameLayout(this).apply {
+                    background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, intArrayOf(0x66F48FB1, 0x664FC3F7)).apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setStroke(dp(1), 0x66FFFFFF) }
+                    addView(IconView(this@MainActivity, Icons.IMAGE, 8.5f).apply { color = 0xFFFFFFFF.toInt(); isClickable = false }, FrameLayout.LayoutParams(MATCH, MATCH))
+                }
+                th.addView(c, FrameLayout.LayoutParams(dp(54), dp(54), Gravity.CENTER))
+                val plus = FrameLayout(this).apply {
+                    background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(0xFFFFFFFF.toInt()) }
+                    elevation = dp(3).toFloat()
+                    addView(IconView(this@MainActivity, MoreIcons.PLUS, 4f).apply { color = 0xFF16161A.toInt(); isClickable = false }, FrameLayout.LayoutParams(MATCH, MATCH))
+                }
+                th.addView(plus, FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER).apply { leftMargin = dp(36); topMargin = dp(36) })
+                c.post { c.animate().scaleX(1.06f).scaleY(1.06f).setDuration(1400).setInterpolator(android.view.animation.AccelerateDecelerateInterpolator()).withEndAction { c.animate().scaleX(1f).scaleY(1f).setDuration(1400).start() }.start() }
+            }
             else if (id == "phone") { th.addView(mini, FrameLayout.LayoutParams(MATCH, WRAP)); th.addView(tv("📱", 24f).apply { gravity = Gravity.CENTER }, FrameLayout.LayoutParams(MATCH, MATCH)) }
             else th.addView(mini, FrameLayout.LayoutParams(MATCH, WRAP))
             // ✓ de seleccionado

@@ -429,6 +429,11 @@ class CapturasTest {
         find(main.window.decorView, android.widget.ScrollView::class.java)?.scrollTo(0, 5000)
         shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(300))
         shot(main.window.decorView, "c3_menu_abajo")
+        MainActivity::class.java.getDeclaredMethod("closeDrawer").apply { isAccessible = true }.invoke(main)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(2))
+        MainActivity::class.java.getDeclaredMethod("appearance").apply { isAccessible = true }.invoke(main)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
+        shot(main.window.decorView, "c4_apariencia")
     }
 
     @Test fun capturasCarpetas() {
