@@ -595,7 +595,6 @@ class MainActivity : Activity() {
         }) })
         p.addView(menuRow(this, Icons.BOX, L.t("backup"), lastBackupText()) { closeDrawer(); backupMenu() })
         p.addView(menuRow(this, Icons.SWAP, L.t("transfer"), L.t("transferSub")) { closeDrawer(); transferMenu() })
-        p.addView(menuRow(this, MoreIcons.IMPORT, L.t("import"), L.t("importSub")) { closeDrawer(); pickFile() })
         p.addView(menuRow(this, Icons.GLOBE, L.t("language"), when (L.choice) { "es" -> "Español"; "en" -> "English"; else -> L.t("langAuto") }) { closeDrawer(); pickLang() })
         p.addView(menuRow(this, Icons.CLOCK, L.t("hourFmt"), when (L.hourFmt) { "12" -> "12 h (3:00 PM)"; "24" -> "24 h (15:00)"; else -> L.t("hourAuto") }) { closeDrawer(); pickHourFmt() })
         p.addView(menuRow(this, Icons.LOCK, L.t("lockApp"), if (AppLock.on(this)) "✓ " + L.t("lockAppOn") else null) { closeDrawer(); toggleAppLock() })
