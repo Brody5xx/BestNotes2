@@ -539,69 +539,85 @@ class MainActivity : Activity() {
         val sv = ScrollView(this).apply { background = Glass.make(this@MainActivity, 28f, strong = true); isVerticalScrollBarEnabled = false; clipToOutline = true }
         val p = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), dp(12), dp(10), dp(24)) }
         sv.addView(p)
-        // Arriba: el logo, BEST NOTES 2 y "Listo" (como en Best Notes)
-        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(2), dp(4), dp(10)) }
-        top.addView(android.widget.ImageView(this).apply { setImageResource(R.mipmap.ic_launcher); clipToOutline = true; background = roundBg(0, dp(10).toFloat()) }, lp(dp(40), dp(40)))
-        top.addView(tv("BEST\nNOTES 2", 15f, T.text, true).apply { letterSpacing = 0.18f; setPadding(dp(10), 0, 0, 0); setLineSpacing(0f, 0.9f) }, lp(0, WRAP, 1f))
+        // Arriba, como en Best Notes: ← · logo · B E S T  N O T E S · Listo
+        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(2), dp(2), dp(2), dp(12)) }
+        top.addView(glassBtn(Icons.BACK, 8.5f) { closeDrawer() }, lp(dp(42), dp(42)))
+        top.addView(android.widget.ImageView(this).apply { setImageResource(R.mipmap.ic_launcher); clipToOutline = true; background = roundBg(0, dp(11).toFloat()) }, lp(dp(42), dp(42)).apply { marginStart = dp(8) })
+        top.addView(tv("BEST\nNOTES", 15f, T.text, true).apply { letterSpacing = 0.32f; setPadding(dp(10), 0, 0, 0); setLineSpacing(0f, 0.95f) }, lp(0, WRAP, 1f))
         top.addView(tv(L.t("done"), 14f, T.onPill, true).apply { setPadding(dp(16), dp(8), dp(16), dp(8)); pressBg(T.text, 18f); setOnClickListener { closeDrawer() } })
         p.addView(top)
-        // Tarjeta blanca de la guía (como "App guide")
+        // Tarjeta blanca de la guía (con su etiqueta NUEVO)
         val guide = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(12), dp(10), dp(12))
-            pressBg(0xF2FFFFFF.toInt(), 18f); setOnClickListener { closeDrawer(); startActivity(Intent(this@MainActivity, GuideActivity::class.java)) }
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(14), dp(10), dp(14))
+            pressBg(0xF2FFFFFF.toInt(), 20f); setOnClickListener { closeDrawer(); startActivity(Intent(this@MainActivity, GuideActivity::class.java)) }
         }
-        guide.addView(IconView(this, Icons.BOOK, 9f).apply { color = 0xFF16161A.toInt(); isClickable = false }, lp(dp(26), dp(26)))
-        val gcol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, 0, 0) }
+        guide.addView(IconView(this, Icons.BOOK, 9f).apply { color = 0xFF16161A.toInt(); isClickable = false }, lp(dp(28), dp(28)))
+        val gcol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, dp(6), 0) }
         gcol.addView(tv(L.t("guide"), 15f, 0xFF16161A.toInt(), true)); gcol.addView(tv(L.t("guideSub"), 12f, 0xFF55555A.toInt()))
-        guide.addView(gcol, lp(0, WRAP, 1f)); guide.addView(tv("›", 20f, 0xFF16161A.toInt()))
-        p.addView(guide, lp(MATCH, WRAP).apply { bottomMargin = dp(10) })
+        guide.addView(gcol, lp(0, WRAP, 1f))
+        guide.addView(tv(L.t("newBadge"), 11f, 0xFFFFFFFF.toInt(), true).apply { setPadding(dp(9), dp(4), dp(9), dp(4)); background = roundBg(0xFF16161A.toInt(), dp(12).toFloat()) })
+        guide.addView(tv("›", 20f, 0xFF16161A.toInt()).apply { setPadding(dp(8), 0, 0, 0) })
+        p.addView(guide, lp(MATCH, WRAP).apply { bottomMargin = dp(12) })
         fun count(f: (NoteMeta) -> Boolean) = Store.notes.count(f)
-        fun nav(icon: Int, label: String, v: String, n: Int, dot: Int = 0) {
-            val r = menuRow(this, icon, label, null, T.text, dot) { view = v; selected.clear(); closeDrawer(); refresh(); list.scrollToPosition(0) }
-            (r as LinearLayout).addView(tv(if (n > 0) "$n" else "", 13f, T.muted))
-            if (view == v) r.background = roundBg(tw(0x1F), dp(14).toFloat())
+        fun nav(icon: Int, label: String, v: String, n: Int, dot: Int = 0): LinearLayout {
+            val r = menuRow(this, icon, label, null, T.text, dot) { view = v; selected.clear(); closeDrawer(); refresh(); list.scrollToPosition(0) } as LinearLayout
+            r.addView(tv(if (n > 0) "$n" else "0", 13f, T.muted))
+            if (view == v) r.background = android.graphics.drawable.LayerDrawable(arrayOf(roundBg(tw(0x1F), dp(18).toFloat(), tw(0x33), dp(1)), Glass.make(this, 18f)))
             p.addView(r)
+            return r
         }
+        fun section(title: String, plus: (() -> Unit)? = null) {
+            val h = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(8), dp(6), dp(2)) }
+            h.addView(tv(title.uppercase(L.locale), 12.5f, T.muted, true).apply { letterSpacing = 0.16f }, lp(0, WRAP, 1f))
+            if (plus != null) h.addView(iconBtn(MoreIcons.PLUS, 9f) { plus() }, lp(dp(38), dp(38)))
+            p.addView(h)
+        }
+        // 1) Todas · Favoritos · Papelera
         nav(Icons.NOTEBOOK, L.t("all"), "all", count { !it.deleted })
         nav(MoreIcons.STAR5, L.t("fav"), "fav", count { !it.deleted && it.fav })
+        nav(Icons.TRASH, L.t("trash"), "trash", count { it.deleted })
+        // 2) CARPETAS  ＋   (cada una con su color, cuántas notas y ⋯)
+        p.addView(sep())
+        section(L.t("folders")) { closeDrawer(); folderDialog(null) }
+        for (f in Store.folders) {
+            val r = nav(MoreIcons.FOLDER, f.name, "f:" + f.id, count { !it.deleted && it.folder == f.id }, if (f.color != 0) f.color else 0)
+            r.addView(iconBtn(MoreIcons.DOTS_V, 7.5f, T.muted) { closeDrawer(); folderMenu(f) }.apply { rotation = 90f }, lp(dp(34), dp(34)))
+            r.setOnLongClickListener { closeDrawer(); folderMenu(f); true }
+        }
+        // etiquetas (#)
+        val tags = HashMap<String, Int>()
+        Store.notes.filter { !it.deleted && !it.locked }.forEach { n -> tagsOf(n.title + " " + n.plain).forEach { tags[it] = (tags[it] ?: 0) + 1 } }
+        if (tags.isNotEmpty()) {
+            section(L.t("tags"))
+            tags.keys.sortedWith(String.CASE_INSENSITIVE_ORDER).forEach { t -> nav(Icons.TAG, "#$t", "t:$t", tags[t] ?: 0) }
+        }
+        p.addView(sep())
+        // 3) Fondo de pantalla · Respaldo · Transferir
+        p.addView(menuRow(this, MoreIcons.WALLPAPER, L.t("wallpaper")) { closeDrawer(); appearance() })
+        p.addView(menuRow(this, Icons.BOX, L.t("backup"), lastBackupText()) { closeDrawer(); backupMenu() })
+        p.addView(menuRow(this, Icons.SWAP, L.t("transfer"), L.t("transferSub")) { closeDrawer(); transferMenu() })
+        // 4) Pendientes · Materiales · Reporte · Plantilla · Bóveda · Calculadora
         p.addView(menuRow(this, MoreIcons.CHECKBOX, L.t("pending"), L.t("pendingHint")) { closeDrawer(); startActivity(Intent(this, PendingActivity::class.java)) }.also { r ->
             val n = Store.notes.filter { !it.deleted && !it.locked }.sumOf { maxOf(0, it.checkTotal - it.checkDone) }
             if (n > 0) (r as LinearLayout).addView(tv("$n", 13f, T.onPill, true).apply { gravity = Gravity.CENTER; minWidth = dp(24); setPadding(dp(7), dp(2), dp(7), dp(2)); background = roundBg(T.text, dp(12).toFloat()) })
         })
-        p.addView(menuRow(this, MoreIcons.SHIELD, L.t("vault"), L.t("vaultHint")) { closeDrawer(); startActivity(Intent(this, VaultActivity::class.java)) })
-        p.addView(menuRow(this, Icons.CALC, L.t("calc"), L.t("calcSub")) { closeDrawer(); startActivity(Intent(this, CalcActivity::class.java)) })
-        p.addView(menuRow(this, Icons.REPORT, L.t("report"), L.t("reportHint")) { closeDrawer(); startActivity(Intent(this, ReportActivity::class.java)) })
         p.addView(menuRow(this, Icons.BOX, L.t("materials"), L.t("materialsHint")) { closeDrawer(); startActivity(Intent(this, MaterialsActivity::class.java)) })
-        p.addView(sep())
-        p.addView(tv(L.t("folders"), 13f, T.muted, true).apply { setPadding(dp(14), dp(6), 0, dp(4)) })
-        for (f in Store.folders) {
-            nav(MoreIcons.FOLDER, f.name, "f:" + f.id, count { !it.deleted && it.folder == f.id }, if (f.color != 0) f.color else 0)
-            p.getChildAt(p.childCount - 1).setOnLongClickListener { closeDrawer(); folderMenu(f); true }
-        }
-        p.addView(menuRow(this, MoreIcons.PLUS, L.t("newFolder")) { closeDrawer(); folderDialog(null) })
-        val tags = HashMap<String, Int>()
-        Store.notes.filter { !it.deleted && !it.locked }.forEach { n -> tagsOf(n.title + " " + n.plain).forEach { tags[it] = (tags[it] ?: 0) + 1 } }
-        if (tags.isNotEmpty()) {
-            p.addView(sep())
-            p.addView(tv(L.t("tags"), 13f, T.muted, true).apply { setPadding(dp(14), dp(6), 0, dp(4)) })
-            tags.keys.sortedWith(String.CASE_INSENSITIVE_ORDER).forEach { t -> nav(Icons.TAG, "#$t", "t:$t", tags[t] ?: 0) }
-        }
-        p.addView(sep())
-        nav(Icons.TRASH, L.t("trash"), "trash", count { it.deleted })
-        p.addView(sep())
+        p.addView(menuRow(this, Icons.REPORT, L.t("report"), L.t("reportHint")) { closeDrawer(); startActivity(Intent(this, ReportActivity::class.java)) })
         p.addView(menuRow(this, Icons.REPORT, L.t("tplNew"), L.t("templatesSub")) { closeDrawer(); templateSheet({ t ->
             val m = Store.createNote(t.title, t.blocks(), view.takeIf { it.startsWith("f:") }?.substring(2))
             startActivity(Intent(this, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id))
         }) })
-        p.addView(menuRow(this, Icons.BOX, L.t("backup"), lastBackupText()) { closeDrawer(); backupMenu() })
-        p.addView(menuRow(this, Icons.SWAP, L.t("transfer"), L.t("transferSub")) { closeDrawer(); transferMenu() })
-        p.addView(menuRow(this, Icons.GLOBE, L.t("language"), when (L.choice) { "es" -> "Español"; "en" -> "English"; else -> L.t("langAuto") }) { closeDrawer(); pickLang() })
-        p.addView(menuRow(this, Icons.CLOCK, L.t("hourFmt"), when (L.hourFmt) { "12" -> "12 h (3:00 PM)"; "24" -> "24 h (15:00)"; else -> L.t("hourAuto") }) { closeDrawer(); pickHourFmt() })
-        p.addView(menuRow(this, Icons.LOCK, L.t("lockApp"), if (AppLock.on(this)) "✓ " + L.t("lockAppOn") else null) { closeDrawer(); toggleAppLock() })
+        p.addView(menuRow(this, MoreIcons.SHIELD, L.t("vault"), L.t("vaultHint")) { closeDrawer(); startActivity(Intent(this, VaultActivity::class.java)) })
+        p.addView(menuRow(this, Icons.CALC, L.t("calc"), L.t("calcSub")) { closeDrawer(); startActivity(Intent(this, CalcActivity::class.java)) })
+        // 5) PIN · bloqueo · huella
         if (Pin.saved(this) != null) p.addView(menuRow(this, Icons.KEY, L.t("changePin")) { closeDrawer(); Pin.change(this) { toast(L.t("pinChanged")) } })
+        p.addView(menuRow(this, Icons.LOCK, L.t("lockApp"), if (AppLock.on(this)) "✓ " + L.t("lockAppOn") else null) { closeDrawer(); toggleAppLock() })
         if (Bio.available(this)) p.addView(menuRow(this, MoreIcons.SHIELD, L.t("bioTitle"), if (Bio.enabled(this)) "✓ " + L.t("bioOn") else L.t("bioOff")) {
             closeDrawer(); val on = !Bio.enabled(this); Bio.setEnabled(this, on); toast(L.t(if (on) "bioOn" else "bioOff"))
         })
+        // 6) Idioma · Formato de hora
+        p.addView(menuRow(this, Icons.GLOBE, L.t("language"), when (L.choice) { "es" -> "Español"; "en" -> "English"; else -> L.t("langAuto") }) { closeDrawer(); pickLang() })
+        p.addView(menuRow(this, Icons.CLOCK, L.t("hourFmt"), when (L.hourFmt) { "12" -> "12 h (3:00 PM)"; "24" -> "24 h (15:00)"; else -> L.t("hourAuto") }) { closeDrawer(); pickHourFmt() })
         p.addView(sep())
         val ver = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (_: Exception) { "" }
         p.addView(tv(L.t("devBy") + "\n" + L.t("version", "v" to (ver ?: "")), 12.5f, T.muted).apply { setPadding(dp(14), dp(8), dp(8), 0) })

@@ -286,6 +286,7 @@ object L {
         "aiLangQ" to "¿En qué idioma?",
         "addFolder" to "Agregar carpeta", "outOfFolder" to "Sacar de la carpeta",
         "aiInNote" to "Nota nueva con IA", "aiInNoteSub" to "Escribe y toca 💫 arriba para usar la IA",
+        "wallpaper" to "Fondo de pantalla", "newBadge" to "NUEVO",
     )
 
     private val EN = mapOf(
@@ -475,5 +476,6 @@ object L {
         "aiLangQ" to "In which language?",
         "addFolder" to "Add folder", "outOfFolder" to "Take out of the folder",
         "aiInNote" to "New note with AI", "aiInNoteSub" to "Write and tap 💫 at the top to use AI",
+        "wallpaper" to "Wallpaper", "newBadge" to "NEW",
     )
 }

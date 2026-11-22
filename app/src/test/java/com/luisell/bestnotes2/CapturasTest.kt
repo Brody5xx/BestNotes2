@@ -421,6 +421,14 @@ class CapturasTest {
         val main = Robolectric.buildActivity(MainActivity::class.java).setup().visible().get()
         waitIo(); idle(); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1500))
         shot(main.window.decorView, "c1_nova_inicio")
+        Store.saveFolder(Folder(newId(), "Trabajo", 0xFF42A5F5.toInt(), 0)); Store.saveFolder(Folder(newId(), "Casa", 0xFFEF5350.toInt(), 1))
+        MainActivity::class.java.getDeclaredMethod("openDrawer").apply { isAccessible = true }.invoke(main)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        shot(main.window.decorView, "c2_menu")
+        fun <T> find(x: View, c: Class<T>): T? { if (c.isInstance(x)) return c.cast(x); if (x is android.view.ViewGroup) for (k in x.childCount - 1 downTo 0) find(x.getChildAt(k), c)?.let { return it }; return null }
+        find(main.window.decorView, android.widget.ScrollView::class.java)?.scrollTo(0, 5000)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(300))
+        shot(main.window.decorView, "c3_menu_abajo")
     }
 
     @Test fun capturasCarpetas() {

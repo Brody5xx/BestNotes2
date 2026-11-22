@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-21" to ("☰ El menú lateral con el orden de Best Notes: Todas · Favoritos · Papelera, CARPETAS con ＋ y ⋯, y nuevo: 🖼 Fondo de pantalla para la pantalla principal" to
+            "☰ The side menu now follows the Best Notes order: All · Favorites · Trash, FOLDERS with ＋ and ⋯, and new: 🖼 Wallpaper for the main screen"),
         "2026-11-20" to ("💫 Nova: el logo vivo de la IA, siempre arriba en la esquina (en las notas y en la pantalla principal). Una estrella de colores que gira, respira y tiene una lunita que le da vueltas. ⊞ El botón de Agregar tiene ícono nuevo" to
             "💫 Nova: the living AI logo, always in the top corner (in notes and on the main screen). A colorful star that spins, breathes and has a little moon orbiting it. ⊞ The Add button has a new icon"),
         "2026-11-20" to ("📁 Mover a carpeta nuevo (como Best Notes viejo): ← · Listo, cada carpeta con su color, ✓ en la que está, y ＋ Nueva carpeta abajo" to
