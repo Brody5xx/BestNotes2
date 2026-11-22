@@ -43,7 +43,19 @@ object Export {
     fun sizeText(n: Long): String = when { n < 1048576 -> "${maxOf(1, n / 1024)} KB"; else -> String.format(L.locale, "%.1f MB", n / 1048576.0) }
 
     /** ¿Cabe por correo? */
-    fun sizeAdvice(n: Long): String = when { n <= 20L * 1048576 -> L.t("sizeOk"); n <= 300L * 1048576 -> L.t("sizeBig"); else -> L.t("sizeHuge") }
+    /** Por dónde se puede mandar según lo que pesa: correo (~20 MB), WhatsApp, mensajes RCS (~100 MB) y MMS (~1 MB). */
+    fun sizeAdvice(n: Long): String {
+        val mb = 1048576L
+        fun line(ok: Boolean, what: String) = (if (ok) "✅ " else "❌ ") + what
+        val rows = listOf(
+            line(n <= 20 * mb, L.t("viaEmail")),
+            line(n <= 2048 * mb, if (n <= 100 * mb) L.t("viaWhatsApp") else L.t("viaWhatsAppDoc")),
+            line(n <= 100 * mb, L.t("viaRcs")),
+            line(n <= mb, L.t("viaMms")),
+        )
+        val tip = if (n > 20 * mb) "\n\n" + L.t("sizeTip") else ""
+        return rows.joinToString("\n") + tip
+    }
 
     /* =========================================================
        🌐 PÁGINA CON VIDEOS (.html)
@@ -258,7 +270,7 @@ fun android.app.Activity.shareNotes(ids: List<String>, direct: String? = null, o
                     else -> {
                         val f = res as File
                         Sheet(this, "🌐 " + L.t("sharePage"), L.t("sizeSend", "s" to Export.sizeText(f.length())))
-                            .custom(tv(Export.sizeAdvice(f.length()), 14f, T.text).apply { gravity = android.view.Gravity.CENTER; setPadding(dp(18), dp(2), dp(18), dp(12)) })
+                            .custom(tv(Export.sizeAdvice(f.length()), 14.5f, T.text).apply { setLineSpacing(dp(4).toFloat(), 1f); setPadding(dp(30), dp(4), dp(18), dp(12)) })
                             .quick(Icons.SEND, L.t("share"), Sheet.BLUE) { Share.send(this, f, "text/html", name) }
                             .show()
                     }

@@ -288,6 +288,7 @@ object L {
         "aiInNote" to "Nota nueva con IA", "aiInNoteSub" to "Escribe y toca 💫 arriba para usar la IA",
         "wallpaper" to "Fondo de pantalla", "newBadge" to "NUEVO",
         "vDelOrigQ" to "¿Borrar la original de la galería?", "vDelOrigMsg" to "Ya quedó guardada y cifrada en la bóveda. Si la borras de la galería, solo la vas a ver aquí.", "vKeepOrig" to "Dejarla", "vOrigDeleted" to "Se borró de la galería", "vToGallery" to "A la galería", "vToFolder" to "A una carpeta", "vToGalleryOk" to "Listo: está en la galería (Best Notes)", "vExported" to "Listo: guardado",
+        "viaEmail" to "Correo (Outlook, Gmail) · hasta ~20 MB", "viaWhatsApp" to "WhatsApp", "viaWhatsAppDoc" to "WhatsApp (mándalo como documento)", "viaRcs" to "Mensajes RCS (chat) · hasta ~100 MB", "viaMms" to "Mensaje MMS · hasta ~1 MB", "sizeTip" to "💡 Achica los videos para que pese menos",
     )
 
     private val EN = mapOf(
@@ -479,5 +480,6 @@ object L {
         "aiInNote" to "New note with AI", "aiInNoteSub" to "Write and tap 💫 at the top to use AI",
         "wallpaper" to "Wallpaper", "newBadge" to "NEW",
         "vDelOrigQ" to "Delete the original from the gallery?", "vDelOrigMsg" to "It is already saved and encrypted in the vault. If you delete it from the gallery, you will only see it here.", "vKeepOrig" to "Keep it", "vOrigDeleted" to "Deleted from the gallery", "vToGallery" to "To gallery", "vToFolder" to "To a folder", "vToGalleryOk" to "Done: it is in the gallery (Best Notes)", "vExported" to "Done: saved",
+        "viaEmail" to "Email (Outlook, Gmail) · up to ~20 MB", "viaWhatsApp" to "WhatsApp", "viaWhatsAppDoc" to "WhatsApp (send it as a document)", "viaRcs" to "RCS messages (chat) · up to ~100 MB", "viaMms" to "MMS message · up to ~1 MB", "sizeTip" to "💡 Shrink the videos to make it smaller",
     )
 }

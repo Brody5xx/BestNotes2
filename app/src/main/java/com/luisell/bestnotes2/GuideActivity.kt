@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-22" to ("📤 Al compartir la página con videos te dice por dónde cabe: ✅/❌ correo, WhatsApp, mensajes RCS y MMS" to
+            "📤 When sharing the video page it tells you where it fits: ✅/❌ email, WhatsApp, RCS messages and MMS"),
         "2026-11-22" to ("☀️ El botón del sol tiene una bolita 🖼: déjalo presionado para cambiar el fondo de pantalla. 🛡 Bóveda: al guardar una foto o video te pregunta si borras la original de la galería, y puedes sacarlos con \"A la galería\" o \"A una carpeta\"" to
             "☀️ The sun button has a 🖼 dot: long-press it to change the wallpaper. 🛡 Vault: after saving a photo or video it asks whether to delete the original from the gallery, and you can take them out with \"To gallery\" or \"To a folder\""),
         "2026-11-21" to ("☰ El menú lateral con el orden de Best Notes: Todas · Favoritos · Papelera, CARPETAS con ＋ y ⋯, y nuevo: 🖼 Fondo de pantalla para la pantalla principal" to

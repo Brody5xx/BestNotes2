@@ -148,4 +148,14 @@ class PruebasTest {
         assertEquals(360, Shrink.plan(i, 2).shortSide)
         assertEquals(15f, Shrink.plan(i, 2).fps, 0.01f)
     }
+
+    @Test fun porDondeSePuedeMandar() {
+        val small = Export.sizeAdvice(500_000)
+        assertTrue(small, small.lines().all { it.startsWith("✅") })
+        val mid = Export.sizeAdvice(5L * 1048576)
+        assertTrue("MMS no a 5 MB: $mid", mid.lines().last { it.isNotBlank() && !it.startsWith("💡") }.startsWith("❌"))
+        val big = Export.sizeAdvice(50L * 1048576)
+        assertTrue("correo no a 50 MB", big.lines()[0].startsWith("❌"))
+        assertTrue("RCS sí a 50 MB", big.lines()[2].startsWith("✅"))
+    }
 }
