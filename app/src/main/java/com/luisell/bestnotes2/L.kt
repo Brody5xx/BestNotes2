@@ -291,6 +291,7 @@ object L {
         "viaEmail" to "Correo (Outlook, Gmail) · hasta ~20 MB", "viaWhatsApp" to "WhatsApp", "viaWhatsAppDoc" to "WhatsApp (mándalo como documento)", "viaRcs" to "Mensajes RCS (chat) · hasta ~100 MB", "viaMms" to "Mensaje MMS · hasta ~1 MB", "sizeTip" to "💡 Achica los videos para que pese menos",
         "anchor" to "Anclar", "unanchor" to "Desanclar", "videoSize" to "Tamaño del video", "textBelowVideo" to "Texto debajo del video", "videoMoveHint" to "Arrástralo. A la orilla: texto al lado", "videoPinned" to "Video anclado: ya no se mueve", "videoUnpinned" to "Video suelto: ya lo puedes mover",
         "videoSelHint" to "Arrástralo para moverlo · bolitas: tamaño", "sameWidth" to "Mismo ancho que la otra",
+        "wallCamera" to "Cámara en vivo", "camPerm" to "Sin permiso de la cámara no se puede",
     )
 
     private val EN = mapOf(
@@ -485,5 +486,6 @@ object L {
         "viaEmail" to "Email (Outlook, Gmail) · up to ~20 MB", "viaWhatsApp" to "WhatsApp", "viaWhatsAppDoc" to "WhatsApp (send it as a document)", "viaRcs" to "RCS messages (chat) · up to ~100 MB", "viaMms" to "MMS message · up to ~1 MB", "sizeTip" to "💡 Shrink the videos to make it smaller",
         "anchor" to "Anchor", "unanchor" to "Unanchor", "videoSize" to "Video size", "textBelowVideo" to "Text below the video", "videoMoveHint" to "Drag it. To the edge: text beside", "videoPinned" to "Video anchored: it won't move", "videoUnpinned" to "Video unanchored: you can move it",
         "videoSelHint" to "Drag to move it · dots: size", "sameWidth" to "Same width as the other",
+        "wallCamera" to "Live camera", "camPerm" to "Can't do it without camera permission",
     )
 }

@@ -58,7 +58,7 @@ object Wall {
         val p = ctx.getSharedPreferences("ajustes", 0)
         val w = p.getString(if (T.light) "wallLight" else "wall", defaultId()) ?: defaultId()
         // un fondo del otro modo no sirve aquí
-        return if (w == "photo" || w == "phone" || w == "best" && !T.light || GRADS.any { it[0] == w }) w else defaultId()
+        return if (w == "photo" || w == "phone" || w == "camera" || w == "best" && !T.light || GRADS.any { it[0] == w }) w else defaultId()
     }
     fun blur(ctx: Context): Boolean = ctx.getSharedPreferences("ajustes", 0).getBoolean("wallBlur", true)
     fun photoFile(ctx: Context) = java.io.File(ctx.filesDir, "fondo_app.jpg")
@@ -71,6 +71,7 @@ object Wall {
 
     fun drawable(ctx: Context, id: String = current(ctx)): Drawable {
         if (id == "phone") return android.graphics.drawable.ColorDrawable(phoneDim())
+        if (id == "camera") return android.graphics.drawable.ColorDrawable(0xFF000000.toInt())      // detrás de la cámara
         (DARK + LIGHT).firstOrNull { (it[0] as String) == id }?.let {
             return android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, it[3] as IntArray)
         }

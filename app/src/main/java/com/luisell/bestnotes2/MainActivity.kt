@@ -206,7 +206,7 @@ class MainActivity : Activity() {
         private var introShown = false
         /** Mientras sale la presentación, el candado espera (sale después). */
         @Volatile var introRunning = false
-        const val PICK_FILE = 41; const val REQ_WALL = 42; const val REQ_SAVE_BK = 43; const val REQ_AUTO_DIR = 44
+        const val PICK_FILE = 41; const val REQ_WALL = 42; const val REQ_SAVE_BK = 43; const val REQ_AUTO_DIR = 44; const val REQ_CAM_BG = 45
         /** Notas que se acaban de mandar a la papelera desde una nota (para "Deshacer"). */
         var pendingTrash: List<String>? = null
         private var snap: android.graphics.Bitmap? = null
@@ -235,7 +235,7 @@ class MainActivity : Activity() {
         val dv = window.decorView as ViewGroup
         val old = ImageView(this).apply { setImageBitmap(bm); scaleType = ImageView.ScaleType.FIT_XY }
         dv.addView(old, 0, ViewGroup.LayoutParams(MATCH, MATCH))          // lo de antes queda DEBAJO
-        root.background = Glass.background(this)
+        root.background = if (Wall.current(this) == "camera") null else Glass.background(this)
         root.post {
             val r = Math.hypot(maxOf(sx, root.width - sx).toDouble(), maxOf(sy, root.height - sy).toDouble()).toFloat()
             val a = android.view.ViewAnimationUtils.createCircularReveal(root, sx, sy, 0f, r)
@@ -341,6 +341,14 @@ class MainActivity : Activity() {
             .item(Icons.BOX, L.t("materials"), Sheet.AMBER, L.t("materialsHint")) { startActivity(Intent(this, MaterialsActivity::class.java)) }
             .item(MoreIcons.PEN, L.t("aiInNote"), Sheet.SKY, L.t("aiInNoteSub")) { startActivity(Intent(this, NoteActivity::class.java)) }
             .show()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_CAM_BG) {
+            if (grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) { Wall.set(this, "camera"); recreate() }
+            else toast(L.t("camPerm"))
+        }
     }
 
     private var headerMode: String? = null
@@ -692,7 +700,7 @@ class MainActivity : Activity() {
     private fun appearance() {
         val cur = Wall.current(this)
         val opts = (if (T.light) emptyList() else listOf("best" to "Best Notes")) + Wall.GRADS.map { it[0] as String to (if (L.lang == "es") it[1] else it[2]) as String } +
-            ("photo" to L.t("wallPhoto")) + ("phone" to L.t("wallPhone"))
+            ("photo" to L.t("wallPhoto")) + ("phone" to L.t("wallPhone")) + ("camera" to L.t("wallCamera"))
         val sh = Sheet(this, "☀️ " + L.t("appearance"), L.t("appearanceSub"))
         // 🌙 oscuro / ☀️ claro
         fun setTheme(light: Boolean) { switchTheme(light, null) }
@@ -751,6 +759,20 @@ class MainActivity : Activity() {
                 c.post { c.animate().scaleX(1.06f).scaleY(1.06f).setDuration(1400).setInterpolator(android.view.animation.AccelerateDecelerateInterpolator()).withEndAction { c.animate().scaleX(1f).scaleY(1f).setDuration(1400).start() }.start() }
             }
             else if (id == "phone") { th.addView(mini, FrameLayout.LayoutParams(MATCH, WRAP)); th.addView(tv("📱", 24f).apply { gravity = Gravity.CENTER }, FrameLayout.LayoutParams(MATCH, MATCH)) }
+            else if (id == "camera") {
+                // 📷 cámara en vivo: oscuro con un lente que "enfoca" y un puntito rojo de EN VIVO
+                th.background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                    intArrayOf(0xFF0E1B26.toInt(), 0xFF1B2B3A.toInt(), 0xFF0B0F14.toInt())).apply { cornerRadius = dp(18).toFloat() }
+                th.addView(mini.apply { alpha = 0.55f }, FrameLayout.LayoutParams(MATCH, WRAP))
+                val lens = FrameLayout(this).apply {
+                    background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; colors = intArrayOf(0xFF4FC3F7.toInt(), 0xFF1A237E.toInt()); gradientType = android.graphics.drawable.GradientDrawable.RADIAL_GRADIENT; gradientRadius = dp(26).toFloat(); setStroke(dp(3), 0xCCFFFFFF.toInt()) }
+                }
+                th.addView(lens, FrameLayout.LayoutParams(dp(46), dp(46), Gravity.CENTER))
+                lens.post { lens.animate().scaleX(0.86f).scaleY(0.86f).setDuration(900).withEndAction { lens.animate().scaleX(1f).scaleY(1f).setDuration(900).start() }.start() }
+                val live = tv("●", 11f, 0xFFFF3B30.toInt(), true)
+                th.addView(live, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.TOP or Gravity.END).apply { setMargins(0, dp(6), dp(9), 0) })
+                live.animate().alpha(0.2f).setDuration(700).withEndAction { live.animate().alpha(1f).setDuration(700).start() }.start()
+            }
             else th.addView(mini, FrameLayout.LayoutParams(MATCH, WRAP))
             // ✓ de seleccionado
             val mark = tv("✓", 15f, 0xFF161618.toInt(), true).apply { gravity = Gravity.CENTER; background = roundBg(0xFF4FC3F7.toInt(), dp(13).toFloat()); scaleX = 0f; scaleY = 0f; alpha = 0f }
@@ -762,10 +784,14 @@ class MainActivity : Activity() {
             v.setOnClickListener {
                 th.animate().scaleX(0.92f).scaleY(0.92f).setDuration(80).withEndAction { th.animate().scaleX(1f).scaleY(1f).setDuration(260).setInterpolator(android.view.animation.OvershootInterpolator(3f)).start() }.start()
                 if (id == "photo" && (selected == "photo" || !Wall.photoFile(this).exists())) { Sheet.closeTop(this); Store.main.postDelayed({ pickWallPhoto() }, 250); return@setOnClickListener }
+                // 📷 la cámara necesita permiso primero
+                if (id == "camera" && checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    Sheet.closeTop(this); requestPermissions(arrayOf(android.Manifest.permission.CAMERA), REQ_CAM_BG); return@setOnClickListener
+                }
                 val was = selected
                 selected = id; Wall.set(this, id); paint()
-                // el modo translúcido necesita volver a armar la ventana
-                if (id == "phone" || was == "phone") { Sheet.closeTop(this); Store.main.postDelayed({ recreate() }, 300) } else fadeWall()
+                // el modo translúcido y la cámara necesitan volver a armar la ventana
+                if (id == "phone" || was == "phone" || id == "camera" || was == "camera") { Sheet.closeTop(this); Store.main.postDelayed({ recreate() }, 300) } else fadeWall()
             }
             grid.addView(v)
         }

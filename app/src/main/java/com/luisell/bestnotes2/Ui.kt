@@ -181,6 +181,8 @@ fun Activity.edgeToEdge(root: View, windowBg: Boolean = true) {
         window.setFormat(android.graphics.PixelFormat.TRANSLUCENT)
     } else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
     if (windowBg) window.setBackgroundDrawable(Glass.background(this))       // el fondo escogido en ☀️ Apariencia
+    // 📷 cámara en vivo detrás de todo (se pone cuando la pantalla ya está armada)
+    window.decorView.post { CameraBg.attach(this) }
 }
 
 /** Botón redondo de vidrio (como los de arriba en Best Notes). */

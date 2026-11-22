@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-22" to ("📷 Fondo nuevo: Cámara en vivo. Detrás de la app se ve lo que ve la cámara, en vivo (☀️ dejándolo presionado → Cámara en vivo). Solo se prende mientras ves la app; no graba ni guarda nada" to
+            "📷 New background: Live camera. What the camera sees shows live behind the app (long-press ☀️ → Live camera). It only runs while you see the app; it records and saves nothing"),
         "2026-11-22" to ("🎬 Deja presionado un video y queda escogido como las fotos: brillo alrededor, bolitas para el tamaño (con la línea roja al mismo ancho que otra foto o video) y lo arrastras directo" to
             "🎬 Long-press a video and it gets selected like photos: glow around it, dots for size (with the red line at the same width as another photo or video) and you drag it directly"),
         "2026-11-22" to ("✨ Ahora se llama Best Notes (con su ícono de siempre). 🎬 Los videos se mueven como las fotos: déjalo presionado y arrástralo; a la orilla, el texto va al lado. Dos dedos: más grande o más chico. ⋮ → 📌 Anclar y Tamaño. 🖼 La barrita de las fotos solo sale cuando tocas la foto" to

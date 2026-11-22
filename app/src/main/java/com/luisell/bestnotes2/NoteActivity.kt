@@ -50,6 +50,7 @@ class NoteActivity : Activity(), EditorView.Host {
         const val REQ_DICT = 59
         const val REQ_CALC = 60
         const val REQ_WALL = 61
+        const val REQ_CAM_PERM = 67
     }
 
     private lateinit var meta: NoteMeta
@@ -349,7 +350,7 @@ class NoteActivity : Activity(), EditorView.Host {
         val c = meta.color
         val bg = if (c == 0) T.bg else blend(T.bg, c, 0.14f)
         // el fondo de vidrio de Best Notes, con el color de la nota encima (suavecito)
-        val layers = arrayListOf<android.graphics.drawable.Drawable>(Glass.background(this))
+        val layers = arrayListOf<android.graphics.drawable.Drawable>(if (Wall.current(this) == "camera") android.graphics.drawable.ColorDrawable(0) else Glass.background(this))
         if (Wall.current(this) == "phone") layers.add(0, android.graphics.drawable.ColorDrawable(0x1A000000))
         if (c != 0) layers.add(android.graphics.drawable.ColorDrawable((c and 0xFFFFFF) or 0x24000000))
         root.background = android.graphics.drawable.LayerDrawable(layers.toTypedArray())
@@ -1195,6 +1196,10 @@ class NoteActivity : Activity(), EditorView.Host {
         if (requestCode == REQ_DICT) {
             if (grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) startDictation() else toast(L.t("micPerm"))
         }
+        if (requestCode == REQ_CAM_PERM) {
+            val go = afterCamPerm; afterCamPerm = null
+            if (grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) go?.invoke() else toast(L.t("camPerm"))
+        }
         if (requestCode == REQ_MIC) {
             if (grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) startRecording()
             else toast(L.t("micPerm"))
@@ -1212,6 +1217,7 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     private fun recordVideo() {
+        if (checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) { withCamera { recordVideo() }; return }
         val f = File(cacheDir, "video_" + System.currentTimeMillis() + ".mp4")
         vidFile = f
         val uri = FileProvider.getUriForFile(this, "$packageName.archivos", f)
@@ -1264,7 +1270,15 @@ class NoteActivity : Activity(), EditorView.Host {
 
     private var scanMode = false
 
+    /** Al tener la app permiso de cámara declarado (por el fondo en vivo), Android pide permiso también para tomar fotos. */
+    private var afterCamPerm: (() -> Unit)? = null
+    private fun withCamera(go: () -> Unit) {
+        if (checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) go()
+        else { afterCamPerm = go; requestPermissions(arrayOf(android.Manifest.permission.CAMERA), REQ_CAM_PERM) }
+    }
+
     private fun openCamera(scan: Boolean = false) {
+        if (checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) { withCamera { openCamera(scan) }; return }
         val f = File(cacheDir, "camara_" + System.currentTimeMillis() + ".jpg")
         camFile = f; scanMode = scan
         val uri = FileProvider.getUriForFile(this, "$packageName.archivos", f)
