@@ -599,6 +599,7 @@ class NoteActivity : Activity(), EditorView.Host {
             .item(Icons.BOOK, L.t("aiWord"), Sheet.TEAL, L.t("aiWordSub")) { aiWord(e, selA, selB, "syn") }
             .item(Icons.BUBBLE, L.t("aiPhrase"), Sheet.GREEN, L.t("aiPhraseSub")) { aiWord(e, selA, selB, "phrase") }
             .item(Icons.SPELL, L.t("aiSpell"), Sheet.PINK, L.t("aiSpellSub")) { aiSpell() }
+            .item(Icons.REPORT, L.t("templates"), Sheet.BLUE, L.t("templatesSub")) { openTemplates() }
             .show()
     }
 
@@ -1518,7 +1519,6 @@ class NoteActivity : Activity(), EditorView.Host {
             .quick(MoreIcons.VIDEO, L.t("video"), Sheet.ORANGE) { videoMenu() }
             .quick(MoreIcons.MIC, L.t("audio"), Sheet.RED) { audioMenu() }
             .item(Icons.STAR, "✨ " + L.t("ai"), Sheet.VIOLET, L.t("aiFree")) { aiMenu() }
-            .item(Icons.REPORT, L.t("templates"), Sheet.BLUE, L.t("templatesSub")) { openTemplates() }
             .show()
     }
 
