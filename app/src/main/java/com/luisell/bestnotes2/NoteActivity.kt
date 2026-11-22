@@ -1518,7 +1518,6 @@ class NoteActivity : Activity(), EditorView.Host {
             .quick(Icons.IMAGE, L.t("gallery"), Sheet.BLUE) { openGallery() }
             .quick(MoreIcons.VIDEO, L.t("video"), Sheet.ORANGE) { videoMenu() }
             .quick(MoreIcons.MIC, L.t("audio"), Sheet.RED) { audioMenu() }
-            .item(Icons.STAR, "✨ " + L.t("ai"), Sheet.VIOLET, L.t("aiFree")) { aiMenu() }
             .show()
     }
 
