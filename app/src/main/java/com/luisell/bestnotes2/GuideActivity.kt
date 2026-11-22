@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-22" to ("🎬 Deja presionado un video y queda escogido como las fotos: brillo alrededor, bolitas para el tamaño (con la línea roja al mismo ancho que otra foto o video) y lo arrastras directo" to
+            "🎬 Long-press a video and it gets selected like photos: glow around it, dots for size (with the red line at the same width as another photo or video) and you drag it directly"),
         "2026-11-22" to ("✨ Ahora se llama Best Notes (con su ícono de siempre). 🎬 Los videos se mueven como las fotos: déjalo presionado y arrástralo; a la orilla, el texto va al lado. Dos dedos: más grande o más chico. ⋮ → 📌 Anclar y Tamaño. 🖼 La barrita de las fotos solo sale cuando tocas la foto" to
             "✨ It's now called Best Notes (with its classic icon). 🎬 Videos move like photos: long-press and drag; at the edge, text goes beside. Two fingers: bigger or smaller. ⋮ → 📌 Anchor and Size. 🖼 The photo bar only shows when you tap the photo"),
         "2026-11-22" to ("📤 Al compartir la página con videos te dice por dónde cabe: ✅/❌ correo, WhatsApp, mensajes RCS y MMS" to

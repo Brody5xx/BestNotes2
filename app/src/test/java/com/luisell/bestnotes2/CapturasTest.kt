@@ -436,6 +436,20 @@ class CapturasTest {
         shot(main.window.decorView, "c4_apariencia")
     }
 
+    @Test fun capturasVideo() {
+        if (System.getenv("CAPTURAS") == null) return
+        var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
+        val m = Store.createNote("Video de la obra", mutableListOf(Block.Text(mutableListOf(Run("Arriba"))), Block.Media("video", "noexiste.mp4", pct = 60f, side = "l", beside = mutableListOf(Run("Texto al lado del video"))), Block.Text(mutableListOf(Run("Abajo")))))
+        waitIo(); idle()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
+        waitIo(); idle()
+        fun <T> find(x: View, c: Class<T>): T? { if (c.isInstance(x)) return c.cast(x); if (x is android.view.ViewGroup) for (k in 0 until x.childCount) find(x.getChildAt(k), c)?.let { return it }; return null }
+        val ed = find(act.window.decorView, EditorView::class.java)!!
+        ed.selectVideo(ed.views.filterIsInstance<VideoCard>().first())
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1200))
+        shot(act.window.decorView, "d0_video_escogido")
+    }
+
     @Test fun capturasCarpetas() {
         if (System.getenv("CAPTURAS") == null) return
         var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }

@@ -374,7 +374,25 @@ class EditorView(ctx: Context, val host: Host) : LinearLayout(ctx) {
         post { views.getOrNull(fi + 1)?.focusAt(0, 0) }
     }
 
+    /** 🎬 El video seleccionado (con su brillo y sus bolitas), como las fotos. */
+    var selVideo: VideoCard? = null
+        private set
+    fun selectVideo(v: VideoCard?) {
+        if (selVideo === v) return
+        if (v != null) selectImage(null)
+        selVideo?.setSelected(false)
+        selVideo = v
+        if (v != null) {
+            v.setSelected(true)
+            (context as? android.app.Activity)?.currentFocus?.let { cf ->
+                (context.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).hideSoftInputFromWindow(cf.windowToken, 0)
+                cf.clearFocus()
+            }
+        }
+    }
+
     fun selectImage(f: FotoView?) {
+        if (selVideo != null) { selVideo?.setSelected(false); selVideo = null }
         if (selected === f) return
         selected?.setSelected(false)
         selected = f
@@ -1622,10 +1640,16 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
     private val ctx = ed.context
     /** 🎬 La fila del video: el video (con su barrita) y, si quieres, texto al lado. Se mueve y cambia de tamaño como las fotos. */
     private val flow = object : ViewGroup(ctx) {
+        override fun dispatchDraw(canvas: android.graphics.Canvas) {
+            super.dispatchDraw(canvas)
+            glow?.let { g -> val pad = ctx.dp(10); g.setBounds(card.left + frame.left - pad + card.translationX.toInt(), card.top + frame.top - pad, card.left + frame.right + pad + card.translationX.toInt(), card.top + frame.bottom + pad); g.draw(canvas) }
+        }
+        override fun verifyDrawable(who: android.graphics.drawable.Drawable) = who === glow || super.verifyDrawable(who)
         override fun onMeasure(ws: Int, hs: Int) {
             val W = MeasureSpec.getSize(ws)
             val pw = (W * block.pct / 100f).toInt().coerceIn(ctx.dp(120), W)
             card.measure(MeasureSpec.makeMeasureSpec(pw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+            for (d in dots) d.measure(MeasureSpec.makeMeasureSpec(ctx.dp(26), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(ctx.dp(26), MeasureSpec.EXACTLY))
             var h = card.measuredHeight
             if (side().isNotEmpty()) {
                 edit.visibility = View.VISIBLE
@@ -1643,6 +1667,7 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
                 else -> (W * block.x / 100f).toInt()
             }.coerceIn(0, maxOf(0, W - pw))
             card.layout(left, 0, left + pw, card.measuredHeight)
+            placeDots()
             if (edit.visibility == View.VISIBLE) {
                 val gap = ctx.dp(12)
                 val x = if (side() == "l") left + pw + gap else maxOf(0, left - gap - edit.measuredWidth)
@@ -1673,6 +1698,104 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
     private var dragLeft = -1f
     private var liveSide: String? = null
     private fun side() = liveSide ?: block.side
+    // ✨ seleccionado: brillo alrededor + bolitas para cambiar el tamaño (como las fotos)
+    var selected = false
+        private set
+    private var glow: GlowBorder? = null
+    val dots = listOf(StretchDot(ctx, 0), StretchDot(ctx, 0), StretchDot(ctx, 2))      // izq, der, esquina
+    private val dotTouch = dots.indices.map { SizeTouch(it) }
+
+    fun setSelected(on: Boolean) {
+        if (selected == on) return
+        selected = on
+        if (on) {
+            glow = GlowBorder(ctx.resources.displayMetrics.density, 16f).also { g -> g.callback = flow; g.start() }
+            flow.clipChildren = false; col.clipChildren = false; (col.parent as? ViewGroup)?.clipChildren = false
+            card.animate().scaleX(1.03f).scaleY(1.03f).setDuration(120).withEndAction { card.animate().scaleX(1f).scaleY(1f).setDuration(200).setInterpolator(android.view.animation.OvershootInterpolator(2f)).start() }.start()
+            if (!block.pin) dots.forEachIndexed { i, d -> if (ed.floaters.none { it.first === d }) ed.floaters.add(d to dotTouch[i]) }
+            placeDots()
+            dots.forEachIndexed { i, d -> if (d.visibility == View.VISIBLE) { d.scaleX = 0f; d.scaleY = 0f; d.animate().scaleX(1f).scaleY(1f).setStartDelay(60L + i * 50).setDuration(300).setInterpolator(android.view.animation.OvershootInterpolator(2.6f)).start() } }
+            ed.host.hint(L.t("videoSelHint"))
+        } else {
+            glow?.let { it.stop(); it.callback = null }; glow = null
+            ed.floaters.removeAll { p -> dots.any { it === p.first } }
+            placeDots()
+        }
+        flow.invalidate()
+    }
+
+    private fun placeDots() {
+        val show = selected && !block.pin && card.width > 0
+        val l = card.left + frame.left; val r = card.left + frame.right; val t = card.top + frame.top; val b = card.top + frame.bottom
+        val my = (t + b) / 2
+        val sd = side()
+        val pos = listOf(l to my, r to my, (if (sd == "r") l else r) to b)
+        val want = listOf(sd != "l", sd != "r", true)
+        dots.forEachIndexed { i, d ->
+            d.visibility = if (show && want[i]) View.VISIBLE else View.GONE
+            val h = ctx.dp(13); val (x, y) = pos[i]
+            d.layout(x - h, y - h, x + h, y + h)
+        }
+    }
+
+    /** Cambiar el tamaño con las bolitas (el video no se deforma). Se pega al MISMO ancho que otra foto o video (línea roja). */
+    private inner class SizeTouch(val which: Int) : View.OnTouchListener {
+        private var x0 = 0f; private var l0 = 0; private var r0 = 0; private var screenL = 0; private var snapped = false
+        @SuppressLint("ClickableViewAccessibility")
+        override fun onTouch(v: View, e: MotionEvent): Boolean {
+            val W = flow.width.takeIf { it > 0 } ?: return false
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    if (block.pin) return false
+                    x0 = e.rawX; l0 = card.left; r0 = card.right; snapped = false
+                    val fl = IntArray(2); flow.getLocationOnScreen(fl); screenL = fl[0]
+                    (v as StretchDot).grab(true); v.parent.requestDisallowInterceptTouchEvent(true)
+                    v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = e.rawX - x0; val minS = ctx.dp(120)
+                    val fromLeft = which == 0 || (which == 2 && side() == "r")
+                    var nl = l0; var nr = r0
+                    if (fromLeft) nl = (l0 + dx).toInt().coerceIn(0, r0 - minS) else nr = (r0 + dx).toInt().coerceIn(l0 + minS, W)
+                    // 📏 ¿mismo ancho que otra foto o video?
+                    var match: android.graphics.RectF? = null
+                    var best = ctx.dp(9).toFloat()
+                    for (o in ed.views) {
+                        val rr = when (o) { is FotoView -> o.edgesOnScreen(); is VideoCard -> if (o !== this@VideoCard) o.edgesOnScreen() else null; else -> null } ?: continue
+                        val dd = Math.abs(rr.width() - (nr - nl)); if (dd < best) { best = dd; match = rr }
+                    }
+                    match?.let { m -> val w = Math.round(m.width()); if (fromLeft) nl = (nr - w).coerceAtLeast(0) else nr = (nl + w).coerceAtMost(W) }
+                    val ok = match != null
+                    if (ok != snapped) { snapped = ok; if (ok) { v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK); (v as StretchDot).flash() } }
+                    val nw = nr - nl
+                    block.pct = (nw * 100f / W).coerceIn(10f, 100f)
+                    if (block.pct > 75f && block.side.isNotEmpty()) { block.side = ""; liveSide = null }
+                    if (block.side.isEmpty()) block.x = (nl * 100f / W).coerceIn(0f, 100f - block.pct)
+                    flow.requestLayout()
+                    if (match != null) {
+                        val me = IntArray(2); frame.getLocationOnScreen(me)
+                        val win = IntArray(2); flow.getLocationInWindow(win); val scr = IntArray(2); flow.getLocationOnScreen(scr)
+                        val ex = screenL + (if (fromLeft) nl else nr).toFloat()
+                        ed.host.showEdge(ex + (win[0] - scr[0]), minOf(match.top, me[1].toFloat()) + (win[1] - scr[1]), maxOf(match.bottom, (me[1] + frame.height).toFloat()) + (win[1] - scr[1]))
+                    } else ed.host.showEdge(-1f, 0f, 0f)
+                    ed.host.showGuides(-1f, -1f, "", if (ok) "📏 " + L.t("sameWidth") else "↔ ${Math.round(block.pct)}%")
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    (v as StretchDot).grab(false)
+                    ed.host.showEdge(-1f, 0f, 0f); ed.host.showGuides(-1f, -1f, "", null)
+                    ed.host.onDirty()
+                }
+            }
+            return true
+        }
+    }
+
+    /** Dónde está el video en la pantalla (para emparejar anchos). */
+    fun edgesOnScreen(): android.graphics.RectF? {
+        if (frame.width == 0 || !frame.isShown) return null
+        val p = IntArray(2); frame.getLocationOnScreen(p)
+        return android.graphics.RectF(p[0].toFloat(), p[1].toFloat(), (p[0] + frame.width).toFloat(), (p[1] + frame.height).toFloat())
+    }
 
     init {
         col.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = ctx.dp(6); bottomMargin = ctx.dp(6) }
@@ -1694,6 +1817,7 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
         ed.wire(edit)
         edit.onEdit = { block.beside = edit.runs(); ed.host.onDirty() }
         flow.addView(card); flow.addView(edit)
+        for (d in dots) { d.visibility = View.GONE; flow.addView(d) }
         col.addView(flow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         paintPin()
         load()
@@ -1714,28 +1838,25 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
         private var d0 = 0f; private var pct0 = 0f
         private val slop = android.view.ViewConfiguration.get(ctx).scaledTouchSlop
         private val longPress = Runnable {
-            if (block.pin || pinching) return@Runnable
-            // si está a todo lo ancho no hay para dónde moverlo: se achica un poco solito (60%) para que lo puedas llevar a un lado
-            if (block.pct > 75f) {
-                val W = flow.width.coerceAtLeast(1)
-                block.pct = 60f; block.side = ""
-                val fingerX = x0 - IntArray(2).also { flow.getLocationOnScreen(it) }[0]
-                block.x = ((fingerX - W * 0.3f) * 100f / W).coerceIn(0f, 40f)
-                flow.measure(View.MeasureSpec.makeMeasureSpec(W, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
-                flow.layout(flow.left, flow.top, flow.right, flow.top + flow.measuredHeight)
-                flow.requestLayout()
-            }
+            if (pinching) return@Runnable
+            frame.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+            ed.selectVideo(this@VideoCard)                  // ✨ brillo + bolitas, como las fotos
+            if (!block.pin) startMove()
+        }
+        private fun startMove() {
             moving = true; left0 = card.left.toFloat(); dragLeft = left0
             frame.parent.requestDisallowInterceptTouchEvent(true)
-            frame.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
             card.animate().scaleX(1.03f).scaleY(1.03f).alpha(0.92f).setDuration(140).start()
-            ed.host.hint(L.t("videoMoveHint"))
         }
         private fun dist(e: MotionEvent) = Math.hypot((e.getX(0) - e.getX(1)).toDouble(), (e.getY(0) - e.getY(1)).toDouble()).toFloat()
         @SuppressLint("ClickableViewAccessibility")
         override fun onTouch(v: View, e: MotionEvent): Boolean {
             when (e.actionMasked) {
-                MotionEvent.ACTION_DOWN -> { x0 = e.rawX; y0 = e.rawY; moving = false; pinching = false; moved = false; frame.postDelayed(longPress, 380) }
+                MotionEvent.ACTION_DOWN -> {
+                    x0 = e.rawX; y0 = e.rawY; moving = false; pinching = false; moved = false
+                    if (selected) frame.parent.requestDisallowInterceptTouchEvent(true)      // ya está escogido: se mueve directo
+                    else frame.postDelayed(longPress, 380)
+                }
                 MotionEvent.ACTION_POINTER_DOWN -> if (!block.pin && e.pointerCount == 2) {
                     frame.removeCallbacks(longPress); pinching = true; d0 = dist(e); pct0 = block.pct
                     frame.parent.requestDisallowInterceptTouchEvent(true)
@@ -1764,7 +1885,10 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
                         if (liveSide!!.isNotEmpty()) dragLeft = if (liveSide == "l") 0f else (W - pw).toFloat()
                         ed.host.showGuides(-1f, -1f, "", when (liveSide) { "l" -> "▣ ✎  " + L.t("textRight"); "r" -> "✎ ▣  " + L.t("textLeft"); else -> "✥" })
                         flow.requestLayout(); moved = true
-                    } else if (Math.abs(e.rawX - x0) > slop * 2 || Math.abs(e.rawY - y0) > slop * 2) frame.removeCallbacks(longPress)
+                    } else if (Math.abs(e.rawX - x0) > slop * 2 || Math.abs(e.rawY - y0) > slop * 2) {
+                        frame.removeCallbacks(longPress)
+                        if (selected && !block.pin) { startMove(); left0 -= (e.rawX - x0) * 0f }
+                    }
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     frame.removeCallbacks(longPress)
@@ -1776,7 +1900,6 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
                         dragLeft = -1f; liveSide = null
                         card.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(220).setInterpolator(android.view.animation.OvershootInterpolator(2f)).start()
                         flow.requestLayout(); ed.host.onDirty()
-                        if (block.side.isNotEmpty()) edit.post { edit.requestFocus() }
                     } else if (pinching) ed.host.onDirty()
                     else if (e.actionMasked == MotionEvent.ACTION_UP && !moved) toggle()
                     moving = false; pinching = false

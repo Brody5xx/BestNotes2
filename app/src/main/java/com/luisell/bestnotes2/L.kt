@@ -290,6 +290,7 @@ object L {
         "vDelOrigQ" to "¿Borrar la original de la galería?", "vDelOrigMsg" to "Ya quedó guardada y cifrada en la bóveda. Si la borras de la galería, solo la vas a ver aquí.", "vKeepOrig" to "Dejarla", "vOrigDeleted" to "Se borró de la galería", "vToGallery" to "A la galería", "vToFolder" to "A una carpeta", "vToGalleryOk" to "Listo: está en la galería (Best Notes)", "vExported" to "Listo: guardado",
         "viaEmail" to "Correo (Outlook, Gmail) · hasta ~20 MB", "viaWhatsApp" to "WhatsApp", "viaWhatsAppDoc" to "WhatsApp (mándalo como documento)", "viaRcs" to "Mensajes RCS (chat) · hasta ~100 MB", "viaMms" to "Mensaje MMS · hasta ~1 MB", "sizeTip" to "💡 Achica los videos para que pese menos",
         "anchor" to "Anclar", "unanchor" to "Desanclar", "videoSize" to "Tamaño del video", "textBelowVideo" to "Texto debajo del video", "videoMoveHint" to "Arrástralo. A la orilla: texto al lado", "videoPinned" to "Video anclado: ya no se mueve", "videoUnpinned" to "Video suelto: ya lo puedes mover",
+        "videoSelHint" to "Arrástralo para moverlo · bolitas: tamaño", "sameWidth" to "Mismo ancho que la otra",
     )
 
     private val EN = mapOf(
@@ -483,5 +484,6 @@ object L {
         "vDelOrigQ" to "Delete the original from the gallery?", "vDelOrigMsg" to "It is already saved and encrypted in the vault. If you delete it from the gallery, you will only see it here.", "vKeepOrig" to "Keep it", "vOrigDeleted" to "Deleted from the gallery", "vToGallery" to "To gallery", "vToFolder" to "To a folder", "vToGalleryOk" to "Done: it is in the gallery (Best Notes)", "vExported" to "Done: saved",
         "viaEmail" to "Email (Outlook, Gmail) · up to ~20 MB", "viaWhatsApp" to "WhatsApp", "viaWhatsAppDoc" to "WhatsApp (send it as a document)", "viaRcs" to "RCS messages (chat) · up to ~100 MB", "viaMms" to "MMS message · up to ~1 MB", "sizeTip" to "💡 Shrink the videos to make it smaller",
         "anchor" to "Anchor", "unanchor" to "Unanchor", "videoSize" to "Video size", "textBelowVideo" to "Text below the video", "videoMoveHint" to "Drag it. To the edge: text beside", "videoPinned" to "Video anchored: it won't move", "videoUnpinned" to "Video unanchored: you can move it",
+        "videoSelHint" to "Drag to move it · dots: size", "sameWidth" to "Same width as the other",
     )
 }

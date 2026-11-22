@@ -1447,7 +1447,7 @@ class NoteActivity : Activity(), EditorView.Host {
             multi != null -> multiEnd()
             spell != null -> closeSpell()
             stylePanel != null -> closeStyle()
-            editor.selected != null -> editor.selectImage(null)
+            editor.selected != null || editor.selVideo != null -> editor.selectImage(null)
             else -> @Suppress("DEPRECATION") super.onBackPressed()
         }
     }
