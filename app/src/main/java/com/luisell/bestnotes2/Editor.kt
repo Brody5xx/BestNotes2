@@ -1854,8 +1854,9 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     x0 = e.rawX; y0 = e.rawY; moving = false; pinching = false; moved = false
-                    if (selected) frame.parent.requestDisallowInterceptTouchEvent(true)      // ya está escogido: se mueve directo
-                    else frame.postDelayed(longPress, 380)
+                    // que la nota no "se robe" el dedo mientras esperamos el toque largo (si mueves el dedo, la nota sí baja)
+                    frame.parent.requestDisallowInterceptTouchEvent(true)
+                    if (!selected) frame.postDelayed(longPress, 380)
                 }
                 MotionEvent.ACTION_POINTER_DOWN -> if (!block.pin && e.pointerCount == 2) {
                     frame.removeCallbacks(longPress); pinching = true; d0 = dist(e); pct0 = block.pct
@@ -1887,7 +1888,8 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
                         flow.requestLayout(); moved = true
                     } else if (Math.abs(e.rawX - x0) > slop * 2 || Math.abs(e.rawY - y0) > slop * 2) {
                         frame.removeCallbacks(longPress)
-                        if (selected && !block.pin) { startMove(); left0 -= (e.rawX - x0) * 0f }
+                        if (selected && !block.pin) startMove()
+                        else if (Math.abs(e.rawY - y0) > Math.abs(e.rawX - x0)) { frame.parent.requestDisallowInterceptTouchEvent(false); moved = true }   // querías bajar la nota
                     }
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -1958,7 +1960,7 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
             n.setOnPreparedListener { mp -> thumb.visibility = View.GONE; playBig.visibility = View.GONE; mp.start() }
             n.setOnCompletionListener { playBig.visibility = View.VISIBLE; playBig.kind = MoreIcons.PLAY; playBig.invalidate() }
             n.setOnErrorListener { _, _, _ -> stopVideo(); ctx.toast(L.t("cantOpen")); true }
-            n.setOnClickListener { toggle() }
+            n.isClickable = false; n.isFocusable = false          // los toques los maneja el cuadro (mover, escoger, tocar = play/pausa)
             return
         }
         if (v.isPlaying) { v.pause(); playBig.kind = MoreIcons.PLAY; playBig.visibility = View.VISIBLE }
