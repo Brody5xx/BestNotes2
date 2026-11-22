@@ -503,7 +503,7 @@ class PantallaTest {
     /** 🎬 El video se mueve como las fotos: lo dejas presionado, lo llevas a la orilla y el texto va al lado. */
     @Test fun videoSeMueveYTextoAlLado() {
         reload()
-        val m = Store.createNote("Video", mutableListOf(Block.Text(mutableListOf(Run("Hola"))), Block.Media("video", "noexiste.mp4", pct = 50f, x = 25f)))
+        val m = Store.createNote("Video", mutableListOf(Block.Text(mutableListOf(Run("Hola"))), Block.Media("video", "noexiste.mp4")))      // a todo lo ancho
         waitIo(); idle()
         val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id)).setup().visible().get()
         waitIo(); idle()
@@ -519,7 +519,7 @@ class PantallaTest {
         idle()
         assertEquals("a la orilla izquierda: texto a la derecha", "l", vc.block.side)
         val back = Block.fromJson(vc.block.toJson()) as Block.Media
-        assertEquals("l", back.side); assertEquals(50f, back.pct, 0.01f)
+        assertEquals("l", back.side); assertEquals("se achicó para poder moverlo", 60f, back.pct, 0.01f)
     }
 
     /** Bajaste la foto: tocando el espacio de arriba escribes JUSTO arriba de la foto. */

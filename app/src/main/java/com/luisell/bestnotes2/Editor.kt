@@ -1715,6 +1715,16 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
         private val slop = android.view.ViewConfiguration.get(ctx).scaledTouchSlop
         private val longPress = Runnable {
             if (block.pin || pinching) return@Runnable
+            // si está a todo lo ancho no hay para dónde moverlo: se achica un poco solito (60%) para que lo puedas llevar a un lado
+            if (block.pct > 75f) {
+                val W = flow.width.coerceAtLeast(1)
+                block.pct = 60f; block.side = ""
+                val fingerX = x0 - IntArray(2).also { flow.getLocationOnScreen(it) }[0]
+                block.x = ((fingerX - W * 0.3f) * 100f / W).coerceIn(0f, 40f)
+                flow.measure(View.MeasureSpec.makeMeasureSpec(W, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+                flow.layout(flow.left, flow.top, flow.right, flow.top + flow.measuredHeight)
+                flow.requestLayout()
+            }
             moving = true; left0 = card.left.toFloat(); dragLeft = left0
             frame.parent.requestDisallowInterceptTouchEvent(true)
             frame.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
@@ -1754,7 +1764,7 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
                         if (liveSide!!.isNotEmpty()) dragLeft = if (liveSide == "l") 0f else (W - pw).toFloat()
                         ed.host.showGuides(-1f, -1f, "", when (liveSide) { "l" -> "▣ ✎  " + L.t("textRight"); "r" -> "✎ ▣  " + L.t("textLeft"); else -> "✥" })
                         flow.requestLayout(); moved = true
-                    } else if (Math.abs(e.rawX - x0) > slop || Math.abs(e.rawY - y0) > slop) frame.removeCallbacks(longPress)
+                    } else if (Math.abs(e.rawX - x0) > slop * 2 || Math.abs(e.rawY - y0) > slop * 2) frame.removeCallbacks(longPress)
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     frame.removeCallbacks(longPress)
