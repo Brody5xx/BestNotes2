@@ -300,11 +300,36 @@ class MainActivity : Activity() {
             spread(); header.addView(glassBtn(MoreIcons.SORT) { pickSort() })
             spread(); header.addView(glassBtn(if (grid) MoreIcons.LISTV else MoreIcons.GRID) { toggleLayout() })
             // ☀️/🌙 un toque cambia claro ↔ oscuro; dejándolo presionado salen los fondos
-            spread(); header.addView(glassBtn(if (T.light) MoreIcons.MOON else MoreIcons.SUN) { v -> switchTheme(!T.light, v) }.apply {
-                setOnLongClickListener { appearance(); true }
-            })
+            // un toque: claro ↔ oscuro · dejándolo presionado: 🖼 fondo de pantalla (la bolita de abajo lo recuerda)
+            val sunBox = FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
+            val sunBtn = glassBtn(if (T.light) MoreIcons.MOON else MoreIcons.SUN) { v ->
+                switchTheme(!T.light, v)
+                val n = prefs.getInt("sunTaps", 0)
+                if (!prefs.getBoolean("wallUsed", false) && n < 4) { prefs.edit().putInt("sunTaps", n + 1).apply(); root.postDelayed({ toast(L.t("themeTip")) }, 700) }
+            }.apply { setOnLongClickListener { v -> prefs.edit().putBoolean("wallUsed", true).apply(); v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); appearance(); true } }
+            sunBox.addView(sunBtn, FrameLayout.LayoutParams(MATCH, MATCH))
+            // 🖼 bolita con un cuadrito de foto en la esquina: "aquí también está el fondo"
+            val badge = FrameLayout(this).apply {
+                background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, intArrayOf(0xFFF48FB1.toInt(), 0xFFB388FF.toInt())).apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setStroke(dp(1), if (T.light) 0xFFFFFFFF.toInt() else 0xFF1C1C20.toInt()) }
+                isClickable = false; elevation = dp(2).toFloat()
+                addView(IconView(this@MainActivity, MoreIcons.WALLPAPER, 3.4f).apply { color = 0xFFFFFFFF.toInt(); isClickable = false }, FrameLayout.LayoutParams(MATCH, MATCH))
+            }
+            sunBox.addView(badge, FrameLayout.LayoutParams(dp(17), dp(17), Gravity.BOTTOM or Gravity.END))
+            // mientras no lo hayas descubierto, la bolita "late" de vez en cuando
+            if (!prefs.getBoolean("wallUsed", false)) {
+                val beat = object : Runnable { override fun run() {
+                    if (!badge.isAttachedToWindow || prefs.getBoolean("wallUsed", false)) return
+                    badge.animate().scaleX(1.35f).scaleY(1.35f).setDuration(220).withEndAction { badge.animate().scaleX(1f).scaleY(1f).setDuration(420).setInterpolator(android.view.animation.OvershootInterpolator(3f)).start() }.start()
+                    badge.postDelayed(this, 4200)
+                } }
+                badge.postDelayed(beat, 1800)
+            }
+            spread(); header.addView(sunBox, lp(dp(44), dp(44)).apply { marginStart = dp(3); marginEnd = dp(3) })
             // 💫 Nova (la IA) en la esquina de arriba, siempre moviéndose
             spread(); header.addView(AiOrb(this).apply { setOnClickListener { burst(); Anim.sparkle(this, 34f, 650); postDelayed({ aiHub() }, 160) } }, lp(dp(44), dp(44)))
+            // que quepan los 7 en cualquier teléfono: si la pantalla es angosta, los botones se achican un poquito
+            val wDp = resources.displayMetrics.widthPixels / resources.displayMetrics.density
+            if (wDp < 400) for (i in 0 until header.childCount) header.getChildAt(i).let { v -> if (v.layoutParams.width > 0) v.layoutParams = lp(dp(40), dp(40)).apply { marginStart = dp(1); marginEnd = dp(1) } }
         }
         if (hChanged) dropHeader()
     }
@@ -592,8 +617,7 @@ class MainActivity : Activity() {
             tags.keys.sortedWith(String.CASE_INSENSITIVE_ORDER).forEach { t -> nav(Icons.TAG, "#$t", "t:$t", tags[t] ?: 0) }
         }
         p.addView(sep())
-        // 3) Fondo de pantalla · Respaldo · Transferir
-        p.addView(menuRow(this, MoreIcons.WALLPAPER, L.t("wallpaper")) { closeDrawer(); appearance() })
+        // 3) Respaldo · Transferir
         p.addView(menuRow(this, Icons.BOX, L.t("backup"), lastBackupText()) { closeDrawer(); backupMenu() })
         p.addView(menuRow(this, Icons.SWAP, L.t("transfer"), L.t("transferSub")) { closeDrawer(); transferMenu() })
         // 4) Pendientes · Materiales · Reporte · Plantilla · Bóveda · Calculadora

@@ -158,7 +158,7 @@ object L {
         "aiUse" to "Usar este", "aiBelow" to "Poner debajo", "aiApplyFix" to "Arreglar la nota", "aiFixed" to "Listo: ortografía arreglada",
         "rwPro" to "Profesional", "rwFormal" to "Formal", "rwBiz" to "De negocios", "rwFix" to "Solo arreglar ortografía", "rwClear" to "Más claro y sencillo",
         "rwShort" to "Más corto", "rwLong" to "Más largo", "rwFriendly" to "Amigable", "rwPersuasive" to "Convincente", "rwFunny" to "Gracioso", "rwEmoji" to "Con emojis",
-        "rwTranslate" to "Traducir (español ↔ inglés)",
+        "rwTranslate" to "Traducir",
         "report" to "Reporte del día", "reportHint" to "La IA arma tu reporte de trabajo del día", "reportNotes" to "Notas del día", "reportNone" to "No hay notas de este día",
         "reportLang" to "Idioma", "both" to "Los dos", "reportMake" to "Hacer el reporte", "reportInclude" to "Incluir fotos", "reportTitle" to "Reporte del día · {d}",
         "reportFallback" to "La IA no respondió: puse tus notas tal cual para que no salga vacío.",
@@ -261,7 +261,7 @@ object L {
         "langSub" to "Español e inglés vienen listos; los demás los traduce la IA", "langAi" to "Se traduce con la IA (una vez)",
         "langAiMsg" to "La IA gratis va a traducir la app a este idioma. Tarda de 1 a 4 minutos y necesita internet (solo esta vez).", "langAiGo" to "Traducir",
         "langAiWorking" to "Traduciendo…", "langAiFail" to "No se pudo terminar. Revisa el internet e inténtalo otra vez (sigue donde quedó).",
-        "wallPhone" to "Translúcido", "themeTip" to "Tip: deja presionado ☀️ para escoger el fondo",
+        "wallPhone" to "Translúcido", "themeTip" to "Tip: deja presionado ☀️ (el de la bolita 🖼) para cambiar el fondo de pantalla",
         "sharePage" to "Página con videos", "sharePageSub" to "Se abre en cualquier teléfono, con fotos, audios y videos", "shareMany" to "{n} notas",
         "sizeSend" to "Tamaño para enviar: {s}", "sizeOk" to "✅ Cabe por correo (Outlook, Gmail) y por mensaje", "sizeBig" to "⚠️ Muy grande para correo (máx. ~20 MB). Mándalo por WhatsApp como documento o achica los videos.",
         "sizeHuge" to "⚠️ Muy grande. Mándalo por WhatsApp como documento (hasta 2 GB) o achica los videos.", "shareLocked" to "Las notas con PIN no se comparten",
@@ -287,6 +287,7 @@ object L {
         "addFolder" to "Agregar carpeta", "outOfFolder" to "Sacar de la carpeta",
         "aiInNote" to "Nota nueva con IA", "aiInNoteSub" to "Escribe y toca 💫 arriba para usar la IA",
         "wallpaper" to "Fondo de pantalla", "newBadge" to "NUEVO",
+        "vDelOrigQ" to "¿Borrar la original de la galería?", "vDelOrigMsg" to "Ya quedó guardada y cifrada en la bóveda. Si la borras de la galería, solo la vas a ver aquí.", "vKeepOrig" to "Dejarla", "vOrigDeleted" to "Se borró de la galería", "vToGallery" to "A la galería", "vToFolder" to "A una carpeta", "vToGalleryOk" to "Listo: está en la galería (Best Notes)", "vExported" to "Listo: guardado",
     )
 
     private val EN = mapOf(
@@ -353,7 +354,7 @@ object L {
         "aiUse" to "Use this", "aiBelow" to "Put below", "aiApplyFix" to "Fix the note", "aiFixed" to "Done: spelling fixed",
         "rwPro" to "Professional", "rwFormal" to "Formal", "rwBiz" to "Business", "rwFix" to "Only fix spelling", "rwClear" to "Clearer and simpler",
         "rwShort" to "Shorter", "rwLong" to "Longer", "rwFriendly" to "Friendly", "rwPersuasive" to "Persuasive", "rwFunny" to "Funny", "rwEmoji" to "With emojis",
-        "rwTranslate" to "Translate (Spanish ↔ English)",
+        "rwTranslate" to "Translate",
         "report" to "Daily report", "reportHint" to "The AI writes your daily work report", "reportNotes" to "Notes of the day", "reportNone" to "No notes on this day",
         "reportLang" to "Language", "both" to "Both", "reportMake" to "Make the report", "reportInclude" to "Include photos", "reportTitle" to "Daily report · {d}",
         "reportFallback" to "The AI didn't answer: I put your notes as written so it's not empty.",
@@ -451,7 +452,7 @@ object L {
         "langSub" to "Spanish and English come ready; the AI translates the others", "langAi" to "Translated by the AI (once)",
         "langAiMsg" to "The free AI will translate the app into this language. It takes 1 to 4 minutes and needs internet (only this time).", "langAiGo" to "Translate",
         "langAiWorking" to "Translating…", "langAiFail" to "Couldn't finish. Check your internet and try again (it continues where it stopped).",
-        "wallPhone" to "Translucent", "themeTip" to "Tip: long-press ☀️ to pick the background",
+        "wallPhone" to "Translucent", "themeTip" to "Tip: long-press ☀️ (the one with the 🖼 dot) to change the wallpaper",
         "sharePage" to "Page with videos", "sharePageSub" to "Opens on any phone, with photos, audio and videos", "shareMany" to "{n} notes",
         "sizeSend" to "Size to send: {s}", "sizeOk" to "✅ Fits by email (Outlook, Gmail) and by message", "sizeBig" to "⚠️ Too big for email (max ~20 MB). Send it on WhatsApp as a document or shrink the videos.",
         "sizeHuge" to "⚠️ Very big. Send it on WhatsApp as a document (up to 2 GB) or shrink the videos.", "shareLocked" to "Notes with a PIN aren't shared",
@@ -477,5 +478,6 @@ object L {
         "addFolder" to "Add folder", "outOfFolder" to "Take out of the folder",
         "aiInNote" to "New note with AI", "aiInNoteSub" to "Write and tap 💫 at the top to use AI",
         "wallpaper" to "Wallpaper", "newBadge" to "NEW",
+        "vDelOrigQ" to "Delete the original from the gallery?", "vDelOrigMsg" to "It is already saved and encrypted in the vault. If you delete it from the gallery, you will only see it here.", "vKeepOrig" to "Keep it", "vOrigDeleted" to "Deleted from the gallery", "vToGallery" to "To gallery", "vToFolder" to "To a folder", "vToGalleryOk" to "Done: it is in the gallery (Best Notes)", "vExported" to "Done: saved",
     )
 }

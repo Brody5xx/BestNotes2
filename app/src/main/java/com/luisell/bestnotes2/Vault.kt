@@ -194,6 +194,8 @@ class VaultActivity : Activity() {
             "photo" to listOf("title", "note"), "video" to listOf("title", "note"), "file" to listOf("title", "note"),
         )
         private const val PICK = 41
+        private const val SAVE_TO = 42
+        private const val DEL_ORIG = 43
     }
 
     private var keys: VaultBox.Keys? = null
@@ -428,14 +430,23 @@ class VaultActivity : Activity() {
     private var picking = false
     private fun pick(kind: String) {
         pickKind = kind; picking = true
-        val i = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
-            .setType(when (kind) { "photo" -> "image/*"; "video" -> "video/*"; else -> "*/*" })
-        try { startActivityForResult(i, PICK) } catch (_: Exception) { picking = false }
+        // 🖼 fotos y videos: desde la GALERÍA (así después se puede borrar el original de ahí)
+        val tries = ArrayList<Intent>()
+        if (kind == "photo") tries.add(Intent(Intent.ACTION_PICK, android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI))
+        if (kind == "video") tries.add(Intent(Intent.ACTION_PICK, android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI))
+        tries.add(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(when (kind) { "photo" -> "image/*"; "video" -> "video/*"; else -> "*/*" }))
+        for (i in tries) { try { startActivityForResult(i, PICK); return } catch (_: Exception) {} }
+        picking = false
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         picking = false
+        if (requestCode == DEL_ORIG) { if (resultCode == RESULT_OK) toast(L.t("vOrigDeleted")); return }
+        if (requestCode == SAVE_TO) { val f = pendingSave; pendingSave = null
+            if (resultCode == RESULT_OK && f != null) data?.data?.let { u -> bg { val ok = try { contentResolver.openOutputStream(u)!!.use { o -> f.inputStream().use { it.copyTo(o) } }; true } catch (_: Exception) { false }
+                runOnUiThread { toast(L.t(if (ok) "vExported" else "vFail")) } } }
+            return }
         if (requestCode != PICK || resultCode != RESULT_OK) return
         val uri = data?.data ?: return
         val k = keys ?: return
@@ -462,7 +473,58 @@ class VaultActivity : Activity() {
             } catch (e: IllegalStateException) { null } catch (_: Exception) { false }
             runOnUiThread {
                 wait.dismiss()
-                when (ok) { true -> { toast(L.t("vSaved")); if (keys != null) drawList() }; null -> toast(L.t("vTooBig", "n" to VaultBox.MAX_MB)); else -> toast(L.t("vFail")) }
+                when (ok) { true -> { toast(L.t("vSaved")); if (keys != null) drawList(); if (kind == "photo" || kind == "video") askDeleteOriginal(uri) }; null -> toast(L.t("vTooBig", "n" to VaultBox.MAX_MB)); else -> toast(L.t("vFail")) }
+            }
+        }
+    }
+
+    /** 🗑 Ya quedó guardada (cifrada) en la bóveda: ¿borrar la original de la galería? */
+    private fun askDeleteOriginal(uri: android.net.Uri) {
+        if (uri.authority != android.provider.MediaStore.AUTHORITY) return       // solo si vino de la galería
+        dialog().setTitle(L.t("vDelOrigQ")).setMessage(L.t("vDelOrigMsg"))
+            .setPositiveButton(L.t("del")) { _, _ ->
+                try {
+                    if (android.os.Build.VERSION.SDK_INT >= 30) {
+                        val pi = android.provider.MediaStore.createDeleteRequest(contentResolver, listOf(uri))
+                        picking = true
+                        startIntentSenderForResult(pi.intentSender, DEL_ORIG, null, 0, 0, 0)
+                    } else { contentResolver.delete(uri, null, null); toast(L.t("vOrigDeleted")) }
+                } catch (_: Exception) { picking = false; toast(L.t("vFail")) }
+            }.setNegativeButton(L.t("vKeepOrig"), null).show()
+    }
+
+    private var pendingSave: File? = null
+
+    /** 📤 Sacar de la bóveda: a la GALERÍA (fotos y videos) o a una CARPETA que escoges. */
+    private fun export(it: JSONObject, toGallery: Boolean) {
+        val k = keys ?: return
+        val f = it.optJSONObject("file") ?: return
+        val wait = dialog().setMessage(L.t("vOpening")).setCancelable(false).show()
+        bg {
+            val dir = File(cacheDir, "boveda_ver").apply { mkdirs() }
+            val name = f.optString("name", "archivo").replace(Regex("[^\\w.\\- ]"), "_").ifEmpty { "archivo" }
+            val out = File(dir, name)
+            var ok = try { VaultBox.unsealStream(this, "f_" + it.optString("id") + ".bin", k, out); true } catch (_: Exception) { false }
+            val mime = f.optString("mime", "application/octet-stream")
+            if (ok && toGallery) ok = try {
+                val video = mime.startsWith("video")
+                val cv = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name); put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mime)
+                    if (android.os.Build.VERSION.SDK_INT >= 29) put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, (if (video) "Movies" else "Pictures") + "/Best Notes")
+                }
+                val col = if (video) android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI else android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                val u = contentResolver.insert(col, cv)!!
+                contentResolver.openOutputStream(u)!!.use { o -> out.inputStream().use { i -> i.copyTo(o) } }
+                true
+            } catch (_: Exception) { false }
+            runOnUiThread {
+                wait.dismiss()
+                tmpFiles.add(out)
+                if (!ok) { toast(L.t("vFail")); return@runOnUiThread }
+                if (toGallery) { toast(L.t("vToGalleryOk")); return@runOnUiThread }
+                pendingSave = out; picking = true
+                try { startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(mime).putExtra(Intent.EXTRA_TITLE, name), SAVE_TO) }
+                catch (_: Exception) { picking = false; toast(L.t("vNoApp")) }
             }
         }
     }
@@ -512,6 +574,12 @@ class VaultActivity : Activity() {
             acts.addView(bigBtn(L.t(if (type == "photo") "vView" else "vOpenFile")) { openMedia(it0, false) }, lp(0, WRAP, 1f).apply { marginEnd = dp(6) })
             acts.addView(tv(L.t("share"), 15f, T.text, true).apply { gravity = Gravity.CENTER; setPadding(dp(10), dp(14), dp(10), dp(14)); pressBg(tw(0x1A), 22f, T.border); setOnClickListener { openMedia(it0, true) } }, lp(0, WRAP, 1f))
             box.addView(acts, lp(MATCH, WRAP).apply { topMargin = dp(6) })
+            // sacarla de la bóveda
+            val acts2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            fun out(label: String, gal: Boolean) = tv(label, 14f, T.text, true).apply { gravity = Gravity.CENTER; setPadding(dp(8), dp(12), dp(8), dp(12)); pressBg(tw(0x12), 22f, T.border); setOnClickListener { export(it0, gal) } }
+            if (type == "photo" || type == "video") acts2.addView(out("🖼 " + L.t("vToGallery"), true), lp(0, WRAP, 1f).apply { marginEnd = dp(6) })
+            acts2.addView(out("📁 " + L.t("vToFolder"), false), lp(0, WRAP, 1f))
+            box.addView(acts2, lp(MATCH, WRAP).apply { topMargin = dp(6) })
         }
         val title = (if (isNew) L.t("vNew") + " · " else "") + L.t(typeOf(type).third)
         val b = dialog().setTitle(title).setView(sv)
