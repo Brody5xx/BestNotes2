@@ -15,8 +15,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.util.Size
 import android.view.Surface
-import android.view.SurfaceHolder
-import android.view.SurfaceView
+import android.view.TextureView
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -29,28 +28,26 @@ import android.widget.FrameLayout
    No graba ni guarda nada.
    ============================================================ */
 class CameraBg(ctx: Context) : FrameLayout(ctx) {
-    /**
-     * ⚡ SurfaceView (y no TextureView): la cámara se pinta en su propia capa, por fuera de la app.
-     * Así la app NO tiene que volver a dibujar las notas 30 veces por segundo → todo se mueve fluido.
-     */
-    private val sv = SurfaceView(ctx)
+    private val tex = TextureView(ctx)
     private val dim = View(ctx).apply { setBackgroundColor(if (T.light) 0x80FFFFFF.toInt() else 0x80000000.toInt()) }
-    /** La última imagen de la cámara: tapa mientras la cámara llega a esta pantalla (así no parpadea en negro). */
+    /** La última imagen de la cámara: se ve mientras la cámara pasa a esta pantalla (así no parpadea en negro). */
     private val still = android.widget.ImageView(ctx).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP; last?.let { setImageBitmap(it) } }
-    private var ready = false
 
     init {
-        isClickable = false; isFocusable = false; importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
-        clipChildren = true
-        addView(sv, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, android.view.Gravity.CENTER))
+        setBackgroundColor(0xFF000000.toInt())
         addView(still, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        isClickable = false; isFocusable = false; importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
+        addView(tex, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         addView(dim, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        if (last == null) still.setBackgroundColor(0xFF000000.toInt())
-        sv.holder.addCallback(object : SurfaceHolder.Callback {
-            override fun surfaceCreated(h: SurfaceHolder) { ready = true; sync() }
-            override fun surfaceChanged(h: SurfaceHolder, f: Int, w: Int, hh: Int) {}
-            override fun surfaceDestroyed(h: SurfaceHolder) { ready = false; Hub.release(this@CameraBg) }
-        })
+        tex.alpha = 0f
+        tex.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+            override fun onSurfaceTextureAvailable(s: SurfaceTexture, w: Int, h: Int) { sync() }
+            override fun onSurfaceTextureSizeChanged(s: SurfaceTexture, w: Int, h: Int) { fit() }
+            override fun onSurfaceTextureDestroyed(s: SurfaceTexture): Boolean { Hub.release(this@CameraBg); return true }
+            override fun onSurfaceTextureUpdated(s: SurfaceTexture) {
+                if (tex.alpha == 0f) tex.animate().alpha(1f).setDuration(if (last != null) 200 else 500).start()      // aparece suavecito
+            }
+        }
     }
 
     override fun onWindowVisibilityChanged(v: Int) { super.onWindowVisibilityChanged(v); sync() }
@@ -59,50 +56,39 @@ class CameraBg(ctx: Context) : FrameLayout(ctx) {
 
     /** Si esta pantalla se ve, la cámara se viene para acá; si no, la suelta. */
     private fun sync() {
-        val want = isAttachedToWindow && windowVisibility == View.VISIBLE && ready &&
+        val want = isAttachedToWindow && windowVisibility == View.VISIBLE && tex.isAvailable &&
             context.checkSelfPermission(android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         if (want) Hub.claim(this) else Hub.release(this)
     }
 
-    /** Que llene toda la pantalla sin estirarse: la capa de la cámara se hace más grande que la pantalla y se centra. */
+    /** Que llene toda la pantalla sin estirarse (se recorta lo que sobra, como una foto de fondo). */
     internal fun fit() {
         val sz = Hub.size ?: return
-        val vw = width; val vh = height
+        val vw = tex.width.toFloat(); val vh = tex.height.toFloat()
         if (vw <= 0 || vh <= 0) return
         val portrait = vh > vw
         val cw = if (portrait) sz.height.toFloat() else sz.width.toFloat()
         val ch = if (portrait) sz.width.toFloat() else sz.height.toFloat()
         val s = maxOf(vw / cw, vh / ch)
-        val w = (cw * s).toInt(); val h = (ch * s).toInt()
-        val lp = sv.layoutParams as LayoutParams
-        if (lp.width != w || lp.height != h) { lp.width = w; lp.height = h; lp.gravity = android.view.Gravity.CENTER; sv.layoutParams = lp }
+        val m = Matrix(); m.setScale(cw * s / vw, ch * s / vh, vw / 2f, vh / 2f)
+        tex.setTransform(m)
     }
 
-    /** Cada poquito se guarda una imagen chiquita de lo que se ve (se copia aparte, sin frenar la app). */
+    /** Cada poquito se guarda una imagen chiquita de lo que se ve (para que al cambiar de pantalla nunca se vea negro). */
     private val keep = object : Runnable { override fun run() {
         if (Hub.owner !== this@CameraBg) return
         grab()
-        postDelayed(this, 3000)
+        postDelayed(this, 4000)
     } }
     internal fun grab() {
-        if (!ready || sv.width <= 0 || android.os.Build.VERSION.SDK_INT < 24) return
-        val bm = android.graphics.Bitmap.createBitmap(maxOf(1, sv.width / 4), maxOf(1, sv.height / 4), android.graphics.Bitmap.Config.ARGB_8888)
-        try {
-            android.view.PixelCopy.request(sv, bm, { r -> if (r == android.view.PixelCopy.SUCCESS) { last = bm } }, Handler(android.os.Looper.getMainLooper()))
-        } catch (_: Throwable) {}
+        if (tex.isAvailable && tex.alpha > 0.5f) try { tex.getBitmap(maxOf(1, tex.width / 4), maxOf(1, tex.height / 4))?.let { last = it; still.setImageBitmap(it) } } catch (_: Throwable) {}
     }
-    /** Ya llegan imágenes de la cámara: se quita la tapa suavecito. */
-    internal fun live() { post { if (still.alpha > 0f) still.animate().alpha(0f).setDuration(220).start() } }
-    internal fun started() { post { fit(); removeCallbacks(keep); postDelayed(keep, 1000) } }
-    internal fun stopped() {
-        removeCallbacks(keep); grab()
-        post { still.animate().cancel(); last?.let { still.setImageBitmap(it) }; still.alpha = 1f }
-    }
-    internal fun surfaceObj(): Surface? = if (ready && sv.holder.surface.isValid) sv.holder.surface else null
-    internal fun setBuffer(sz: Size) { try { sv.holder.setFixedSize(sz.width, sz.height) } catch (_: Exception) {}; post { fit() } }
+    internal fun started() { post { removeCallbacks(keep); postDelayed(keep, 800); fit() } }
+    internal fun stopped() { removeCallbacks(keep); grab(); post { tex.alpha = 0f } }
+    internal fun surface(): SurfaceTexture? = if (tex.isAvailable) tex.surfaceTexture else null
 
-    /** Lo que se ve ahora mismo (la última imagen guardada de la cámara). */
-    fun frame(): android.graphics.Bitmap? = last
+    /** Lo que se ve ahora mismo: la cámara de verdad (la foto normal de la pantalla no la captura). */
+    fun frame(): android.graphics.Bitmap? = try { if (tex.isAvailable && tex.alpha > 0.5f) tex.getBitmap() else null } catch (_: Throwable) { null }
     fun stillHidden(h: Boolean) { still.visibility = if (h) View.INVISIBLE else View.VISIBLE }
 
     /**
@@ -169,12 +155,12 @@ class CameraBg(ctx: Context) : FrameLayout(ctx) {
         private fun startSession() {
             val d = cam ?: return
             val v = owner ?: return
+            val st = v.surface() ?: return
             val sz = size ?: return
             try { session?.close() } catch (_: Exception) {}
             session = null
-            v.setBuffer(sz)
-            val sf = v.surfaceObj() ?: return
-            surf = sf
+            st.setDefaultBufferSize(sz.width, sz.height)
+            val sf = Surface(st); surf = sf
             try {
                 @Suppress("DEPRECATION")
                 d.createCaptureSession(listOf(sf), object : CameraCaptureSession.StateCallback() {
@@ -192,12 +178,7 @@ class CameraBg(ctx: Context) : FrameLayout(ctx) {
                                     set(CaptureRequest.EDGE_MODE, CaptureRequest.EDGE_MODE_FAST)
                                     set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF)
                                 }
-                                var first = true
-                                s.setRepeatingRequest(req.build(), object : CameraCaptureSession.CaptureCallback() {
-                                    override fun onCaptureCompleted(ss: CameraCaptureSession, r: CaptureRequest, res: android.hardware.camera2.TotalCaptureResult) {
-                                        if (first) { first = false; v.live() }
-                                    }
-                                }, bg)
+                                s.setRepeatingRequest(req.build(), null, bg)
                                 v.started()
                             } catch (_: Exception) {}
                         }

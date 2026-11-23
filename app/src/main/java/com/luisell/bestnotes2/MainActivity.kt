@@ -222,16 +222,13 @@ class MainActivity : Activity() {
         try {
             val bm = android.graphics.Bitmap.createBitmap(dv.width, dv.height, android.graphics.Bitmap.Config.ARGB_8888)
             val cv = android.graphics.Canvas(bm)
-            // 📷 con la cámara detrás: primero la imagen de la cámara, después la pantalla encima (con el hueco de la cámara)
+            // 📷 con la cámara detrás: primero la imagen de la cámara, después la pantalla encima
             val cam = CameraBg.of(this)
             camSnap = false
-            cam?.frame()?.let { f -> val l = IntArray(2); cam.getLocationInWindow(l); cv.drawBitmap(f, null, android.graphics.Rect(l[0], l[1], l[0] + cam.width, l[1] + cam.height), android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)); camSnap = true }
-            if (camSnap) {
-                val ui = android.graphics.Bitmap.createBitmap(dv.width, dv.height, android.graphics.Bitmap.Config.ARGB_8888)
-                cam?.stillHidden(true); dv.draw(android.graphics.Canvas(ui)); cam?.stillHidden(false)
-                cv.drawBitmap(ui, 0f, 0f, null); ui.recycle()
-            } else dv.draw(cv)
-            snap = bm
+            cam?.frame()?.let { f -> val l = IntArray(2); cam.getLocationInWindow(l); cv.drawBitmap(f, null, android.graphics.Rect(l[0], l[1], l[0] + cam.width, l[1] + cam.height), null); camSnap = true }
+            cam?.stillHidden(true)
+            dv.draw(cv); snap = bm
+            cam?.stillHidden(false)
             val loc = IntArray(2)
             if (from != null) { from.getLocationInWindow(loc); sx = loc[0] + from.width / 2; sy = loc[1] + from.height / 2 } else { sx = dv.width - dp(40); sy = dp(60) }
         } catch (_: Throwable) { snap = null }
