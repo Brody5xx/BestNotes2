@@ -182,7 +182,7 @@ fun Activity.edgeToEdge(root: View, windowBg: Boolean = true) {
     } else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
     if (windowBg) window.setBackgroundDrawable(Glass.background(this))       // el fondo escogido en ☀️ Apariencia
     // 📷 con la cámara detrás: mientras la pantalla se arma, se ve la última imagen de la cámara (nunca negro)
-    if (Wall.current(this) == "phone" && Translucent.camera(this)) CameraBg.lastFrame(this)?.let { window.setBackgroundDrawable(it) }
+    if (Wall.current(this) == "phone" && Translucent.camera(this) && !MainActivity.sharesCamera(this)) CameraBg.lastFrame(this)?.let { window.setBackgroundDrawable(it) }
     // 📷 cámara en vivo detrás de todo (se pone cuando la pantalla ya está armada)
     window.decorView.post { CameraBg.attach(this) }
 }

@@ -304,10 +304,15 @@ class NoteActivity : Activity(), EditorView.Host {
         setContentView(root)
         root.alpha = 0f
         reveal(true)
+        // 📷 usa la cámara de la pantalla principal: sus notas se desvanecen mientras crece el círculo
+        if (MainActivity.sharesCamera(this)) { sharedCam = true; MainActivity.host?.fadeUi(false, 380) }
     }
 
     /* ---------- 🔵 abrir y cerrar como un círculo que crece desde donde tocaste ---------- */
     private var closing = false
+
+    private var sharedCam = false
+    override fun onDestroy() { if (sharedCam) MainActivity.host?.fadeUi(true, 0); super.onDestroy() }
 
     private fun reveal(open: Boolean, after: () -> Unit = {}) {
         val v = root
@@ -2556,6 +2561,7 @@ class NoteActivity : Activity(), EditorView.Host {
         if (!::root.isInitialized || !root.isAttachedToWindow) { super.finish(); return }
         closing = true
         currentFocus?.let { v -> (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).hideSoftInputFromWindow(v.windowToken, 0) }
+        if (sharedCam) MainActivity.host?.fadeUi(true, 420)        // las notas de atrás vuelven mientras el círculo se cierra
         reveal(false) { super.finish(); overridePendingTransition(0, 0) }
     }
 }

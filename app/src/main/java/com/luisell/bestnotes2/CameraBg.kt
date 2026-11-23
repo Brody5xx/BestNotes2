@@ -206,7 +206,7 @@ class CameraBg(ctx: Context) : FrameLayout(ctx) {
         fun attach(a: Activity) {
             val content = a.findViewById<ViewGroup>(android.R.id.content) ?: return
             val has = (0 until content.childCount).map { content.getChildAt(it) }.firstOrNull { it is CameraBg }
-            if (Wall.current(a) == "phone" && Translucent.camera(a)) { if (has == null) content.addView(CameraBg(a), 0, ViewGroup.LayoutParams(-1, -1)) }
+            if (Wall.current(a) == "phone" && Translucent.camera(a) && !MainActivity.sharesCamera(a)) { if (has == null) content.addView(CameraBg(a), 0, ViewGroup.LayoutParams(-1, -1)) }
             else if (has != null) content.removeView(has)
         }
     }

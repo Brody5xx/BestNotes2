@@ -66,7 +66,20 @@ class MainActivity : Activity() {
         if (savedInstanceState == null && !introShown && android.os.Build.FINGERPRINT != "robolectric") { introShown = true; intro() }
     }
 
-    override fun onDestroy() { Store.removeListener(listener); introRunning = false; super.onDestroy() }
+    override fun onDestroy() { Store.removeListener(listener); introRunning = false; if (host === this) host = null; super.onDestroy() }
+    override fun onStart() { super.onStart(); host = this }
+    override fun onStop() { if (host === this) host = null; super.onStop() }
+
+    /**
+     * 📷 Con la cámara de fondo, la nota se abre ENCIMA y usa la misma cámara de aquí (que nunca se apaga ni se cambia):
+     * solo se esconden las notas de esta pantalla. Así abrir y cerrar es suave, sin congelarse.
+     */
+    fun fadeUi(show: Boolean, ms: Long) {
+        if (!::root.isInitialized) return
+        root.animate().cancel()
+        if (ms <= 0) { root.alpha = if (show) 1f else 0f; return }
+        root.animate().alpha(if (show) 1f else 0f).setDuration(ms).setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+    }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handleIntent(intent) }
     /** Lo que falta de la presentación cuando ya pusiste el PIN. */
     private var afterLock: (() -> Unit)? = null
@@ -206,6 +219,10 @@ class MainActivity : Activity() {
     companion object {
         /** La presentación sale una sola vez cada vez que se abre la app. */
         private var introShown = false
+        /** La pantalla principal mientras se ve (la nota usa su cámara de fondo). */
+        var host: MainActivity? = null
+        /** ¿La nota puede usar la cámara de la pantalla principal (que está debajo)? */
+        fun sharesCamera(a: android.app.Activity) = a is NoteActivity && host != null && Wall.current(a) == "phone" && Translucent.camera(a)
         /** Mientras sale la presentación, el candado espera (sale después). */
         @Volatile var introRunning = false
         const val PICK_FILE = 41; const val REQ_WALL = 42; const val REQ_SAVE_BK = 43; const val REQ_AUTO_DIR = 44; const val REQ_CAM_BG = 45
