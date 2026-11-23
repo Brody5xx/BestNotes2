@@ -78,10 +78,10 @@ class CameraBg(ctx: Context) : FrameLayout(ctx) {
     private val keep = object : Runnable { override fun run() {
         if (Hub.owner !== this@CameraBg) return
         grab()
-        postDelayed(this, 1200)
+        postDelayed(this, 4000)
     } }
     internal fun grab() {
-        if (tex.isAvailable && tex.alpha > 0.5f) try { tex.getBitmap(maxOf(1, tex.width / 3), maxOf(1, tex.height / 3))?.let { last = it; still.setImageBitmap(it) } } catch (_: Throwable) {}
+        if (tex.isAvailable && tex.alpha > 0.5f) try { tex.getBitmap(maxOf(1, tex.width / 4), maxOf(1, tex.height / 4))?.let { last = it; still.setImageBitmap(it) } } catch (_: Throwable) {}
     }
     internal fun started() { post { removeCallbacks(keep); postDelayed(keep, 800); fit() } }
     internal fun stopped() { removeCallbacks(keep); grab(); post { tex.alpha = 0f } }
@@ -106,6 +106,7 @@ class CameraBg(ctx: Context) : FrameLayout(ctx) {
         private var bg: Handler? = null
         private var opening = false
         private var tries = 0
+        private var fps: android.util.Range<Int>? = null
         private val main = Handler(android.os.Looper.getMainLooper())
         private val closeLater = Runnable { if (owner == null) shutdown() }
 
@@ -132,7 +133,12 @@ class CameraBg(ctx: Context) : FrameLayout(ctx) {
             val id = try { mgr.cameraIdList.firstOrNull { mgr.getCameraCharacteristics(it).get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK } ?: mgr.cameraIdList.firstOrNull() } catch (_: Exception) { null } ?: return
             val map = try { mgr.getCameraCharacteristics(id).get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP) } catch (_: Exception) { null } ?: return
             val sizes = map.getOutputSizes(SurfaceTexture::class.java) ?: return
-            size = sizes.filter { it.width <= 1920 && it.height <= 1080 }.minByOrNull { Math.abs(it.width * it.height - 1280 * 720) } ?: sizes.last()
+            // ⚡ un tamaño liviano (detrás de una capa oscura no se nota): cerca de 960×540 → menos trabajo, más fluido
+            size = sizes.filter { it.width <= 1920 && it.height <= 1080 && it.width * 9 == it.height * 16 }.minByOrNull { Math.abs(it.width * it.height - 960 * 540) }
+                ?: sizes.filter { it.width <= 1920 && it.height <= 1080 }.minByOrNull { Math.abs(it.width * it.height - 960 * 540) } ?: sizes.last()
+            // ⚡ siempre 30 cuadros por segundo (con poca luz algunos teléfonos bajan a 15 y se ve a saltos)
+            fps = try { mgr.getCameraCharacteristics(id).get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+                ?.filter { it.upper == 30 }?.maxByOrNull { it.lower } } catch (_: Exception) { null }
             if (thread == null) { thread = HandlerThread("camara-fondo").also { it.start() }; bg = Handler(thread!!.looper) }
             opening = true
             try {
@@ -166,6 +172,11 @@ class CameraBg(ctx: Context) : FrameLayout(ctx) {
                                 val req = d.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
                                     addTarget(sf)
                                     set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
+                                    fps?.let { set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it) }
+                                    // ⚡ lo más rápido: sin limpiar ruido ni bordes de más (es solo un fondo)
+                                    set(CaptureRequest.NOISE_REDUCTION_MODE, CaptureRequest.NOISE_REDUCTION_MODE_FAST)
+                                    set(CaptureRequest.EDGE_MODE, CaptureRequest.EDGE_MODE_FAST)
+                                    set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF)
                                 }
                                 s.setRepeatingRequest(req.build(), null, bg)
                                 v.started()
