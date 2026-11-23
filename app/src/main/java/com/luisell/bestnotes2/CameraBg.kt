@@ -81,11 +81,11 @@ class CameraBg(ctx: Context) : FrameLayout(ctx) {
         opening = true
         try {
             mgr.openCamera(id, object : CameraDevice.StateCallback() {
-                override fun onOpened(d: CameraDevice) { opening = false; cam = d; startPreview() }
-                override fun onDisconnected(d: CameraDevice) { opening = false; d.close(); cam = null }
-                override fun onError(d: CameraDevice, e: Int) { opening = false; d.close(); cam = null }
+                override fun onOpened(d: CameraDevice) { opening = false; cam = d; tries = 0; startPreview() }
+                override fun onDisconnected(d: CameraDevice) { opening = false; d.close(); cam = null; retry() }
+                override fun onError(d: CameraDevice, e: Int) { opening = false; d.close(); cam = null; retry() }
             }, bg)
-        } catch (_: Exception) { opening = false; stopThread() }
+        } catch (_: Exception) { opening = false; stopThread(); retry() }
     }
 
     private fun startPreview() {
@@ -101,6 +101,7 @@ class CameraBg(ctx: Context) : FrameLayout(ctx) {
                 override fun onConfigured(s: CameraCaptureSession) {
                     if (cam == null) return
                     session = s
+                    post { removeCallbacks(keep); postDelayed(keep, 800) }
                     try {
                         val req = d.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
                             addTarget(surface)
@@ -127,7 +128,23 @@ class CameraBg(ctx: Context) : FrameLayout(ctx) {
         tex.setTransform(m)
     }
 
+    /** La cámara la tenía otra pantalla de la app (por ejemplo, la nota de la que vienes): vuelve a intentar enseguida. */
+    private var tries = 0
+    private fun retry() {
+        post {
+            stopThread()
+            if (tries++ < 12) postDelayed({ sync() }, 350)
+        }
+    }
+
+    /** Cada poquito se guarda una imagen chiquita de lo que se ve (para que al cambiar de pantalla nunca se vea negro). */
+    private val keep = object : Runnable { override fun run() {
+        if (cam != null && tex.isAvailable && tex.alpha > 0.5f) try { tex.getBitmap(maxOf(1, tex.width / 3), maxOf(1, tex.height / 3))?.let { last = it } } catch (_: Throwable) {}
+        if (cam != null) postDelayed(this, 1200)
+    } }
+
     private fun close() {
+        removeCallbacks(keep)
         if (cam != null && tex.isAvailable && tex.alpha > 0.5f) try {
             tex.getBitmap(maxOf(1, tex.width / 3), maxOf(1, tex.height / 3))?.let { last = it; still.setImageBitmap(it) }
         } catch (_: Throwable) {}
@@ -146,6 +163,8 @@ class CameraBg(ctx: Context) : FrameLayout(ctx) {
 
     companion object {
         @Volatile private var last: android.graphics.Bitmap? = null
+        /** La última imagen de la cámara (para el fondo de la ventana mientras la pantalla nueva se arma). */
+        fun lastFrame(ctx: Context): android.graphics.drawable.Drawable? = last?.let { android.graphics.drawable.BitmapDrawable(ctx.resources, it) }
         fun of(a: Activity): CameraBg? { val c = a.findViewById<ViewGroup>(android.R.id.content) ?: return null; return (0 until c.childCount).map { c.getChildAt(it) }.firstOrNull { it is CameraBg } as? CameraBg }
         /** Pone (o quita) la cámara detrás de toda la pantalla de [a]. */
         fun attach(a: Activity) {
