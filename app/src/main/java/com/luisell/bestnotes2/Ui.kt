@@ -176,13 +176,13 @@ fun Activity.edgeToEdge(root: View, windowBg: Boolean = true) {
     // 🌍 árabe, hebreo, persa y urdu: la pantalla se acomoda de derecha a izquierda
     window.decorView.layoutDirection = if (L.isRtl) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
     // 📱 modo translúcido: se ve el fondo de pantalla del teléfono detrás de la app
-    if (Wall.current(this) == "phone" && !Translucent.camera(this)) {
+    if (Wall.current(this) == "phone" && !Translucent.camera(this) && this !is LockActivity) {
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
         window.setFormat(android.graphics.PixelFormat.TRANSLUCENT)
     } else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
-    if (windowBg) window.setBackgroundDrawable(Glass.background(this))       // el fondo escogido en ☀️ Apariencia
+    if (windowBg) window.setBackgroundDrawable(if (this is LockActivity && Wall.current(this) == "phone") Wall.drawable(this, Wall.defaultId()) else Glass.background(this))       // el fondo escogido en ☀️ Apariencia (el candado: el de siempre, sin cámara)
     // 📷 con la cámara detrás: mientras la pantalla se arma, se ve la última imagen de la cámara (nunca negro)
-    if (Wall.current(this) == "phone" && Translucent.camera(this) && !MainActivity.sharesCamera(this)) CameraBg.lastFrame(this)?.let { window.setBackgroundDrawable(it) }
+    if (this !is LockActivity && Wall.current(this) == "phone" && Translucent.camera(this) && !MainActivity.sharesCamera(this)) CameraBg.lastFrame(this)?.let { window.setBackgroundDrawable(it) }
     // 📷 cámara en vivo detrás de todo (se pone cuando la pantalla ya está armada)
     window.decorView.post { CameraBg.attach(this) }
 }

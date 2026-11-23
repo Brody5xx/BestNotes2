@@ -181,7 +181,8 @@ class MainActivity : Activity() {
     /* ---------- ☀️/🌙 cambiar de modo con un círculo que crece desde el botón ---------- */
     /** 🎬 La presentación al abrir la app: el logo se infla girando, salen estrellitas y se abre la pantalla. */
     private fun intro() {
-        val ov = FrameLayout(this).apply { background = Glass.background(this@MainActivity); isClickable = true; elevation = dp(30).toFloat() }
+        // la presentación tapa todo (con la cámara o translúcido, el fondo de siempre: así no se ven las notas antes del PIN)
+        val ov = FrameLayout(this).apply { background = if (Wall.current(this@MainActivity) == "phone") Wall.drawable(this@MainActivity, Wall.defaultId()) else Glass.background(this@MainActivity); isClickable = true; elevation = dp(30).toFloat() }
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
         val logo = ImageView(this).apply { setImageResource(R.mipmap.ic_launcher); clipToOutline = true; background = roundBg(0, dp(30).toFloat()); elevation = dp(12).toFloat() }
         col.addView(logo, lp(dp(116), dp(116)))
