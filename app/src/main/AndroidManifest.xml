@@ -8,6 +8,9 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- 📷 solo para el fondo "Cámara en vivo" (no graba ni guarda nada) -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- 📍 solo para "Notas por lugar" (se guarda en el teléfono, no se manda a ningún lado) -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!-- Huella o cara: para abrir notas bloqueadas sin escribir el PIN -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />

@@ -502,6 +502,7 @@ class NoteActivity : Activity(), EditorView.Host {
         if (tRuns.any { !it.st.isPlain() }) extraObj.put("tr", runsJson(tRuns)) else extraObj.remove("tr")
         meta.titleColor = tRuns.firstOrNull { it.text.isNotBlank() }?.st?.color ?: 0
         Store.fillMeta(meta, editor.blocks, tRuns, extraObj.optJSONArray("ink"))
+        Places.remember(this, meta.id)          // 📍 dónde se escribió (la primera vez)
         extra = if (extraObj.length() > 0) extraObj.toString() else null
         val bodyNow = blocksJson(editor.blocks)
         Store.saveNote(meta, bodyNow, extra, keepExtra = false)

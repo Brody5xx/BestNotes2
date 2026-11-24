@@ -88,6 +88,7 @@ class MainActivity : Activity() {
         super.onResume(); if (Store.loaded) refresh()
         // 🔎 leer (de a poquito) lo escrito en las fotos para el buscador
         if (android.os.Build.FINGERPRINT != "robolectric") Store.load { Ocr.indexLater(this) }
+        if (android.os.Build.FINGERPRINT != "robolectric") Store.load { checkNear() }
         afterLock?.let { f -> if (AppLock.unlocked) root.postDelayed({ f() }, 120) }
         pendingTrash?.let { ids -> pendingTrash = null; root.postDelayed({ trashSnack(ids) }, 350) }
     }
@@ -105,6 +106,11 @@ class MainActivity : Activity() {
         titleTv = tv("", 34f, T.text, true).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END; setPadding(dp(18), dp(10), dp(18), 0) }
         countTv = tv("", 15f, T.muted).apply { setPadding(dp(18), 0, dp(18), dp(6)) }
         col.addView(titleTv, lp(MATCH, WRAP)); col.addView(countTv, lp(MATCH, WRAP))
+        nearPill = tv("", 14f, T.text, true).apply {
+            visibility = View.GONE; setPadding(dp(14), dp(9), dp(14), dp(9)); background = Glass.make(this@MainActivity, 18f)
+            setOnClickListener { Anim.press(it); view = "near"; selected.clear(); refresh(); list.scrollToPosition(0) }
+        }
+        col.addView(nearPill, lp(WRAP, WRAP).apply { setMargins(dp(14), dp(2), dp(14), dp(6)) })
 
         // Buscar
         val sb = LinearLayout(this).apply {
@@ -228,7 +234,7 @@ class MainActivity : Activity() {
         fun sharesCamera(a: android.app.Activity) = a is NoteActivity && host != null && Wall.current(a) == "phone" && Translucent.camera(a)
         /** Mientras sale la presentación, el candado espera (sale después). */
         @Volatile var introRunning = false
-        const val PICK_FILE = 41; const val REQ_WALL = 42; const val REQ_SAVE_BK = 43; const val REQ_AUTO_DIR = 44; const val REQ_CAM_BG = 45
+        const val PICK_FILE = 41; const val REQ_WALL = 42; const val REQ_SAVE_BK = 43; const val REQ_AUTO_DIR = 44; const val REQ_CAM_BG = 45; const val REQ_LOC = 46
         /** Notas que se acaban de mandar a la papelera desde una nota (para "Deshacer"). */
         var pendingTrash: List<String>? = null
         private var snap: android.graphics.Bitmap? = null
@@ -296,6 +302,7 @@ class MainActivity : Activity() {
 
     private fun paintHeader() {
         header.removeAllViews()
+        paintNear()
         val hMode = (if (selected.isNotEmpty()) "sel" else view.takeIf { it == "trash" } ?: ""); val hChanged = hMode != headerMode; headerMode = hMode
         val newTitle = viewName()
         if (newTitle != lastTitle && lastTitle.isNotEmpty()) {
@@ -388,6 +395,10 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_LOC) {
+            if (Places.allowed(this)) openNear() else toast(L.t("nearPerm"))
+            return
+        }
         if (requestCode == REQ_CAM_BG) {
             // con permiso: cámara en vivo; sin permiso: el fondo del teléfono (como antes)
             if (grantResults.firstOrNull() != android.content.pm.PackageManager.PERMISSION_GRANTED) toast(L.t("camPermWall"))
@@ -414,7 +425,36 @@ class MainActivity : Activity() {
         view == "trash" -> L.t("trash")
         view.startsWith("f:") -> Store.folders.firstOrNull { it.id == view.substring(2) }?.name ?: L.t("all")
         view.startsWith("t:") -> "#" + view.substring(2)
+        view == "near" -> "📍 " + L.t("nearTitle")
         else -> L.t("all")
+    }
+
+    /* ---------- 📍 notas de este lugar ---------- */
+    private var nearIds: Set<String> = emptySet()
+    private lateinit var nearPill: TextView
+    private var nearAsked = 0L
+
+    /** Mira dónde estás y, si hay notas de aquí, muestra el aviso "📍 N notas de este lugar". */
+    private fun checkNear() {
+        if (!Places.allowed(this) || System.currentTimeMillis() - nearAsked < 30_000) { paintNear(); return }
+        nearAsked = System.currentTimeMillis()
+        Places.here(this) { l -> nearIds = Places.near(this, l).filter { id -> Store.notes.any { it.id == id && !it.deleted } }.toSet(); paintNear(); if (view == "near") refresh() }
+    }
+    private fun paintNear() {
+        if (!::nearPill.isInitialized) return
+        val n = nearIds.size
+        val show = n > 0 && view == "all" && selected.isEmpty() && query.isBlank()
+        if (show) {
+            val pend = Store.notes.filter { it.id in nearIds && !it.locked }.sumOf { maxOf(0, it.checkTotal - it.checkDone) }
+            nearPill.text = "📍 " + L.t("nearHere", "n" to n) + (if (pend > 0) "  ·  ☐ $pend" else "") + "  ›"
+            if (nearPill.visibility != View.VISIBLE) { nearPill.visibility = View.VISIBLE; nearPill.alpha = 0f; nearPill.translationY = -dp(10).toFloat(); nearPill.animate().alpha(1f).translationY(0f).setDuration(350).setInterpolator(android.view.animation.OvershootInterpolator(1.6f)).start() }
+        } else nearPill.visibility = View.GONE
+    }
+    /** Ver las notas de aquí (la primera vez pide el permiso de ubicación). */
+    private fun openNear() {
+        if (!Places.allowed(this)) { requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION), REQ_LOC); return }
+        view = "near"; selected.clear(); nearAsked = 0L; checkNear(); refresh(); list.scrollToPosition(0)
+        toast(L.t("nearHow"))
     }
 
     private fun hideKb() {
@@ -432,6 +472,7 @@ class MainActivity : Activity() {
                 view == "fav" -> n.fav
                 view.startsWith("f:") -> n.folder == view.substring(2)
                 view.startsWith("t:") -> tagsOf(n.plain + " " + n.title).contains(view.substring(2))
+                view == "near" -> n.id in nearIds
                 else -> true
             }
         }
@@ -653,6 +694,7 @@ class MainActivity : Activity() {
         nav(Icons.NOTEBOOK, L.t("all"), "all", count { !it.deleted })
         nav(MoreIcons.STAR5, L.t("fav"), "fav", count { !it.deleted && it.fav })
         nav(Icons.TRASH, L.t("trash"), "trash", count { it.deleted })
+        p.addView(menuRow(this, Icons.PIN, L.t("nearTitle"), if (Places.allowed(this)) L.t("nearSub") else L.t("nearOff")) { closeDrawer(); openNear() }.also { r -> if (view == "near") r.background = roundBg(tw(0x1F), dp(18).toFloat()) })
         // 2) CARPETAS  ＋   (cada una con su color, cuántas notas y ⋯)
         p.addView(sep())
         section(L.t("folders")) { closeDrawer(); folderDialog(null) }
