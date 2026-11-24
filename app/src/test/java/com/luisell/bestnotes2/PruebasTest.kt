@@ -158,4 +158,14 @@ class PruebasTest {
         assertTrue("correo no a 50 MB", big.lines()[0].startsWith("❌"))
         assertTrue("RCS sí a 50 MB", big.lines()[2].startsWith("✅"))
     }
+
+    @Test fun calculadoraDeCable() {
+        val r = CableMath.calc(12, 85.0, false, 10.0, 1000.0)
+        assertEquals(1122.0, r.totalFt, 0.01)
+        assertEquals(2, r.boxes)
+        assertEquals(878.0, r.leftFt, 0.01)
+        val m = CableMath.calc(1, 30.48, true, 0.0, 1000.0)
+        assertEquals(100.0, m.totalFt, 0.01)
+        assertEquals(1, m.boxes)
+    }
 }

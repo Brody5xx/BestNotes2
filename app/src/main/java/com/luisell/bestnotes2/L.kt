@@ -298,6 +298,7 @@ object L {
         "qrScan" to "Escanear código QR o de barras", "qrScanSub" to "El serial o modelo se escribe solo", "qrNone" to "El código no tenía texto", "qrDone" to "Código escrito en la nota", "qrFail" to "No se pudo escanear",
         "shapeDrag" to "Arrastra el dedo para hacer la figura", "measureDrag" to "Arrastra de una punta a la otra", "measureQ" to "¿Cuánto mide? (ej. 3 ft, 1.5 m)",
         "vrepTitle" to "Cuéntame lo que hiciste", "vrepSub" to "Hablas y la IA arma el reporte", "vrepTalk" to "Habla normal, como si se lo contaras a alguien. Cuando termines, toca «Hacer reporte».", "vrepMake" to "Hacer reporte", "vrepEmpty" to "No escuché nada todavía",
+        "cblTab" to "Cable", "cblFeet" to "Pies (ft)", "cblMeters" to "Metros (m)", "cblRuns" to "Corridas", "cblLen" to "Largo de cada corrida", "cblExtra" to "Extra / sobra (%)", "cblBox" to "Pies por caja", "cblTotal" to "Cable que necesitas", "cblBoxes" to "{n} caja(s) de {s} ft", "cblLeft" to "Sobran {f} ft ({m} m)", "cblHint" to "Con «Insertar» lo pones en tu nota",
     )
 
     private val EN = mapOf(
@@ -499,5 +500,6 @@ object L {
         "qrScan" to "Scan a QR or barcode", "qrScanSub" to "The serial or model is typed for you", "qrNone" to "The code had no text", "qrDone" to "Code added to the note", "qrFail" to "Could not scan",
         "shapeDrag" to "Drag your finger to draw the shape", "measureDrag" to "Drag from one end to the other", "measureQ" to "How long is it? (e.g. 3 ft, 1.5 m)",
         "vrepTitle" to "Tell me what you did", "vrepSub" to "You talk and the AI writes the report", "vrepTalk" to "Talk normally, as if telling someone. When you finish, tap “Make report”.", "vrepMake" to "Make report", "vrepEmpty" to "I didn't hear anything yet",
+        "cblTab" to "Cable", "cblFeet" to "Feet (ft)", "cblMeters" to "Meters (m)", "cblRuns" to "Runs", "cblLen" to "Length of each run", "cblExtra" to "Extra / slack (%)", "cblBox" to "Feet per box", "cblTotal" to "Cable you need", "cblBoxes" to "{n} box(es) of {s} ft", "cblLeft" to "{f} ft left ({m} m)", "cblHint" to "Use “Insert” to put it in your note",
     )
 }

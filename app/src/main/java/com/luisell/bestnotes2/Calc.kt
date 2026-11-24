@@ -228,7 +228,7 @@ class CalcActivity : Activity() {
         top.addView(glassBtn(Icons.CLOSE) { finish() })
         val hs = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         tabsRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(3), dp(3), dp(3), dp(3)); background = Glass.make(this@CalcActivity, 20f) }
-        for ((id, label) in listOf("calc" to "Calc", "y" to "Y=", "graph" to L.t("calcGraph"), "table" to L.t("calcTable"), "fx" to L.t("calcFx"), "hrs" to "⏱ " + L.t("hrsTab"))) {
+        for ((id, label) in listOf("calc" to "Calc", "y" to "Y=", "graph" to L.t("calcGraph"), "table" to L.t("calcTable"), "fx" to L.t("calcFx"), "hrs" to "⏱ " + L.t("hrsTab"), "cable" to "🔌 " + L.t("cblTab"))) {
             tabsRow.addView(tv(label, 13f, T.text, true).apply {
                 tag = id; gravity = Gravity.CENTER; setPadding(dp(12), dp(8), dp(12), dp(8))
                 setOnClickListener { setTab(id) }
@@ -246,7 +246,7 @@ class CalcActivity : Activity() {
         root.addView(sub)
 
         val content = FrameLayout(this)
-        views = mapOf("calc" to buildCalc(), "y" to buildY(), "graph" to buildGraph(), "table" to buildTableView(), "fx" to buildFx(), "hrs" to buildHrs())
+        views = mapOf("calc" to buildCalc(), "y" to buildY(), "graph" to buildGraph(), "table" to buildTableView(), "fx" to buildFx(), "hrs" to buildHrs(), "cable" to buildCable())
         for (v in views.values) content.addView(v, FrameLayout.LayoutParams(MATCH, MATCH))
         root.addView(content, lp(MATCH, 0, 1f))
         pad = buildPad()
@@ -280,7 +280,7 @@ class CalcActivity : Activity() {
         }
         for ((k, v) in views) v.visibility = if (k == t) View.VISIBLE else View.GONE
         pad.visibility = if (t == "calc" || t == "y") View.VISIBLE else View.GONE
-        angBtn.visibility = if (t == "fx" || t == "table" || t == "hrs") View.INVISIBLE else View.VISIBLE
+        angBtn.visibility = if (t == "fx" || t == "table" || t == "hrs" || t == "cable") View.INVISIBLE else View.VISIBLE
         hideKb()
         when (t) {
             "calc" -> setActive(input)
@@ -425,6 +425,7 @@ class CalcActivity : Activity() {
         val text = when (tab) {
             "fx" -> fxText()
             "hrs" -> hrsText()
+            "cable" -> cableText()
             else -> {
                 val x = if (hist.length() > 0) hist.getJSONObject(hist.length() - 1) else null
                 if (x == null || x.optString("r") == L.t("calcError")) "" else {
@@ -985,5 +986,88 @@ class CalcActivity : Activity() {
         }
         if (lines.isEmpty()) return ""
         return "⏱ " + L.t("hrsTab") + "\n" + lines.joinToString("\n") + "\n" + L.t("hrsTotal") + ": " + fmtHM(hrsTotal())
+    }
+
+    /* =========================================================
+       🔌 CABLE: cuántos pies/metros y cuántas cajas hacen falta
+       ========================================================= */
+    private fun cbl(): JSONObject = S.optJSONObject("cable") ?: JSONObject().also { S.put("cable", it) }
+    private lateinit var cOut: LinearLayout
+
+    private fun buildCable(): View {
+        val sv = ScrollView(this)
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(4), dp(12), dp(24)) }
+        fun field(key: String, label: String, def: String, decimal: Boolean = true): View {
+            val r = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(8), dp(10), dp(8)); background = roundBg(tw(0x10), dp(16).toFloat(), T.border, dp(1)) }
+            r.addView(tv(label, 15f, T.text), lp(0, WRAP, 1f))
+            val e = EditText(this).apply {
+                setText(cbl().optString(key, def)); setTextColor(T.text); setHintTextColor(T.faint); hint = def; gravity = Gravity.END
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f); inputType = if (decimal) InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL else InputType.TYPE_CLASS_NUMBER
+                background = roundBg(tw(0x1A), dp(10).toFloat()); setPadding(dp(10), dp(6), dp(10), dp(6))
+                addTextChangedListener(object : TextWatcher {
+                    override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                    override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                    override fun afterTextChanged(s: Editable?) { cbl().put(key, s.toString()); cableRender(); save() }
+                })
+            }
+            r.addView(e, lp(dp(110), WRAP))
+            return r
+        }
+        // pies o metros
+        val unitRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(3), dp(3), dp(3), dp(3)); background = Glass.make(this@CalcActivity, 18f) }
+        fun paintUnit() { for (k in 0 until unitRow.childCount) (unitRow.getChildAt(k) as TextView).let { b -> val on = b.tag == cbl().optString("u", "ft"); b.background = if (on) roundBg(T.text, dp(16).toFloat()) else null; b.setTextColor(if (on) T.onPill else T.text) } }
+        for ((id, label) in listOf("ft" to L.t("cblFeet"), "m" to L.t("cblMeters"))) unitRow.addView(tv(label, 14f, T.text, true).apply {
+            tag = id; gravity = Gravity.CENTER; setPadding(dp(10), dp(8), dp(10), dp(8)); setOnClickListener { cbl().put("u", id); paintUnit(); cableRender(); save() } }, lp(0, WRAP, 1f))
+        box.addView(unitRow, lp(MATCH, WRAP)); paintUnit()
+        box.addView(field("n", L.t("cblRuns"), "1", false), lp(MATCH, WRAP).apply { topMargin = dp(8) })
+        box.addView(field("len", L.t("cblLen"), "100"), lp(MATCH, WRAP).apply { topMargin = dp(8) })
+        box.addView(field("extra", L.t("cblExtra"), "10"), lp(MATCH, WRAP).apply { topMargin = dp(8) })
+        box.addView(field("box", L.t("cblBox"), "1000"), lp(MATCH, WRAP).apply { topMargin = dp(8) })
+        cOut = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(14)); background = Glass.make(this@CalcActivity, 18f) }
+        box.addView(cOut, lp(MATCH, WRAP).apply { topMargin = dp(12) })
+        box.addView(tv(L.t("cblHint"), 12f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(10), dp(10), dp(10), 0) })
+        sv.addView(box)
+        cableRender()
+        return sv
+    }
+
+    private fun cableCalc(): CableMath.Result {
+        val c = cbl()
+        return CableMath.calc(c.optString("n", "1").toIntOrNull() ?: 0, c.optString("len", "100").replace(',', '.').toDoubleOrNull() ?: 0.0,
+            c.optString("u", "ft") == "m", c.optString("extra", "10").replace(',', '.').toDoubleOrNull() ?: 0.0, c.optString("box", "1000").replace(',', '.').toDoubleOrNull() ?: 1000.0)
+    }
+
+    private fun cableRender() {
+        if (!::cOut.isInitialized) return
+        cOut.removeAllViews()
+        val r = cableCalc()
+        val nf = java.text.NumberFormat.getNumberInstance(L.locale).apply { maximumFractionDigits = 1 }
+        cOut.addView(tv(L.t("cblTotal"), 13f, T.muted))
+        cOut.addView(tv(nf.format(r.totalFt) + " ft", 30f, T.text, true))
+        cOut.addView(tv("= " + nf.format(r.totalM) + " m", 14f, T.muted))
+        cOut.addView(View(this).apply { setBackgroundColor(tw(0x1F)) }, lp(MATCH, dp(1)).apply { topMargin = dp(10); bottomMargin = dp(10) })
+        cOut.addView(tv("📦 " + L.t("cblBoxes", "n" to r.boxes, "s" to nf.format(r.boxFt)), 17f, T.text, true))
+        cOut.addView(tv("↩ " + L.t("cblLeft", "f" to nf.format(r.leftFt), "m" to nf.format(r.leftFt * 0.3048)), 14f, T.muted).apply { setPadding(0, dp(4), 0, 0) })
+    }
+
+    private fun cableText(): String {
+        val r = cableCalc(); val c = cbl()
+        if (r.totalFt <= 0) return ""
+        val nf = java.text.NumberFormat.getNumberInstance(L.locale).apply { maximumFractionDigits = 1 }
+        val u = if (c.optString("u", "ft") == "m") "m" else "ft"
+        return "🔌 " + L.t("cblTab") + "\n" + "${c.optString("n", "1")} × ${c.optString("len", "100")} $u + ${c.optString("extra", "10")}% = " + nf.format(r.totalFt) + " ft (" + nf.format(r.totalM) + " m)" +
+            "\n📦 " + L.t("cblBoxes", "n" to r.boxes, "s" to nf.format(r.boxFt)) + " · ↩ " + L.t("cblLeft", "f" to nf.format(r.leftFt), "m" to nf.format(r.leftFt * 0.3048))
+    }
+}
+
+/** 🔌 Las cuentas del cable (aparte, para poder probarlas). */
+object CableMath {
+    class Result(val totalFt: Double, val totalM: Double, val boxes: Int, val boxFt: Double, val leftFt: Double)
+    /** [runs] corridas de [len] (en metros si [meters]) + [extraPct]% de sobra; cajas de [boxFt] pies. */
+    fun calc(runs: Int, len: Double, meters: Boolean, extraPct: Double, boxFt: Double): Result {
+        val lenFt = if (meters) len / 0.3048 else len
+        val total = maxOf(0.0, runs * lenFt * (1 + extraPct / 100.0))
+        val bx = if (boxFt > 0) Math.ceil(total / boxFt - 1e-9).toInt() else 0
+        return Result(total, total * 0.3048, bx, boxFt, maxOf(0.0, bx * boxFt - total))
     }
 }
