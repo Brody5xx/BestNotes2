@@ -197,7 +197,9 @@ class MainActivity : Activity() {
         val name = tv("BEST NOTES", 22f, T.text, true).apply { letterSpacing = 0.3f; gravity = Gravity.CENTER; setPadding(0, dp(22), 0, 0) }
         col.addView(name)
         ov.addView(col, FrameLayout.LayoutParams(MATCH, MATCH))
-        root.addView(ov, FrameLayout.LayoutParams(MATCH, MATCH))
+        // va encima de TODA la ventana (también la franja de la hora), así no se ve la cámara por arriba
+        val decor = window.decorView as ViewGroup
+        decor.addView(ov, FrameLayout.LayoutParams(MATCH, MATCH))
         logo.scaleX = 0.2f; logo.scaleY = 0.2f; logo.rotation = -35f; logo.alpha = 0f
         name.alpha = 0f; name.translationY = dp(20).toFloat(); name.letterSpacing = 0.8f
         logo.animate().scaleX(1f).scaleY(1f).rotation(0f).alpha(1f).setDuration(620).setInterpolator(android.view.animation.OvershootInterpolator(1.8f))
@@ -210,7 +212,7 @@ class MainActivity : Activity() {
             if (!gone) {
                 gone = true; introRunning = false; afterLock = null
                 ov.animate().alpha(0f).scaleX(1.12f).scaleY(1.12f).setDuration(380).setInterpolator(android.view.animation.AccelerateInterpolator())
-                    .withEndAction { root.removeView(ov); dropHeader() }.start()
+                    .withEndAction { decor.removeView(ov); dropHeader() }.start()
             }
         }
         val leave = {
