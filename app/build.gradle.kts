@@ -72,6 +72,13 @@ dependencies {
     implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
     // ▦ Escáner de códigos QR y de barras (la pantalla de escanear la pone Google, sin permiso de cámara)
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+    // 🔔 Aviso al llegar a un lugar con pendientes (geocercas: gastan muy poca batería)
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+    // ✍️ Escritura a mano → letras (el modelo de cada idioma se baja una sola vez)
+    implementation("com.google.mlkit:digital-ink-recognition:18.1.0")
+    // 📲 Hacer códigos QR (para pasar una nota) y leerlos con la cámara
+    implementation("com.google.zxing:core:3.5.3")
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
     testImplementation("org.robolectric:robolectric:4.13")

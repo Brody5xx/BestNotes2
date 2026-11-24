@@ -356,7 +356,7 @@ object Backup {
                 // notas
                 w.write("\"notes\":[")
                 val used = HashSet<String>()
-                val re = Regex("\"(?:f|wall)\":\"([^\"]+)\"")
+                val re = Regex("\\\\?\"(?:f|wall)\\\\?\":\\\\?\"([^\"\\\\]+)")      // (también las fotos de los 🗺️ pines)
                 var first = true; var n = 0
                 val ids = Store.notes.map { it.id }
                 for (id in ids) {

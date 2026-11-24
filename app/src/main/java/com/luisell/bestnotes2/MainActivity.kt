@@ -253,7 +253,7 @@ class MainActivity : Activity() {
         fun sharesCamera(a: android.app.Activity) = a is NoteActivity && host != null && Wall.current(a) == "phone" && Translucent.camera(a)
         /** Mientras sale la presentación, el candado espera (sale después). */
         @Volatile var introRunning = false
-        const val PICK_FILE = 41; const val REQ_WALL = 42; const val REQ_SAVE_BK = 43; const val REQ_AUTO_DIR = 44; const val REQ_CAM_BG = 45; const val REQ_LOC = 46
+        const val PICK_FILE = 41; const val REQ_WALL = 42; const val REQ_SAVE_BK = 43; const val REQ_AUTO_DIR = 44; const val REQ_CAM_BG = 45; const val REQ_LOC = 46; const val REQ_ARRIVE = 48
         /** Notas que se acaban de mandar a la papelera desde una nota (para "Deshacer"). */
         var pendingTrash: List<String>? = null
         private var snap: android.graphics.Bitmap? = null
@@ -406,6 +406,8 @@ class MainActivity : Activity() {
     /** 💫 Lo que hace la IA desde la pantalla principal. */
     private fun aiHub() {
         Sheet(this, "✨ " + L.t("ai"), L.t("aiFree"))
+            .item(Icons.SEARCH, L.t("askTitle"), Sheet.PINK, L.t("askSub")) { AskNotes.show(this) { n -> open(n) } }
+            .item(Icons.CALENDAR, L.t("weekTitle"), Sheet.GREEN, L.t("weekSub")) { Weekly.make(this) }
             .item(Icons.REPORT, L.t("report"), Sheet.VIOLET, L.t("reportHint")) { startActivity(Intent(this, ReportActivity::class.java)) }
             .item(Icons.BOX, L.t("materials"), Sheet.AMBER, L.t("materialsHint")) { startActivity(Intent(this, MaterialsActivity::class.java)) }
             .item(MoreIcons.PEN, L.t("aiInNote"), Sheet.SKY, L.t("aiInNoteSub")) { startActivity(Intent(this, NoteActivity::class.java)) }
@@ -414,6 +416,14 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_ARRIVE) {
+            when {
+                !Places.allowed(this) -> toast(L.t("nearPerm"))
+                !Arrive.background(this) -> if (permissions.contains(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION)) toast(L.t("arriveNeedAll")) else askBackgroundLoc()
+                else -> { Arrive.set(this, true); toast("🔔 " + L.t("arriveOnOk")); Confetti.burst(this) }
+            }
+            return
+        }
         if (requestCode == REQ_LOC) {
             if (Places.allowed(this)) openNear() else toast(L.t("nearPerm"))
             return
@@ -497,6 +507,28 @@ class MainActivity : Activity() {
             if (nearPill.visibility != View.VISIBLE) { nearPill.visibility = View.VISIBLE; nearPill.alpha = 0f; nearPill.translationY = -dp(10).toFloat(); nearPill.animate().alpha(1f).translationY(0f).setDuration(350).setInterpolator(android.view.animation.OvershootInterpolator(1.6f)).start() }
         } else nearPill.visibility = View.GONE
     }
+    /** 🔔 Aviso al llegar a un lugar con pendientes. */
+    private fun arriveMenu() {
+        val on = Arrive.on(this) && Arrive.background(this)
+        Sheet(this, "🔔 " + L.t("arriveTitle"), L.t(if (on) "arriveOnSub" else "arriveOffSub"))
+            .custom(tv(L.t("arriveExplain"), 15f, T.text).apply { setLineSpacing(0f, 1.25f); setPadding(dp(22), dp(4), dp(22), dp(12)) })
+            .quick(Icons.CHECK, L.t(if (on) "arriveOff" else "arriveOnBtn"), if (on) Sheet.GRAY else Sheet.GREEN) {
+                if (on) { Arrive.set(this, false); toast(L.t("arriveOffOk")); return@quick }
+                when {
+                    !Places.allowed(this) -> requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION), REQ_ARRIVE)
+                    !Arrive.background(this) -> askBackgroundLoc()
+                    else -> { Arrive.set(this, true); toast("🔔 " + L.t("arriveOnOk")) }
+                }
+            }
+            .show()
+    }
+    private fun askBackgroundLoc() {
+        // en la otra pantalla hay que escoger "Permitir todo el tiempo"
+        dialog().setTitle("📍 " + L.t("arriveBgT")).setMessage(L.t("arriveBgMsg"))
+            .setPositiveButton(L.t("ok")) { _, _ -> requestPermissions(arrayOf(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION), REQ_ARRIVE) }
+            .setNegativeButton(L.t("cancel"), null).show()
+    }
+
     /** Ver las notas de aquí (la primera vez pide el permiso de ubicación). */
     private fun openNear() {
         if (!Places.allowed(this)) {
@@ -749,7 +781,9 @@ class MainActivity : Activity() {
         nav(Icons.NOTEBOOK, L.t("all"), "all", count { !it.deleted })
         nav(MoreIcons.STAR5, L.t("fav"), "fav", count { !it.deleted && it.fav })
         nav(Icons.TRASH, L.t("trash"), "trash", count { it.deleted })
+        p.addView(menuRow(this, Icons.HARDHAT, L.t("workTitle"), L.t("workSub")) { closeDrawer(); startActivity(Intent(this, WorkActivity::class.java)) })
         p.addView(menuRow(this, Icons.WEEK, L.t("stTitle"), L.t("stSub")) { closeDrawer(); Stats.show(this) })
+        p.addView(menuRow(this, Icons.CLOCK, L.t("arriveTitle"), L.t(if (Arrive.on(this) && Arrive.background(this)) "arriveOnSub" else "arriveOffSub")) { closeDrawer(); arriveMenu() })
         p.addView(menuRow(this, Icons.PIN, L.t("nearTitle"), if (Places.allowed(this)) L.t("nearSub") else L.t("nearOff")) { closeDrawer(); openNear() }.also { r -> if (view == "near") r.background = roundBg(tw(0x1F), dp(18).toFloat()) })
         // 2) CARPETAS  ＋   (cada una con su color, cuántas notas y ⋯)
         p.addView(sep())
@@ -770,6 +804,7 @@ class MainActivity : Activity() {
         // 3) Respaldo · Transferir
         p.addView(menuRow(this, Icons.BOX, L.t("backup"), lastBackupText()) { closeDrawer(); backupMenu() })
         p.addView(menuRow(this, Icons.SWAP, L.t("transfer"), L.t("transferSub")) { closeDrawer(); transferMenu() })
+        p.addView(menuRow(this, MoreIcons.QR, L.t("qrRecvTitle"), L.t("qrRecvSub")) { closeDrawer(); QrShare.receive(this) { m -> open(m) } })
         // 4) Pendientes · Materiales · Reporte · Plantilla · Bóveda · Calculadora
         p.addView(menuRow(this, MoreIcons.CHECKBOX, L.t("pending"), L.t("pendingHint")) { closeDrawer(); startActivity(Intent(this, PendingActivity::class.java)) }.also { r ->
             val n = Store.notes.filter { !it.deleted && !it.locked }.sumOf { maxOf(0, it.checkTotal - it.checkDone) }
@@ -1120,6 +1155,10 @@ class MainActivity : Activity() {
         i ?: return
         // 🏠 desde el widget
         i.getStringExtra(NotesWidget.EXTRA_OPEN)?.let { id -> i.removeExtra(NotesWidget.EXTRA_OPEN); Store.load { Store.meta(id)?.takeIf { !it.deleted }?.let { open(it) } }; return }
+        // 📅 tocaste el aviso del resumen del viernes
+        if (i.getBooleanExtra(Weekly.EXTRA, false)) { i.removeExtra(Weekly.EXTRA); Store.load { Weekly.make(this) }; return }
+        // 📍 tocaste el aviso de "pendientes aquí"
+        if (i.getBooleanExtra(Arrive.EXTRA, false)) { i.removeExtra(Arrive.EXTRA); Store.load { if (Places.allowed(this)) openNear() }; return }
         if (i.getBooleanExtra(NotesWidget.EXTRA_NEW, false)) { i.removeExtra(NotesWidget.EXTRA_NEW); Store.load { newNote("text") }; return }
         // 📥 algo que te mandaron desde otra app (texto, enlace o fotos)
         if (i.action == Intent.ACTION_SEND || i.action == Intent.ACTION_SEND_MULTIPLE) {

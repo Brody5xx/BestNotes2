@@ -74,6 +74,9 @@ object Places {
     /** Quitarle el lugar a una nota. */
     fun forget(ctx: Context, id: String) { load(ctx); synchronized(this) { map.remove(id) }; save(ctx) }
 
+    /** Todas las notas que tienen lugar (nota → [lat, lng]). */
+    fun all(ctx: Context): Map<String, DoubleArray> { load(ctx); return synchronized(this) { HashMap(map) } }
+
     /** Las notas escritas cerca de [l]. */
     fun near(ctx: Context, l: Location?): Set<String> {
         if (l == null) return emptySet()

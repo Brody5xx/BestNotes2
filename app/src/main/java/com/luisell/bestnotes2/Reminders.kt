@@ -22,7 +22,7 @@ object Reminders {
     class R(val id: Int, val noteId: String, val text: String, val at: Long)
 
     private const val KEY = "recordatorios"
-    private const val CHANNEL = "recordatorios"
+    const val CHANNEL = "recordatorios"
 
     fun all(ctx: Context): MutableList<R> {
         val out = ArrayList<R>()
@@ -115,6 +115,6 @@ class ReminderReceiver : BroadcastReceiver() {
 /** Al prender el teléfono: se vuelven a programar los recordatorios. */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, i: Intent) {
-        if (i.action == Intent.ACTION_BOOT_COMPLETED || i.action == "android.intent.action.MY_PACKAGE_REPLACED") Reminders.rescheduleAll(ctx)
+        if (i.action == Intent.ACTION_BOOT_COMPLETED || i.action == "android.intent.action.MY_PACKAGE_REPLACED") { Reminders.rescheduleAll(ctx); Weekly.schedule(ctx); Arrive.refresh(ctx) }
     }
 }

@@ -40,6 +40,22 @@ class CapturasTest {
         File("/tmp/capturas/$name.png").outputStream().use { bm.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
+    @Test fun capturasFunciones() {
+        if (System.getenv("CAPTURAS") == null) return
+        var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
+        val f = File(ctx.cacheDir, "r.json"); f.writeText(javaClass.classLoader!!.getResource("respaldo.json")!!.readText())
+        Backup.importFile(ctx, Uri.fromFile(f), "prueba") {}
+        ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }
+        val img = Store.notes.firstNotNullOf { n -> blocksFromJson(Store.readBody(n.id).first).filterIsInstance<Block.Img>().firstOrNull() }
+        val pins = Pins.json(listOf(Pins.P(0.3f, 0.4f, "cam", "Cámara 1", "IP 10.0.0.21"), Pins.P(0.7f, 0.7f, "door", "Puerta 2"), Pins.P(0.5f, 0.2f, "rack", "Rack A", f = img.file)))
+        val plan = Robolectric.buildActivity(PlanActivity::class.java, Intent(ctx, PlanActivity::class.java).putExtra(PlanActivity.FILE, img.file).putExtra(PlanActivity.PINS, pins)).setup().visible().get()
+        Thread.sleep(300); idle(); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(2))
+        shot(plan.window.decorView, "30_plano")
+        val work = Robolectric.buildActivity(WorkActivity::class.java).setup().visible().get()
+        waitIo(); idle(); Thread.sleep(200); waitIo(); shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(2))
+        shot(work.window.decorView, "31_trabajo")
+    }
+
     @Test fun capturas() {
         if (System.getenv("CAPTURAS") == null) return
         var ok = false; Store.reload { ok = true }; while (!ok) { Thread.sleep(10); idle() }

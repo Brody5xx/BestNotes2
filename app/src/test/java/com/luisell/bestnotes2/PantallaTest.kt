@@ -54,6 +54,49 @@ class PantallaTest {
         return out
     }
 
+    @Test fun planConPinesSeGuardaEnLaFoto() {
+        val pins = listOf(Pins.P(0.25f, 0.5f, "cam", "Cámara 1", "IP 10.0.0.5", "fpin.jpg"), Pins.P(0.8f, 0.1f, "door", "Puerta 1"))
+        val img = Block.Img("fplano.jpg", 100f, pins = Pins.json(pins))
+        val back = Block.fromJson(img.toJson()) as Block.Img
+        val l = Pins.parse(back.pins)
+        assertEquals(2, l.size); assertEquals("Cámara 1", l[0].t); assertEquals("fpin.jpg", l[0].f); assertEquals(0.8f, l[1].x, 0.001f)
+        // el buscador y la IA ven lo que dicen los pines
+        assertTrue(blocksPlain(listOf(back)).contains("IP 10.0.0.5"))
+        // la foto del pin NO se borra al limpiar (va guardada como texto con \")
+        val re = Regex("\\\\?\"(?:f|wall)\\\\?\":\\\\?\"([^\"\\\\]+)")
+        val found = re.findAll(blocksJson(listOf(back))).map { it.groupValues[1] }.toSet()
+        assertTrue(found.contains("fplano.jpg")); assertTrue(found.contains("fpin.jpg"))
+    }
+
+    @Test fun pasarNotaPorQrIdaYVuelta() {
+        Store.init(ctx); L.init(ctx); reload()
+        val f = File(Store.mediaDir, "fqr_prueba.jpg")
+        val bm = android.graphics.Bitmap.createBitmap(300, 200, android.graphics.Bitmap.Config.ARGB_8888).apply { eraseColor(android.graphics.Color.RED) }
+        f.outputStream().use { bm.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, it) }
+        val blocks = mutableListOf<Block>(Block.Text(mutableListOf(Run("Cable Cat 6 al rack"))), Block.Img("fqr_prueba.jpg", 80f, w = 300, h = 200))
+        val parts = QrShare.chunks(QrShare.pack("Prueba QR", blocks))
+        assertTrue(parts.size >= 1)
+        val got = parts.shuffled().map { QrShare.parsePiece(it)!! }.sortedBy { it.i }
+        assertEquals(parts.size, got.first().n)
+        QrShare.qr(parts[0])          // el código se puede hacer
+        val m = QrShare.unpack(got.joinToString("") { it.data })
+        waitIo()
+        assertEquals("Prueba QR", m.title)
+        val back = blocksFromJson(Store.readBody(m.id).first)
+        val img = back.filterIsInstance<Block.Img>().single()
+        assertTrue(img.file != "fqr_prueba.jpg" && File(Store.mediaDir, img.file).exists())
+        assertTrue(blocksPlain(back).contains("Cable Cat 6"))
+        assertEquals(null, QrShare.parsePiece("https://example.com"))
+    }
+
+    @Test fun avisoDelViernes() {
+        val c = java.util.Calendar.getInstance().apply { set(2026, java.util.Calendar.NOVEMBER, 24, 10, 0, 0) }      // martes
+        val f = java.util.Calendar.getInstance().apply { timeInMillis = Weekly.nextFriday(c) }
+        assertEquals(java.util.Calendar.FRIDAY, f.get(java.util.Calendar.DAY_OF_WEEK)); assertEquals(27, f.get(java.util.Calendar.DAY_OF_MONTH)); assertEquals(16, f.get(java.util.Calendar.HOUR_OF_DAY))
+        c.set(2026, java.util.Calendar.NOVEMBER, 27, 17, 0, 0)      // viernes después de las 4 → el próximo
+        assertEquals(4, java.util.Calendar.getInstance().apply { timeInMillis = Weekly.nextFriday(c) }.get(java.util.Calendar.DAY_OF_MONTH))
+    }
+
     @Test fun leerEnVozAltaReconoceElIdioma() {
         org.junit.Assert.assertEquals(java.util.Locale.SIMPLIFIED_CHINESE, Speaker.langOf("请在门口等我"))
         org.junit.Assert.assertEquals(java.util.Locale.US, Speaker.langOf("Pull the cable to the rack and test the camera"))

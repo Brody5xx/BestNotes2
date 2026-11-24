@@ -113,6 +113,8 @@ sealed class Block {
         var beside: MutableList<Run> = ArrayList(), var pin: Boolean = false,
         /** ar = forma estirada (alto/ancho). 0 = la forma original de la foto. */
         var ar: Float = 0f,
+        /** 🗺️ Pines del plano (JSON; "" = sin pines). */
+        var pins: String = "",
     ) : Block()
 
     /** Audio o video (kind = "audio" / "video"). */
@@ -135,7 +137,7 @@ sealed class Block {
         }
         is Img -> JSONObject().put("t", "img").put("f", file).put("pct", pct.toDouble()).put("side", side)
             .put("x", x.toDouble()).put("y", y.toDouble()).put("w", w).put("h", h).put("stamp", stamp)
-            .put("rot", rot.toDouble()).put("tk", taken).put("bs", runsJson(beside)).put("pin", if (pin) 1 else 0).apply { if (ar > 0f) put("ar", ar.toDouble()) }
+            .put("rot", rot.toDouble()).put("tk", taken).put("bs", runsJson(beside)).put("pin", if (pin) 1 else 0).apply { if (ar > 0f) put("ar", ar.toDouble()); if (pins.isNotEmpty()) put("pn", pins) }
         is Media -> JSONObject().put("t", "media").put("k", kind).put("f", file).put("dur", dur)
             .put("sz", size).put("mu", if (muted) 1 else 0).apply {
                 if (pct < 100f) put("pct", pct.toDouble()); if (x != 0f) put("x", x.toDouble()); if (side.isNotEmpty()) put("side", side)
@@ -162,7 +164,7 @@ sealed class Block {
                 o.optString("f"), o.optDouble("pct", 40.0).toFloat(), o.optString("side"),
                 o.optDouble("x", 30.0).toFloat(), o.optDouble("y", 0.0).toFloat(), o.optInt("w"), o.optInt("h"),
                 o.optString("stamp"), o.optDouble("rot", 0.0).toFloat(), o.optLong("tk"),
-                runsFromJson(o.optJSONArray("bs")), o.optInt("pin") == 1, o.optDouble("ar", 0.0).toFloat(),
+                runsFromJson(o.optJSONArray("bs")), o.optInt("pin") == 1, o.optDouble("ar", 0.0).toFloat(), o.optString("pn"),
             )
             "media" -> Media(o.optString("k", "audio"), o.optString("f"), o.optDouble("dur", 0.0), o.optLong("sz"), o.optInt("mu") == 1,
                 o.optDouble("pct", 100.0).toFloat(), o.optDouble("x", 0.0).toFloat(), o.optString("side"), runsFromJson(o.optJSONArray("bs")), o.optInt("pin") == 1)
@@ -192,7 +194,7 @@ fun blocksPlain(blocks: List<Block>): String = buildString {
         when (b) {
             is Block.Text -> { append(runsPlain(b.runs)); append('\n') }
             is Block.ListB -> b.items.forEach { append(runsPlain(it.runs)); append('\n') }
-            is Block.Img -> if (b.beside.isNotEmpty()) { append(runsPlain(b.beside)); append('\n') }
+            is Block.Img -> { if (b.beside.isNotEmpty()) { append(runsPlain(b.beside)); append('\n') }; if (b.pins.isNotEmpty()) { append(Pins.plain(b.pins)); append('\n') } }
             is Block.Media -> if (b.beside.isNotEmpty()) { append(runsPlain(b.beside)); append('\n') }
             else -> {}
         }

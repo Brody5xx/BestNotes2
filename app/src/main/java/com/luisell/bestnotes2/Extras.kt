@@ -380,6 +380,17 @@ object Stats {
         paintTog()
         tog.setOnClickListener { v -> Anim.bump(v); pr.edit().putBoolean("liveStats", !pr.getBoolean("liveStats", true)).apply(); paintTog(); Store.changed() }
         box.addView(tog)
+        // 📅 el resumen del viernes
+        val fri = act.tv("", 14f, T.accent, true).apply { gravity = Gravity.CENTER; setPadding(0, act.dp(10), 0, act.dp(4)) }
+        fun paintFri() { fri.text = L.t(if (Weekly.on(act)) "weekFriOn" else "weekFriOff") }
+        paintFri()
+        fri.setOnClickListener { v -> Anim.bump(v); Weekly.set(act, !Weekly.on(act)); paintFri() }
+        box.addView(fri)
+        val mk = act.tv("✨ " + L.t("weekTitle"), 15f, Color.WHITE, true).apply {
+            gravity = Gravity.CENTER; setPadding(act.dp(16), act.dp(12), act.dp(16), act.dp(12)); background = roundBg(T.accent, act.dp(22).toFloat())
+            setOnClickListener { v -> Anim.bump(v); Weekly.make(act) }
+        }
+        box.addView(mk, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = act.dp(12) })
         // 🎉 todos los pendientes hechos: confeti cuando el anillo se llena
         if (ckT > 0 && ckD >= ckT) ringRow.postDelayed({ if (ringRow.isAttachedToWindow) Confetti.burst(act) }, 1500)
         Sheet(act, "📊 " + L.t("stTitle"), java.text.SimpleDateFormat("EEEE d MMMM", L.locale).format(java.util.Date(now))).custom(box).show()

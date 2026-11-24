@@ -89,6 +89,10 @@ class CameraBg(ctx: Context) : FrameLayout(ctx) {
 
     /** Lo que se ve ahora mismo: la cámara de verdad (la foto normal de la pantalla no la captura). */
     fun frame(): android.graphics.Bitmap? = try { if (tex.isAvailable && tex.alpha > 0.5f) tex.getBitmap() else null } catch (_: Throwable) { null }
+    /** Lo que se ve, en chiquito (para leer códigos QR). */
+    fun frame(w: Int, h: Int): android.graphics.Bitmap? = try { if (tex.isAvailable && tex.alpha > 0.5f) tex.getBitmap(w, h) else null } catch (_: Throwable) { null }
+    /** Sin la capa oscura (para el lector de QR). */
+    fun clear() { dim.visibility = View.GONE }
     fun stillHidden(h: Boolean) { still.visibility = if (h) View.INVISIBLE else View.VISIBLE }
 
     /**

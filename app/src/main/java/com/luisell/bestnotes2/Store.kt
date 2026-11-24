@@ -195,7 +195,7 @@ object Store {
         val used = HashSet<String>()
         val re2 = Regex("\\\\?\"(?:f|wall)\\\\?\":\\\\?\"([^\"\\\\]+)")
         db.rawQuery("SELECT body,extra FROM notes", null).use { c ->
-            val re = Regex("\"(?:f|wall)\":\"([^\"]+)\"")
+            val re = re2      // (también las fotos de los 🗺️ pines, que van guardadas como texto con \")
             while (c.moveToNext()) {
                 for (col in 0..1) c.getString(col)?.let { s -> re.findAll(s).forEach { used.add(it.groupValues[1]) } }
             }

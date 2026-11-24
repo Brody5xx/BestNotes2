@@ -53,6 +53,8 @@ class NoteActivity : Activity(), EditorView.Host {
         const val REQ_CAM_PERM = 67
         const val REQ_VREP = 68
         const val REQ_PLACE = 69
+        const val REQ_PLAN = 70
+        const val REQ_BA = 71
     }
 
     private lateinit var meta: NoteMeta
@@ -676,6 +678,9 @@ class NoteActivity : Activity(), EditorView.Host {
         val sel = if (e != null && selA in 0 until selB) e.text.substring(selA, selB) else ""
         Sheet(this, "✨ " + L.t("ai"), L.t("aiFree"))
             .item(MoreIcons.MIC, L.t("vrepTitle"), Sheet.RED, L.t("vrepSub")) { voiceReport() }
+            .item(Icons.TRANSLATE, L.t("trioTitle"), Sheet.BLUE, L.t("trioSub")) {
+                save(); Trio.show(this, speakText()) { lg, t -> openNew(title.text.toString().ifBlank { L.t("untitled") } + " (" + lg.uppercase() + ")", aiToBlocks(t)) }
+            }
             .item(Icons.BRIEFCASE, L.t("aiAssistant"), Sheet.VIOLET, L.t("aiAssistantSub")) { aiAssistant() }
             .item(Icons.FORMAL, L.t("aiRewrite"), Sheet.BLUE, if (sel.isNotEmpty()) "«" + sel.take(40) + "»" else L.t("aiRewriteSub")) { aiRewrite(e, selA, selB) }
             .item(Icons.BOOK, L.t("aiWord"), Sheet.TEAL, L.t("aiWordSub")) { aiWord(e, selA, selB, "syn") }
@@ -942,6 +947,7 @@ class NoteActivity : Activity(), EditorView.Host {
             .item(Icons.BOOK, L.t("sharePdf"), Sheet.RED, "Gmail, Outlook…") { shareAs("pdf") }
             .item(MoreIcons.TEXT_T, L.t("shareText"), Sheet.BLUE) { editor.flushAll(); Share.sendText(this, title.text.toString(), Share.text(title.text.toString(), editor.blocks)) }
             .item(Icons.BUBBLE, L.t("shareSms"), Sheet.GREEN) { editor.flushAll(); Share.sms(this, Share.text(title.text.toString(), editor.blocks)) }
+            .item(MoreIcons.QR, L.t("qrSendTitle"), Sheet.VIOLET, L.t("qrSendSub")) { save(); editor.flushAll(); QrShare.send(this, title.text.toString(), editor.blocks) }
             .show()
     }
 
@@ -1386,6 +1392,43 @@ class NoteActivity : Activity(), EditorView.Host {
         }
     }
 
+    /* ---------- 🗺️ plano con pines ---------- */
+    private var planTarget: FotoView? = null
+    override fun openPlan(f: FotoView) {
+        planTarget = f
+        startActivityForResult(Intent(this, PlanActivity::class.java).putExtra(PlanActivity.FILE, f.block.file).putExtra(PlanActivity.PINS, f.block.pins), REQ_PLAN)
+    }
+
+    /* ---------- ↔️ antes y después ---------- */
+    private var baFirst: String? = null
+    override fun beforeAfter(f: FotoView) {
+        val others = editor.blocks.filterIsInstance<Block.Img>().filter { it !== f.block }
+        val sh = Sheet(this, "↔️ " + L.t("baTitle"), L.t("baPick"))
+        // las otras fotos de la nota, en chiquito
+        if (others.isNotEmpty()) {
+            val hs = android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; setPadding(dp(14), 0, dp(14), dp(8)); clipToPadding = false }
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            var s: Sheet? = null
+            for (o in others) {
+                val iv = android.widget.ImageView(this).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP; clipToOutline = true; background = roundBg(0, dp(14).toFloat()) }
+                Thumbs.load(o.file, dp(110)) { bm -> iv.setImageBitmap(bm) }
+                iv.setOnClickListener { v -> Anim.bump(v); s?.dismiss(); BeforeAfter.show(this, f.block.file, o.file) { nf, w, h -> putBa(nf, w, h) } }
+                row.addView(iv, LinearLayout.LayoutParams(dp(96), dp(96)).apply { marginEnd = dp(8) })
+            }
+            hs.addView(row); sh.custom(hs)
+            s = sh
+        }
+        sh.quick(Icons.IMAGE, L.t("gallery"), Sheet.BLUE) {
+            baFirst = f.block.file
+            try { startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).setType("image/*").addCategory(Intent.CATEGORY_OPENABLE), REQ_BA) } catch (_: Exception) { toast(L.t("cantOpen")) }
+        }
+        sh.show()
+    }
+    private fun putBa(f: String, w: Int, h: Int) {
+        editor.insertImages(listOf(Block.Img(f, 100f, "", 0f, 0f, w, h, "", 0f, System.currentTimeMillis())))
+        onDirty(); hint("↔️ " + L.t("baOk"))
+    }
+
     override fun drawOnImage(f: FotoView) {
         cropTarget = f.block
         startActivityForResult(Intent(this, PhotoDrawActivity::class.java).putExtra(PhotoDrawActivity.FILE, f.block.file), REQ_PHOTO_DRAW)
@@ -1491,6 +1534,16 @@ class NoteActivity : Activity(), EditorView.Host {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQ_WALL) { if (resultCode == RESULT_OK) data?.data?.let { setWallPhoto(it) }; return }
+        if (requestCode == REQ_PLAN) { if (resultCode == RESULT_OK) data?.getStringExtra(PlanActivity.OUT)?.let { j -> planTarget?.setPins(j) }; planTarget = null; return }
+        if (requestCode == REQ_BA) {
+            val first = baFirst; baFirst = null
+            val u = data?.data
+            if (resultCode == RESULT_OK && first != null && u != null) Loader.pool.execute {
+                val r = try { Photos.import(this, u) } catch (_: Throwable) { null }
+                runOnUiThread { if (r == null) toast(L.t("photoFail")) else BeforeAfter.show(this, first, r.file) { nf, w, h -> putBa(nf, w, h) } }
+            }
+            return
+        }
         if (requestCode == REQ_CALC) { if (resultCode == RESULT_OK) data?.getStringExtra(CalcActivity.RESULT_TEXT)?.let { putCalc(it) }; return }
         if (resultCode != RESULT_OK) { if (requestCode == REQ_CAMERA) camFile?.delete(); if (requestCode == REQ_VIDEO_CAM) vidFile?.delete(); return }
         when (requestCode) {
@@ -1723,6 +1776,14 @@ class NoteActivity : Activity(), EditorView.Host {
             .item(MoreIcons.QR, L.t("qrScan"), Sheet.GREEN, L.t("qrScanSub")) { scanCode() }
             .item(Icons.CLIP, L.t("linkTitle"), Sheet.TEAL, L.t("linkInsSub")) { val e = editor.focused; linkNote(e, e?.selectionEnd ?: 0) }
             .item(Icons.PENCIL, L.t("sigTitle"), Sheet.VIOLET, L.t("sigSub")) { signHere() }
+            .item(MoreIcons.PEN, L.t("hwTitle"), Sheet.PINK, L.t("hwSub")) {
+                val tg = editor.focused?.let { it to maxOf(0, it.selectionEnd) }
+                HandWrite.show(this) { txt ->
+                    if (tg != null && tg.first.isAttachedToWindow) { val ed = tg.first; val at = tg.second.coerceIn(0, ed.length()); ed.text.insert(at, txt); ed.requestFocus(); ed.setSelection(at + txt.length) }
+                    else appendBlocks(listOf(Block.Text(mutableListOf(Run(txt)))))
+                    onDirty(); hint("✍️ " + L.t("hwOk"))
+                }
+            }
             .quick(MoreIcons.MIC, L.t("audio"), Sheet.RED) { audioMenu() }
             .show()
     }

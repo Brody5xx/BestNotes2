@@ -124,6 +124,10 @@ class EditorView(ctx: Context, val host: Host) : LinearLayout(ctx) {
         fun onImageChanged(f: FotoView)
         /** ☑️ Se marcó un pendiente como hecho. */
         fun onChecked() {}
+        /** 🗺️ Abrir el plano con pines de esta foto. */
+        fun openPlan(f: FotoView) {}
+        /** ↔️ Antes y después con esta foto. */
+        fun beforeAfter(f: FotoView) {}
     }
 
     var blocks: MutableList<Block> = ArrayList()
@@ -786,6 +790,9 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
     private val box = FrameLayout(ctx)                  // la foto (con su sello)
     private val img = ImageView(ctx)
     private val stampTv = TextView(ctx)
+    private val pinsView = PinsOverlay(ctx)
+    /** 🗺️ Volvió del plano con los pines nuevos. */
+    fun setPins(json: String) { block.pins = json; pinsView.pins = Pins.parse(json); Anim.sparkle(box, 50f, 600); ed.host.onDirty() }
     private val edit = RichEdit(ctx)                    // el texto de al lado
     private var anchorPill: View? = null
     var selected = false
@@ -936,6 +943,9 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         stampTv.background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0x00000000, 0x9E000000.toInt()))
         stampTv.setPadding(dp(8), dp(14), dp(8), dp(5))
         box.addView(stampTv, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
+        // 🗺️ los pines del plano encima de la foto
+        box.addView(pinsView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        pinsView.pins = Pins.parse(block.pins)
         edit.setRuns(block.beside); edit.hint = null; edit.minHeight = dp(40)    // sin letrero: así las capturas se ven limpias
         ed.wire(edit)
         flow.addView(box); flow.addView(edit)
@@ -945,6 +955,8 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         infoBar.addView(infoLabel.apply { setPadding(dp(6), 0, 0, 0) }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         // 🔎 leer las letras de la foto (escoges las palabras que quieras)
         infoBar.addView(ctx.iconBtn(MoreIcons.TEXT_SCAN, 7.5f, T.accent) { v -> Anim.bump(v); readText() }.apply { layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)) })
+        // 🗺️ plano con pines
+        infoBar.addView(ctx.iconBtn(Icons.MAP_PIN, 7.5f, 0xFFFF6FB5.toInt()) { v -> Anim.bump(v); ed.host.openPlan(this) }.apply { layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)) })
         infoBar.addView(ctx.iconBtn(MoreIcons.FULL, 7.5f, T.muted) { v -> Anim.bump(v); viewBig() }.apply { layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)) })
         infoBar.addView(ctx.iconBtn(MoreIcons.DOTS_V, 8f, T.muted) { options() }.apply { layoutParams = LinearLayout.LayoutParams(dp(36), dp(38)) })
         flow.addView(infoBar)
@@ -1238,6 +1250,8 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         val items = listOfNotNull<Pair<String, () -> Unit>>(
             ("⛶  " + L.t("viewBig")) to { viewBig() },
             ("🔎  " + L.t("ocrRead")) to { readText() },
+            ("🗺️  " + L.t("planOpt")) to { ed.host.openPlan(this) },
+            ("↔️  " + L.t("baOpt")) to { ed.host.beforeAfter(this) },
             if (block.ar > 0f) ("↺  " + L.t("origShape")) to { animateChange(); block.ar = 0f; applyShape(); relayout(); ed.host.onDirty(); ed.host.onImageChanged(this) } else null,
             L.t("shrink") to { shrinkPhoto() },
             L.t("moveUp") to { ed.moveBlock(this, -1) },
