@@ -33,7 +33,7 @@ import java.io.File
    ============================================================ */
 object OcrPick {
     fun show(act: Activity, f: File, onPut: ((String) -> Unit)?, onClose: (() -> Unit)? = null) {
-        val d = Dialog(act, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        val d = blackFullDialog(act)
         val root = FrameLayout(act).apply { setBackgroundColor(Color.BLACK) }
         val wv = WordsView(act)
         root.addView(wv, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -53,7 +53,7 @@ object OcrPick {
         val count = act.tv("", 12f, 0xB3FFFFFF.toInt()).apply { setPadding(0, act.dp(4), 0, act.dp(10)) }
         panel.addView(preview); panel.addView(count)
         val row = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
-        fun pill(label: String, color: Int, go: (TextView) -> Unit): TextView = act.tv(label, 13.5f, Color.WHITE, true).apply {
+        fun pill(label: String, color: Int, go: (TextView) -> Unit): TextView = act.tv(label, 13f, Color.WHITE, true).apply {
             gravity = Gravity.CENTER; maxLines = 1; setPadding(act.dp(6), act.dp(11), act.dp(6), act.dp(11))
             background = roundBg(color, act.dp(20).toFloat())
             setOnClickListener { v -> Anim.bump(v); go(this) }
@@ -67,7 +67,7 @@ object OcrPick {
             (act.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("foto", textNow()))
             act.toast(L.t("copied"))
         }
-        pill("🌐 " + L.t("ocrTranslate"), 0xFF7A5CFF.toInt()) { translate(act, textNow(), onPut, d) }
+        pill(L.t("ocrTranslate"), 0xFF7A5CFF.toInt()) { translate(act, textNow(), onPut, d) }
         if (onPut != null) pill(L.t("ocrPutShort"), 0xFF2FA866.toInt()) { onPut(textNow()); d.dismiss() }
 
         fun update() {
@@ -81,7 +81,6 @@ object OcrPick {
         wv.onChange = { update() }
 
         d.setContentView(root)
-        d.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         d.setOnDismissListener { wv.stop(); onClose?.invoke() }
         d.show()
         Ocr.words(act, f, onImage = { bm -> wv.setBitmap(bm) }) { bm, words ->

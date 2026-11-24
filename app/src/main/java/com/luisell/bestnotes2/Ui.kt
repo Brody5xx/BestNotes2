@@ -266,3 +266,17 @@ fun EditText.niceCursor() {
         textSelectHandle?.mutate()?.setTint(tint); textSelectHandleLeft?.mutate()?.setTint(tint); textSelectHandleRight?.mutate()?.setTint(tint)
     } catch (_: Throwable) {}
 }
+
+/** 🖤 Una ventana negra que tapa TODA la pantalla (también la barrita de arriba), para ver fotos. */
+fun blackFullDialog(ctx: Context): android.app.Dialog {
+    val d = android.app.Dialog(ctx, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+    d.window?.apply {
+        addFlags(android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+        statusBarColor = android.graphics.Color.BLACK; navigationBarColor = android.graphics.Color.BLACK
+        setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.BLACK))
+        if (android.os.Build.VERSION.SDK_INT >= 28) attributes = attributes.apply { layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES }
+    }
+    // la hora y la batería en blanco (se ven sobre el negro)
+    d.setOnShowListener { if (android.os.Build.VERSION.SDK_INT >= 30) d.window?.insetsController?.setSystemBarsAppearance(0, android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS) }
+    return d
+}

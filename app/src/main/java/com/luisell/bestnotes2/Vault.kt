@@ -649,7 +649,7 @@ class VaultActivity : Activity() {
         BitmapFactory.decodeFile(f.path, o)
         var s = 1; while (o.outWidth / s > 2400 || o.outHeight / s > 2400) s *= 2
         val bmp = BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = s }) ?: run { toast(L.t("vFail")); return }
-        val d = android.app.Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        val d = blackFullDialog(this)
         val iv = ImageView(this).apply { setImageBitmap(bmp); scaleType = ImageView.ScaleType.FIT_CENTER; setBackgroundColor(0xFF000000.toInt()); setOnClickListener { d.dismiss() } }
         d.setContentView(iv); d.show()
     }

@@ -26,7 +26,7 @@ import java.io.File
    ============================================================ */
 object PhotoViewer {
     fun show(act: Activity, file: String) {
-        val d = Dialog(act, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        val d = blackFullDialog(act)
         val root = FrameLayout(act).apply { setBackgroundColor(Color.BLACK) }
         val iv = ZoomImageView(act)
         root.addView(iv, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
