@@ -187,7 +187,7 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
         }
         val sv = object : ScrollView(act) {
             override fun onMeasure(w: Int, h: Int) {
-                val max = (act.resources.displayMetrics.heightPixels * 0.62f).toInt()
+                val max = if (kbMax > 0) kbMax else (act.resources.displayMetrics.heightPixels * 0.62f).toInt()
                 super.onMeasure(w, MeasureSpec.makeMeasureSpec(max, MeasureSpec.AT_MOST))
             }
         }.apply { isVerticalScrollBarEnabled = false; overScrollMode = View.OVER_SCROLL_NEVER; addView(list) }
@@ -200,6 +200,34 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
         overlay.addView(pf, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.BOTTOM).apply { setMargins(dp(8f), 0, dp(8f), dp(10f) + navInset()) })
         content.addView(overlay, FrameLayout.LayoutParams(MATCH, MATCH))
         open[act]?.dismissNow(); open[act] = this
+        // ⌨️ cuando sale el teclado, el panel sube y queda justo encima (así se ve lo que escribes)
+        val baseBottom = dp(10f) + navInset()
+        var lifted = 0
+        overlay.viewTreeObserver.addOnGlobalLayoutListener(object : android.view.ViewTreeObserver.OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
+                if (!overlay.isAttachedToWindow) { overlay.viewTreeObserver.removeOnGlobalLayoutListener(this); return }
+                val r = android.graphics.Rect(); overlay.getWindowVisibleDisplayFrame(r)
+                val loc = IntArray(2); overlay.getLocationOnScreen(loc)
+                val ovBottom = loc[1] + overlay.height
+                val kb = ovBottom - r.bottom
+                val lift = if (kb > act.resources.displayMetrics.heightPixels * 0.15f) (kb - baseBottom + dp(8f)).coerceAtLeast(0) else 0
+                if (lift == lifted) return
+                lifted = lift
+                // lo que cabe arriba del teclado
+                val extra = panel.height - sv.height
+                kbMax = if (lift > 0) (r.bottom - maxOf(r.top, loc[1]) - dp(24f) - extra).coerceAtLeast(dp(110f)) else 0
+                sv.requestLayout()
+                val lp = pf.layoutParams as FrameLayout.LayoutParams
+                val from = lp.bottomMargin; val to = baseBottom + lift
+                android.animation.ValueAnimator.ofInt(from, to).apply {
+                    duration = 220; interpolator = DecelerateInterpolator(1.6f)
+                    addUpdateListener { lp.bottomMargin = it.animatedValue as Int; pf.layoutParams = lp }
+                    start()
+                }
+                // y lo que estás escribiendo queda a la vista
+                if (lift > 0) sv.postDelayed({ act.currentFocus?.let { f -> if (f.parent != null) f.requestRectangleOnScreen(android.graphics.Rect(0, 0, f.width, f.height), false) } }, 260)
+            }
+        })
         overlay.post(keepHidden)                     // la barrita de Cortar/Copiar no tapa el panel
 
         // ✨ entrada
@@ -225,6 +253,9 @@ class Sheet(private val act: Activity, private val title: String? = null, privat
         }
         return this
     }
+
+    /** Alto máximo de la lista cuando el teclado está abierto (0 = normal). */
+    private var kbMax = 0
 
     private fun navInset(): Int {
         val id = act.resources.getIdentifier("navigation_bar_height", "dimen", "android")
