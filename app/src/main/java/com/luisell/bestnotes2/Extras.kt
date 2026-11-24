@@ -259,14 +259,18 @@ object Confetti {
 
 /* ---------------------------- 📊 Resumen ---------------------------- */
 object Stats {
-    class Quick(val week: Int, val pct: Int, val total: Int, val streak: Int)
-    /** Lo de la pastilla de la pantalla principal. */
+    class Quick(val week: Int, val pct: Int, val total: Int, val done: Int, val streak: Int, val notes: Int, val photos: Int, val perDay: IntArray, val names: List<String>)
+    /** Los números de la pantalla principal (el medidor en vivo). */
     fun quick(): Quick {
         val notes = Store.notes.filter { !it.deleted }
         val day = 86_400_000L
         val today0 = java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0) }.timeInMillis
         val t = notes.sumOf { it.checkTotal }; val d = notes.sumOf { it.checkDone }
-        return Quick(notes.count { it.created >= today0 - 6 * day }, if (t == 0) 0 else d * 100 / t, t, streak(notes, today0))
+        val perDay = IntArray(7)
+        for (n in notes) for (x in setOf(n.created, n.updated)) { val k = Math.floorDiv(x - today0, day).toInt() + 6; if (k in 0..6) perDay[k]++ }
+        val names = (0..6).map { k -> java.text.SimpleDateFormat("EEE", L.locale).format(java.util.Date(today0 - (6 - k) * day)).take(2).replaceFirstChar { it.uppercase(L.locale) } }
+        val photos = Store.mediaDir.list()?.count { it.endsWith(".jpg") || it.endsWith(".png") } ?: 0
+        return Quick(notes.count { it.created >= today0 - 6 * day }, if (t == 0) 0 else d * 100 / t, t, d, streak(notes, today0), notes.size, photos, perDay, names)
     }
     private fun streak(notes: List<NoteMeta>, today0: Long): Int {
         val day = 86_400_000L
@@ -339,6 +343,13 @@ object Stats {
             "⭐ " + L.t("stFav", "n" to notes.count { it.fav }) + "   🔒 " + L.t("stLocked", "n" to notes.count { it.locked }),
             14f, T.text).apply { setLineSpacing(0f, 1.45f); setPadding(act.dp(10), act.dp(14), act.dp(10), 0) }
         box.addView(more); Anim.enter(more, 320)
+        // ⚙️ mostrar (o no) el medidor en la pantalla principal
+        val pr = act.getSharedPreferences("ajustes", 0)
+        val tog = act.tv("", 14f, T.accent, true).apply { gravity = Gravity.CENTER; setPadding(0, act.dp(16), 0, act.dp(4)) }
+        fun paintTog() { tog.text = if (pr.getBoolean("liveStats", true)) "👁  " + L.t("stHideLive") else "📊  " + L.t("stShowLive") }
+        paintTog()
+        tog.setOnClickListener { v -> Anim.bump(v); pr.edit().putBoolean("liveStats", !pr.getBoolean("liveStats", true)).apply(); paintTog(); Store.changed() }
+        box.addView(tog)
         // 🎉 todos los pendientes hechos: confeti cuando el anillo se llena
         if (ckT > 0 && ckD >= ckT) ringRow.postDelayed({ if (ringRow.isAttachedToWindow) Confetti.burst(act) }, 1500)
         Sheet(act, "📊 " + L.t("stTitle"), java.text.SimpleDateFormat("EEEE d MMMM", L.locale).format(java.util.Date(now))).custom(box).show()
@@ -354,10 +365,10 @@ object Stats {
             val d = resources.displayMetrics.density
             val max = maxOf(1, v.maxOrNull() ?: 1)
             val n = v.size; val slot = width / n.toFloat(); val bw = slot * 0.52f
-            val base = height - 22 * d; val top = 18 * d
+            val base = height - 22 * d; val top = 26 * d
             for (i in 0 until n) {
                 val stagger = ((k * 1.4f) - i * 0.06f).coerceIn(0f, 1.15f)
-                val h = (base - top) * v[i] / max * stagger
+                val h = (base - top) * v[i] / max * minOf(stagger, 1.04f)
                 val cx = slot * i + slot / 2
                 val today = i == n - 1
                 p.shader = android.graphics.LinearGradient(0f, base - h, 0f, base, if (today) T.accent else (0xCC shl 24) or (T.accent and 0xFFFFFF), (0x55 shl 24) or (T.accent and 0xFFFFFF), android.graphics.Shader.TileMode.CLAMP)
@@ -432,6 +443,121 @@ object NoteLinks {
         Store.io.execute {
             val out = Store.notes.filter { n -> !n.deleted && n.id != id && try { (Store.readBody(n.id).first ?: "").contains("\"" + PREFIX + id + "\"") } catch (_: Exception) { false } }
             Store.main.post { onDone(out) }
+        }
+    }
+}
+
+
+/* ---------------------------- 📊 El medidor en vivo (pantalla principal) ---------------------------- */
+/**
+ * Debajo de "Todas las notas": el anillo de pendientes, las barritas de la semana y los números.
+ * Cada vez que cambia algo (marcas un pendiente, escribes una nota…) se mueve solo, con animación.
+ */
+@SuppressLint("ViewConstructor")
+class LiveStats(private val act: Activity) : LinearLayout(act) {
+    private val ring = LiveRing(act)
+    private val bars = LiveBars(act)
+    private val head = act.tv("", 12.5f, T.muted, true).apply { letterSpacing = 0.06f; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
+    private val nNotes = act.tv("0", 15f, T.text, true)
+    private val nPhotos = act.tv("0", 15f, T.text, true)
+    private val nStreak = act.tv("0", 15f, T.text, true)
+    private var last: Stats.Quick? = null
+
+    init {
+        orientation = VERTICAL
+        background = Glass.make(act, 22f); setPadding(act.dp(14), act.dp(10), act.dp(12), act.dp(10))
+        val top = LinearLayout(act).apply { orientation = HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        top.addView(head, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        top.addView(act.tv("›", 18f, T.muted, true))
+        addView(top)
+        val row = LinearLayout(act).apply { orientation = HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, act.dp(6), 0, 0) }
+        row.addView(ring, LayoutParams(act.dp(66), act.dp(66)))
+        row.addView(bars, LayoutParams(0, act.dp(70), 1f).apply { setMargins(act.dp(12), 0, act.dp(10), 0) })
+        val col = LinearLayout(act).apply { orientation = VERTICAL }
+        fun line(e: String, v: TextView) = col.addView(LinearLayout(act).apply {
+            orientation = HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            addView(act.tv(e, 13f).apply { setPadding(0, 0, act.dp(5), 0) }); addView(v)
+        })
+        line("📝", nNotes); line("📷", nPhotos); line("🔥", nStreak)
+        row.addView(col)
+        addView(row)
+        setOnClickListener { Anim.press(it); Stats.show(act) }
+    }
+
+    /** Pone los números nuevos (con animación solo en lo que cambió). */
+    fun update(q: Stats.Quick) {
+        val old = last; last = q
+        head.text = "📊 " + L.t("stLiveHead", "n" to q.week).uppercase(L.locale)
+        ring.set(if (q.total == 0) 0f else q.done.toFloat() / q.total, q.total > 0 && q.done >= q.total)
+        bars.set(q.perDay, q.names)
+        count(nNotes, old?.notes ?: 0, q.notes); count(nPhotos, old?.photos ?: 0, q.photos); count(nStreak, old?.streak ?: 0, q.streak)
+        // 🎉 justo ahora se terminaron todos los pendientes
+        if (old != null && old.total > 0 && old.done < old.total && q.total > 0 && q.done >= q.total) Anim.sparkle(ring, 60f, 900)
+    }
+
+    private fun count(v: TextView, a: Int, b: Int) {
+        if (a == b && v.text.toString() == b.toString()) return
+        ValueAnimator.ofInt(a, b).apply { duration = 700; interpolator = android.view.animation.DecelerateInterpolator(2f); addUpdateListener { v.text = it.animatedValue.toString() }; start() }
+        if (a != b) Anim.bump(v, 1.25f)
+    }
+
+    /** ◯ El anillo de pendientes que se llena o se vacía suavecito. */
+    private class LiveRing(ctx: Context) : View(ctx) {
+        private val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
+        private val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; isFakeBoldText = true }
+        private val sp = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+        private var cur = 0f; private var full = false
+        private var anim: ValueAnimator? = null
+        fun set(f: Float, all: Boolean) {
+            full = all
+            if (Math.abs(f - cur) < 0.001f) { invalidate(); return }
+            anim?.cancel()
+            anim = ValueAnimator.ofFloat(cur, f).apply { duration = 900; interpolator = android.view.animation.OvershootInterpolator(1.2f); addUpdateListener { cur = (it.animatedValue as Float).coerceIn(0f, 1f); invalidate() }; start() }
+        }
+        override fun onDraw(c: Canvas) {
+            val d = resources.displayMetrics.density
+            val sw = 6.5f * d; val r = RectF(sw, sw, width - sw, height - sw)
+            p.strokeWidth = sw; p.shader = null; p.color = tw(0x22); c.drawArc(r, 0f, 360f, false, p)
+            p.shader = android.graphics.SweepGradient(width / 2f, height / 2f, intArrayOf(0xFF30D158.toInt(), 0xFF64D2FF.toInt(), 0xFF30D158.toInt()), null)
+            c.save(); c.rotate(-90f, width / 2f, height / 2f); c.drawArc(r, 0f, 360f * cur, false, p); c.restore()
+            tp.color = T.text; tp.textSize = 14.5f * d
+            c.drawText("${(cur * 100).toInt()}%", width / 2f, height / 2f + 2 * d, tp)
+            sp.color = T.muted; sp.textSize = 8.5f * d
+            c.drawText(if (full) "🎉" else "☑", width / 2f, height / 2f + 13 * d, sp)
+        }
+    }
+
+    /** ▮▮▮ Las barritas de los 7 días: cuando cambia un número, la barra crece rebotando. */
+    private class LiveBars(ctx: Context) : View(ctx) {
+        private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+        private var from = FloatArray(7); private var to = FloatArray(7); private var k = 1f
+        private var names: List<String> = List(7) { "" }
+        private var vals = IntArray(7)
+        fun set(v: IntArray, n: List<String>) {
+            names = n
+            if (v.contentEquals(vals) && k >= 1f) { invalidate(); return }
+            val max = maxOf(1, v.maxOrNull() ?: 1).toFloat()
+            from = FloatArray(7) { i -> cur(i) }
+            to = FloatArray(7) { i -> v[i] / max }
+            vals = v.copyOf()
+            ValueAnimator.ofFloat(0f, 1f).apply { duration = 800; interpolator = android.view.animation.OvershootInterpolator(1.6f); addUpdateListener { k = it.animatedValue as Float; invalidate() }; start() }
+            k = 0f
+        }
+        private fun cur(i: Int) = from[i] + (to[i] - from[i]) * k
+        override fun onDraw(c: Canvas) {
+            val d = resources.displayMetrics.density
+            val n = 7; val slot = width / n.toFloat(); val bw = slot * 0.5f
+            val base = height - 14 * d; val top = 4 * d
+            for (i in 0 until n) {
+                val h = maxOf(3 * d, (base - top) * cur(i).coerceIn(0f, 1.08f))
+                val cx = slot * i + slot / 2
+                val today = i == n - 1
+                p.shader = android.graphics.LinearGradient(0f, base - h, 0f, base, if (today) T.accent else (0xCC shl 24) or (T.accent and 0xFFFFFF), (0x44 shl 24) or (T.accent and 0xFFFFFF), android.graphics.Shader.TileMode.CLAMP)
+                c.drawRoundRect(cx - bw / 2, base - h, cx + bw / 2, base, 5 * d, 5 * d, p)
+                tp.color = if (today) T.text else T.muted; tp.textSize = 10 * d; tp.isFakeBoldText = today
+                c.drawText(names.getOrElse(i) { "" }, cx, height - 2 * d, tp)
+            }
         }
     }
 }

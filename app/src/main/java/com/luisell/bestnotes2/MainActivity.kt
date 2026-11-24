@@ -120,6 +120,9 @@ class MainActivity : Activity() {
         pills.addView(statsPill, lp(WRAP, WRAP))
         col.addView(android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(14), 0, dp(14), 0); addView(pills) },
             lp(MATCH, WRAP).apply { setMargins(0, dp(2), 0, dp(6)) })
+        // 📊 el medidor en vivo (anillo + barras + números)
+        liveStats = LiveStats(this).apply { visibility = View.GONE }
+        col.addView(liveStats, lp(MATCH, WRAP).apply { setMargins(dp(14), dp(2), dp(14), dp(10)) })
 
         // Buscar
         val sb = LinearLayout(this).apply {
@@ -449,13 +452,25 @@ class MainActivity : Activity() {
     private var nearIds: Set<String> = emptySet()
     private lateinit var nearPill: TextView
     private lateinit var statsPill: TextView
+    private lateinit var liveStats: LiveStats
     private var statsShownOnce = false
     /** 📊 La pastilla del resumen: notas de esta semana · % de pendientes hechos · racha. */
     private fun paintStats() {
         if (!::statsPill.isInitialized) return
         val show = Store.loaded && view == "all" && selected.isEmpty() && query.isBlank() && Store.notes.any { !it.deleted }
-        if (!show) { statsPill.visibility = View.GONE; return }
+        if (!show) { statsPill.visibility = View.GONE; if (::liveStats.isInitialized) liveStats.visibility = View.GONE; return }
         val q = Stats.quick()
+        // 📊 el medidor en vivo (si está prendido) en vez de la pastilla
+        if (::liveStats.isInitialized && prefs.getBoolean("liveStats", true)) {
+            statsPill.visibility = View.GONE
+            liveStats.update(q)
+            if (liveStats.visibility != View.VISIBLE) {
+                liveStats.visibility = View.VISIBLE; liveStats.alpha = 0f; liveStats.translationY = -dp(12).toFloat()
+                liveStats.animate().alpha(1f).translationY(0f).setStartDelay(120).setDuration(450).setInterpolator(android.view.animation.OvershootInterpolator(1.3f)).start()
+            }
+            return
+        }
+        if (::liveStats.isInitialized) liveStats.visibility = View.GONE
         statsPill.text = "📊 " + L.t("stPill", "n" to q.week) + (if (q.total > 0) "  ·  ☑️ ${q.pct}%" else "") + (if (q.streak > 0) "  ·  🔥 ${q.streak}" else "") + "  ›"
         if (statsPill.visibility != View.VISIBLE) {
             statsPill.visibility = View.VISIBLE
