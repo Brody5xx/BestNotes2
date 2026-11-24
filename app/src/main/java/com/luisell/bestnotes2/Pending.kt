@@ -37,6 +37,16 @@ object Pending {
     }
 
     /** Marca como hecho el renglón número [index] (contando todos los renglones de listas de la nota). */
+    /** 🎉 Confeti si con este se terminaron los pendientes de la nota (o todos los de la app). */
+    fun celebrate(act: android.app.Activity, row: Row) {
+        val n = row.note
+        val left = Store.notes.filter { !it.deleted && !it.locked }.sumOf { maxOf(0, it.checkTotal - it.checkDone) }
+        when {
+            left == 0 -> { Confetti.burst(act); act.toast("🎉 " + L.t("allPendDone")) }
+            n.checkTotal >= 2 && n.checkDone >= n.checkTotal -> { Confetti.burst(act); act.toast("🎉 " + L.t("notePendDone", "t" to n.title.ifEmpty { L.t("untitled") })) }
+        }
+    }
+
     fun markDone(row: Row, after: () -> Unit) {
         Store.io.execute {
             val (body, extra) = Store.readBody(row.note.id)
@@ -109,7 +119,7 @@ class PendingActivity : Activity() {
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val box = ListaView.Mark(this, "check", false, 0)
         box.setOnClickListener {
-            dialog().setMessage(L.t("ckDoneQ") + "\n\n" + r.text).setPositiveButton(L.t("ckDoneYes")) { _, _ -> Pending.markDone(r) { refresh() } }
+            dialog().setMessage(L.t("ckDoneQ") + "\n\n" + r.text).setPositiveButton(L.t("ckDoneYes")) { _, _ -> Pending.markDone(r) { refresh(); Pending.celebrate(this, r) } }
                 .setNegativeButton(L.t("cancel"), null).show()
         }
         row.addView(box, lp(dp(34), dp(34)))

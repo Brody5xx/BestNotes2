@@ -1420,7 +1420,7 @@ class MainActivity : Activity() {
         if (open) for (r in todo.take(3)) {
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP; setPadding(0, dp(6), 0, 0) }
             val box = ListaView.Mark(this, "check", false, 0)
-            box.setOnClickListener { dialog().setMessage(L.t("ckDoneQ") + "\n\n" + r.text).setPositiveButton(L.t("ckDoneYes")) { _, _ -> Pending.markDone(r) {} }.setNegativeButton(L.t("cancel"), null).show() }
+            box.setOnClickListener { dialog().setMessage(L.t("ckDoneQ") + "\n\n" + r.text).setPositiveButton(L.t("ckDoneYes")) { _, _ -> Anim.bump(box, 1.35f); Anim.sparkle(box, 34f, 560); Pending.markDone(r) { Pending.celebrate(this, r) } }.setNegativeButton(L.t("cancel"), null).show() }
             row.addView(box, lp(dp(34), dp(34)))
             val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setOnClickListener { open(r.note) } }
             col.addView(tv(r.text, 15f, T.text).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END; setPadding(0, dp(5), 0, 0) })
