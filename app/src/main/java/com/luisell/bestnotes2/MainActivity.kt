@@ -166,6 +166,11 @@ class MainActivity : Activity() {
         val fab = IconView(this, MoreIcons.PLUS, 12f).apply {
             color = T.onPill; pressBg(T.text, 30f); elevation = dp(8).toFloat()
             setOnClickListener { pop(it); newNote("text", it) }
+            // 📋 dejar presionado el + = empezar con una plantilla
+            setOnLongClickListener { v -> pop(v); v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); templateSheet({ t ->
+                val m = Store.createNote(t.title, t.blocks(), view.takeIf { it.startsWith("f:") }?.substring(2))
+                startActivity(Intent(this@MainActivity, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, m.id))
+            }); true }
             contentDescription = L.t("newNote")
         }
         fabs.addView(fab, lp(dp(60), dp(60)))
@@ -704,6 +709,7 @@ class MainActivity : Activity() {
         nav(Icons.NOTEBOOK, L.t("all"), "all", count { !it.deleted })
         nav(MoreIcons.STAR5, L.t("fav"), "fav", count { !it.deleted && it.fav })
         nav(Icons.TRASH, L.t("trash"), "trash", count { it.deleted })
+        p.addView(menuRow(this, Icons.WEEK, L.t("stTitle"), L.t("stSub")) { closeDrawer(); Stats.show(this) })
         p.addView(menuRow(this, Icons.PIN, L.t("nearTitle"), if (Places.allowed(this)) L.t("nearSub") else L.t("nearOff")) { closeDrawer(); openNear() }.also { r -> if (view == "near") r.background = roundBg(tw(0x1F), dp(18).toFloat()) })
         // 2) CARPETAS  ＋   (cada una con su color, cuántas notas y ⋯)
         p.addView(sep())
@@ -1432,7 +1438,21 @@ class MainActivity : Activity() {
     inner class NotesAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         private var items: List<NoteMeta> = emptyList()
         init { setHasStableIds(true) }
-        fun set(l: List<NoteMeta>) { items = l; notifyDataSetChanged() }
+        private var lastKey = ""
+        fun set(l: List<NoteMeta>) {
+            val key = view + "|" + query
+            val shrank = l.size < items.size && items.isNotEmpty() && key == lastKey      // (no al buscar ni al cambiar de carpeta)
+            lastKey = key
+            items = l; notifyDataSetChanged()
+            // 🗑 se borró una nota: las demás se acomodan dando un rebotito
+            if (shrank && ::list.isInitialized) list.post {
+                for (k in 0 until list.childCount) {
+                    val v = list.getChildAt(k)
+                    v.scaleX = 0.94f; v.scaleY = 0.94f; v.alpha = 0.6f
+                    v.animate().scaleX(1f).scaleY(1f).alpha(1f).setStartDelay(k * 30L).setDuration(420).setInterpolator(android.view.animation.OvershootInterpolator(3f)).start()
+                }
+            }
+        }
         private fun off() = if (showTodo()) 1 else 0
         override fun getItemCount() = items.size + off()
         override fun getItemViewType(position: Int) = if (position < off()) 1 else 0

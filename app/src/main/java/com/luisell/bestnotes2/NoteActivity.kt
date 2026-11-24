@@ -526,11 +526,71 @@ class NoteActivity : Activity(), EditorView.Host {
         RichEdit.onSelectAll = { multiStart(null, true) }
         RichEdit.onSelectMore = { e -> multiStart(e, false, lines = true) }
         RichEdit.onUserSelect = { e, a, b -> startFromNative(e, a, b) }
+        RichEdit.onLinkTap = { u -> openLinked(u) }
+        RichEdit.onBrackets = { e, at -> if (!editor.readOnly) linkNote(e, at, 2) }
+    }
+
+    /* ---------- 🔗 notas conectadas ---------- */
+    private fun linkNote(e: RichEdit?, at: Int, del: Int = 0) {
+        NoteLinks.pick(this, meta.id) { n ->
+            val run = Run(NoteLinks.titleOf(n), St(href = NoteLinks.PREFIX + n.id))
+            if (e != null && e.isAttachedToWindow) {
+                val a = at.coerceIn(0, e.length()); val b = (a + del).coerceIn(a, e.length())
+                val sp = Rich.build(listOf(run))
+                e.text.replace(a, b, sp)
+                val end = a + sp.length
+                e.text.insert(end, " ")
+                e.requestFocus(); e.setSelection(minOf(e.length(), end + 1))
+            } else appendBlocks(listOf(Block.Text(mutableListOf(Run("🔗 "), run))))
+            onDirty(); hint("🔗 " + L.t("linkOk"))
+        }
+    }
+    private fun openLinked(u: String) {
+        val id = u.removePrefix(NoteLinks.PREFIX)
+        val m = Store.meta(id)
+        if (m == null || m.deleted) { toast(L.t("linkGone")); return }
+        save()
+        val go = { startActivity(Intent(this, NoteActivity::class.java).putExtra(EXTRA_ID, id)); overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out) }
+        if (m.locked) Pin.check(this) { go() } else go()
+    }
+    private fun showBacklinks() {
+        save()
+        NoteLinks.backlinks(meta.id) { l ->
+            if (l.isEmpty()) { toast(L.t("backNone")); return@backlinks }
+            val sh = Sheet(this, "🔗 " + L.t("backTitle"), L.t("backSub"))
+            for (n in l) sh.item(Icons.NOTEBOOK, NoteLinks.titleOf(n), Sheet.TEAL) { openLinked(NoteLinks.PREFIX + n.id) }
+            sh.show()
+        }
+    }
+
+    /* ---------- 🔊 leer en voz alta ---------- */
+    private var speaker: Speaker? = null
+    private fun readAloud() {
+        editor.flushAll()
+        speaker?.stop()
+        val text = (title.text.toString() + "\n" + blocksPlain(editor.blocks)).trim()
+        speaker = Speaker(this, findViewById(android.R.id.content)).also { s -> s.onClose = { if (speaker === s) speaker = null }; s.start(text) }
+    }
+
+    /* ---------- ✍️ firma ---------- */
+    private fun signHere() {
+        Signature.ask(this) { f, w, h, stamp ->
+            editor.insertImages(listOf(Block.Img(f, 62f, "", 19f, 0f, w, h, stamp, 0f, System.currentTimeMillis())))
+            onDirty(); hint("✍️ " + L.t("sigOk"))
+        }
+    }
+
+    /* ---------- 🎉 todos los pendientes hechos ---------- */
+    override fun onChecked() {
+        val items = editor.blocks.filterIsInstance<Block.ListB>().filter { it.kind == "check" }.flatMap { it.items }.filter { runsPlain(it.runs).isNotBlank() }
+        if (items.size >= 2 && items.all { it.done }) { Confetti.burst(this); hint("🎉 " + L.t("allDoneYay")) }
     }
 
     override fun onPause() {
         super.onPause()
         RichEdit.onSelectAll = null; RichEdit.onSelectMore = null; RichEdit.onUserSelect = null
+        RichEdit.onLinkTap = null; RichEdit.onBrackets = null
+        speaker?.stop()
         if (dict != null) stopDictation()
         AudioPlayer.stop()
         save()
@@ -1546,6 +1606,8 @@ class NoteActivity : Activity(), EditorView.Host {
         sh.divider()
         sh.item(MoreIcons.FOLDER, L.t("moveToFolder"), Sheet.ORANGE, Store.folders.firstOrNull { it.id == meta.folder }?.name) { moveFolder() }
         sh.item(Icons.LOCK, L.t(if (meta.locked) "unlock" else "lockPin"), Sheet.GRAY) { toggleLock() }
+        sh.item(Icons.SPEAKER, L.t("ttsTitle"), Sheet.BLUE, L.t("ttsSub")) { readAloud() }
+        sh.item(Icons.CLIP, L.t("backTitle"), Sheet.TEAL, L.t("backSub")) { showBacklinks() }
         sh.item(Icons.PIN, L.t("placeItem"), Sheet.GREEN, if (Places.has(this, meta.id)) "📍 " + L.t("placeHas") else L.t("placeNone")) { placeMenu() }
         sh.item(MoreIcons.INFO, L.t("info"), Sheet.GRAY) { info() }
         sh.divider()
@@ -1648,6 +1710,8 @@ class NoteActivity : Activity(), EditorView.Host {
             .quick(MoreIcons.VIDEO, L.t("video"), Sheet.ORANGE) { videoMenu() }
             .item(Icons.SCAN, L.t("ocrCam"), Sheet.SKY, L.t("ocrCamSub")) { openCamera(ocr = true) }
             .item(MoreIcons.QR, L.t("qrScan"), Sheet.GREEN, L.t("qrScanSub")) { scanCode() }
+            .item(Icons.CLIP, L.t("linkTitle"), Sheet.TEAL, L.t("linkInsSub")) { val e = editor.focused; linkNote(e, e?.selectionEnd ?: 0) }
+            .item(Icons.PENCIL, L.t("sigTitle"), Sheet.VIOLET, L.t("sigSub")) { signHere() }
             .quick(MoreIcons.MIC, L.t("audio"), Sheet.RED) { audioMenu() }
             .show()
     }

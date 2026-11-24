@@ -122,6 +122,8 @@ class EditorView(ctx: Context, val host: Host) : LinearLayout(ctx) {
         /** Se seleccionó (o se soltó) una foto: muestra el panel de la foto. */
         fun onImageSelected(f: FotoView?)
         fun onImageChanged(f: FotoView)
+        /** ☑️ Se marcó un pendiente como hecho. */
+        fun onChecked() {}
     }
 
     var blocks: MutableList<Block> = ArrayList()
@@ -669,8 +671,8 @@ class ListaView(val ed: EditorView, override val block: Block.ListB) : BlockView
                     (ed.context.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).hideSoftInputFromWindow(f.windowToken, 0)
                     f.clearFocus()
                 }
-                if (row != null) row.animate().alpha(0.25f).translationX(row.width * 0.18f).setStartDelay(160).setDuration(220).withEndAction { draw(null); ed.host.onDirty() }.start()
-                else { draw(null); ed.host.onDirty() }
+                if (row != null) row.animate().alpha(0.25f).translationX(row.width * 0.18f).setStartDelay(160).setDuration(220).withEndAction { draw(null); ed.host.onDirty(); ed.host.onChecked() }.start()
+                else { draw(null); ed.host.onDirty(); ed.host.onChecked() }
             }
         } else {
             it.done = false

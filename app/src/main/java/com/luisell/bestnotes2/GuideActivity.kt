@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-24" to ("📋 Plantillas nuevas: cámara, mag lock, corrida de cable y servicio con firma (deja presionado el +). 🔊 Leer la nota en voz alta. 🔗 Enlazar notas escribiendo [[. 📊 Resumen de tu semana. ✍️ Firma del cliente. 🎉 Confeti al terminar todos los pendientes" to
+            "📋 New templates: camera, mag lock, cable run and service with signature (long-press +). 🔊 Read the note aloud. 🔗 Link notes by typing [[. 📊 Your week summary. ✍️ Customer signature. 🎉 Confetti when all to-dos are done"),
         "2026-11-24" to ("🔎 Escoge las palabras de una foto (como Google Lens): tocas o deslizas el dedo, y Copiar, Traducir o A la nota. ✋ Los textos y figuras en las fotos ahora se mueven, se agrandan, cambian de color y pueden tener fondo. 📍 «Lugar» en el menú ⋮ de la nota" to
             "🔎 Pick the words in a photo (like Google Lens): tap or slide your finger, then Copy, Translate or To note. ✋ Texts and shapes on photos now move, resize, change color and can have a background. 📍 «Place» in the note's ⋮ menu"),
         "2026-11-23" to ("🔎 Leer el texto de las fotos (también chino) y el buscador encuentra lo escrito en ellas. ▦ Escanear QR y códigos de barras. ➜◯▭↔ Flechas, círculos, cuadros y medidas en las fotos. 🎙️ Cuéntame lo que hiciste → reporte con IA. 🔌 Calculadora de cable. 📍 Notas de este lugar. ☁️ Respaldo en tu cuenta de Google y directo a Google Drive" to

@@ -54,6 +54,13 @@ class PantallaTest {
         return out
     }
 
+    @Test fun leerEnVozAltaReconoceElIdioma() {
+        org.junit.Assert.assertEquals(java.util.Locale.SIMPLIFIED_CHINESE, Speaker.langOf("请在门口等我"))
+        org.junit.Assert.assertEquals(java.util.Locale.US, Speaker.langOf("Pull the cable to the rack and test the camera"))
+        org.junit.Assert.assertEquals("es", Speaker.langOf("Hay que pasar el cable por el techo").language)
+        org.junit.Assert.assertEquals(3, Speaker.split("Hola. Prueba uno!\nOtra línea").size)
+    }
+
     @Test fun textoEnFotoSeMueveYGuardaSuFondo() {
         val t = Stroke("text", 0xFF3A7BFF.toInt(), 0.06f, arrayListOf(floatArrayOf(0.2f, 0.3f)), "Cable aquí").also { it.bg = 1 }
         val back = Stroke.fromJson(t.toJson())!!

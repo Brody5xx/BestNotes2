@@ -51,6 +51,38 @@ object Templates {
                     text(b(t("📝 Notas:", "📝 Notes:")), r("\n")),
                 )
             }, icon = MoreIcons.CHECKBOX),
+            Tpl("📹", t("Instalación de cámara", "Camera install"), t("Cámara", "Camera") + " — " + today(), {
+                mutableListOf(
+                    text(b(t("📍 Lugar: ", "📍 Place: ")), r("\n"), b(t("📹 Cámara (modelo): ", "📹 Camera (model): ")), r("\n"), b("🌐 IP: "), r("\n"), b("🔀 VLAN: "), r("\n"), b(t("🔌 Puerto del switch: ", "🔌 Switch port: ")), r("\n\n"), b(t("🪜 Pasos:", "🪜 Steps:"))),
+                    list("check", t("Foto de antes", "Before photo"), t("Montar la base", "Mount the base"), t("Pasar el cable", "Run the cable"), t("Ponchar el RJ45", "Terminate the RJ45"),
+                        t("Probar PoE (que encienda)", "Test PoE (it powers on)"), t("Ajustar ángulo y enfoque", "Adjust angle and focus"), t("Agregar al grabador (NVR)", "Add to the recorder (NVR)"), t("Foto de después", "After photo")),
+                    text(b(t("📝 Notas:", "📝 Notes:")), r("\n")),
+                )
+            }, icon = Icons.SCAN),
+            Tpl("🚪", t("Puerta con mag lock", "Mag lock door"), t("Puerta", "Door") + " — " + today(), {
+                mutableListOf(
+                    text(b(t("🚪 Puerta: ", "🚪 Door: ")), r("\n"), b(t("💳 Lector: ", "💳 Reader: ")), r("\n"), b(t("🔋 Fuente de poder: ", "🔋 Power supply: ")), r("\n"), b(t("🧠 Panel / puerto: ", "🧠 Panel / port: ")), r("\n\n"), b(t("🪜 Pasos:", "🪜 Steps:"))),
+                    list("check", t("Montar el mag lock y la placa", "Mount the mag lock and plate"), t("Cablear el lector", "Wire the reader"), t("Cablear REX y sensor de puerta", "Wire REX and door contact"),
+                        t("Conectar a la fuente", "Connect to the power supply"), t("Probar que abre con tarjeta", "Test it opens with a card"), t("Probar la salida (REX)", "Test the exit (REX)"),
+                        t("Probar que la alarma de incendio libera la puerta", "Test the fire alarm releases the door")),
+                    text(b(t("📝 Notas:", "📝 Notes:")), r("\n")),
+                )
+            }, icon = Icons.LOCK),
+            Tpl("🔌", t("Corrida de cable", "Cable run"), t("Cable", "Cable") + " — " + today(), {
+                mutableListOf(
+                    text(b(t("🗄️ Desde (rack / IDF): ", "🗄️ From (rack / IDF): ")), r("\n"), b(t("📍 Hasta: ", "📍 To: ")), r("\n"), b(t("🧵 Tipo de cable: ", "🧵 Cable type: ")), r("Cat 6\n"), b(t("🔢 Cantidad: ", "🔢 Quantity: ")), r("\n"), b(t("🏷️ Etiquetas: ", "🏷️ Labels: ")), r("\n\n"), b(t("🪜 Pasos:", "🪜 Steps:"))),
+                    list("check", t("Medir la ruta", "Measure the route"), t("Jalar el cable", "Pull the cable"), t("Etiquetar las dos puntas", "Label both ends"),
+                        t("Terminar en el patch panel", "Terminate at the patch panel"), t("Terminar el jack", "Terminate the jack"), t("Probar / certificar", "Test / certify")),
+                    text(b(t("📝 Notas:", "📝 Notes:")), r("\n")),
+                )
+            }, icon = MoreIcons.MEASURE),
+            Tpl("🔧", t("Servicio con firma", "Service call with signature"), t("Servicio", "Service") + " — " + today(), {
+                mutableListOf(
+                    text(b(t("📍 Lugar: ", "📍 Place: ")), r("\n"), b(t("👤 Contacto: ", "👤 Contact: ")), r("\n"), b(t("⚠️ Problema reportado: ", "⚠️ Reported problem: ")), r("\n\n"), b(t("🔍 Lo que encontré:", "🔍 What I found:")), r("\n\n"), b(t("🛠️ Lo que hice:", "🛠️ What I did:")), r("\n")),
+                    list("check", t("Probado y funcionando", "Tested and working"), t("Cliente avisado", "Customer informed")),
+                    text(b(t("✍️ Firma del cliente:", "✍️ Customer signature:")), r("\n"), Run(t("(Insertar → Firma)", "(Insert → Signature)"), St.PLAIN.copy(i = true, color = 0xFF8E8E93.toInt()))),
+                )
+            }, icon = Icons.PENCIL),
             Tpl("🧰", t("Lista de materiales", "Materials list"), t("Materiales", "Materials") + " — " + today(), {
                 mutableListOf(
                     list("check", t("Cable", "Cable"), t("Conectores", "Connectors"), t("Tornillos y tacos", "Screws and anchors"),

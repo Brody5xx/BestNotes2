@@ -165,6 +165,10 @@ open class RichEdit(ctx: Context) : EditText(ctx) {
         /** Seleccionaste con el dedo (dejando presionado): la nota pone sus propias gotitas que cruzan renglones. */
         var onUserSelect: ((RichEdit, Int, Int) -> Unit)? = null
         const val MENU_MORE = 9901
+        /** 🔗 Tocaste un enlace a otra nota ("nota:…"). */
+        var onLinkTap: ((String) -> Unit)? = null
+        /** 🔗 Escribiste "[[" (para enlazar otra nota): dónde empieza. */
+        var onBrackets: ((RichEdit, Int) -> Unit)? = null
         fun hideToolbar(ms: Long) { if (android.os.Build.VERSION.SDK_INT >= 23) try { toolbar?.hide(ms) } catch (_: Exception) {} }
     }
 
@@ -200,6 +204,10 @@ open class RichEdit(ctx: Context) : EditText(ctx) {
             override fun onTextChanged(s: CharSequence, start: Int, before: Int, count: Int) {
                 if (muting) return
                 enterAt = if (count == before + 1 && s[start + count - 1] == '\n') start + count - 1 else -1
+                if (count == before + 1 && s[start + count - 1] == '[' && start + count - 2 >= 0 && s[start + count - 2] == '[') {
+                    val at = start + count - 2
+                    post { if (at + 1 < text.length && text[at] == '[' && text[at + 1] == '[') onBrackets?.invoke(this@RichEdit, at) }
+                }
                 val fn = pending
                 if (fn != null && count > 0) {
                     pendB = maxOf(pendB, start + count)
@@ -219,6 +227,33 @@ open class RichEdit(ctx: Context) : EditText(ctx) {
                 onEdit?.invoke()
             }
         })
+    }
+
+    private var tapX = 0f; private var tapY = 0f
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(e: android.view.MotionEvent): Boolean {
+        if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN) { tapX = e.x; tapY = e.y }
+        val r = super.onTouchEvent(e)
+        // 🔗 un toque corto encima de un enlace a otra nota: se abre esa nota
+        if (e.actionMasked == android.view.MotionEvent.ACTION_UP && onLinkTap != null && e.eventTime - e.downTime < 350 &&
+            Math.abs(e.x - tapX) < 24 && Math.abs(e.y - tapY) < 24 && selectionStart == selectionEnd) {
+            val lay = layout
+            if (lay != null) {
+                val off = getOffsetForPosition(e.x, e.y)
+                val t = text
+                val l = t.getSpans(maxOf(0, off - 1), minOf(t.length, off + 1), LinkS::class.java).firstOrNull { sp ->
+                    val a = t.getSpanStart(sp); val b = t.getSpanEnd(sp)
+                    if (off < a || off > b || !sp.url.startsWith("nota:")) false else {
+                        val line = lay.getLineForOffset(a)
+                        val x0 = lay.getPrimaryHorizontal(a) + totalPaddingLeft; val x1 = if (lay.getLineForOffset(b) == line) lay.getPrimaryHorizontal(b) + totalPaddingLeft else width.toFloat()
+                        val y = e.y - totalPaddingTop + scrollY
+                        e.x in (x0 - 8)..(x1 + 8) && y >= lay.getLineTop(line) && y <= lay.getLineBottom(lay.getLineForOffset(b))
+                    }
+                }
+                if (l != null) { val u = l.url; post { onLinkTap?.invoke(u) } }
+            }
+        }
+        return r
     }
 
     private var lastTouch = 0L
