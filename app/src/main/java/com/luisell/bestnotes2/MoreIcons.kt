@@ -61,6 +61,7 @@ object MoreIcons {
     const val CIRCLE = 247
     const val RECT = 248
     const val MEASURE = 249
+    const val DRIVE = 250
 
     private val path = Path()
     private val r = RectF()
@@ -373,6 +374,17 @@ object MoreIcons {
                 c.drawLine(cx - s * 0.85f, cy - s * 0.15f, cx - s * 0.85f, cy + s * 0.55f, st)
                 c.drawLine(cx + s * 0.85f, cy - s * 0.15f, cx + s * 0.85f, cy + s * 0.55f, st)
                 for (k in listOf(-0.42f, 0f, 0.42f)) c.drawLine(cx + s * k, cy + s * 0.2f, cx + s * k, cy - s * 0.12f, st)
+            }
+            DRIVE -> {
+                // ☁️ nubecita con una flecha hacia arriba
+                path.reset()
+                path.moveTo(cx - s * 0.6f, cy + s * 0.55f)
+                path.cubicTo(cx - s * 1.05f, cy + s * 0.55f, cx - s * 1.0f, cy - s * 0.15f, cx - s * 0.55f, cy - s * 0.12f)
+                path.cubicTo(cx - s * 0.45f, cy - s * 0.75f, cx + s * 0.45f, cy - s * 0.8f, cx + s * 0.55f, cy - s * 0.15f)
+                path.cubicTo(cx + s * 1.0f, cy - s * 0.15f, cx + s * 1.05f, cy + s * 0.55f, cx + s * 0.6f, cy + s * 0.55f)
+                c.drawPath(path, st)
+                c.drawLine(cx, cy + s * 0.5f, cx, cy - s * 0.15f, st)
+                c.drawLine(cx, cy - s * 0.15f, cx - s * 0.25f, cy + s * 0.1f, st); c.drawLine(cx, cy - s * 0.15f, cx + s * 0.25f, cy + s * 0.1f, st)
             }
             INBOX -> {
                 // 📥 bandeja (sin carpeta)

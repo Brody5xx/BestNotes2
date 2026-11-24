@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-23" to ("🔎 Leer el texto de las fotos (también chino) y el buscador encuentra lo escrito en ellas. ▦ Escanear QR y códigos de barras. ➜◯▭↔ Flechas, círculos, cuadros y medidas en las fotos. 🎙️ Cuéntame lo que hiciste → reporte con IA. 🔌 Calculadora de cable. 📍 Notas de este lugar. ☁️ Respaldo en tu cuenta de Google y directo a Google Drive" to
+            "🔎 Read the text in photos (Chinese too) and search finds what's written in them. ▦ Scan QR and barcodes. ➜◯▭↔ Arrows, circles, boxes and measurements on photos. 🎙️ Tell me what you did → AI report. 🔌 Cable calculator. 📍 Notes from this place. ☁️ Backup to your Google account and straight to Google Drive"),
         "2026-11-22" to ("📷 Translúcido ahora es la cámara en vivo: detrás de la app se ve lo que ve la cámara (☀️ dejándolo presionado → Translúcido). Solo se prende mientras ves la app; no graba ni guarda nada" to
             "📷 Translucent is now the live camera: what the camera sees shows behind the app (long-press ☀️ → Translucent). It only runs while you see the app; it records and saves nothing"),
         "2026-11-22" to ("🎬 Deja presionado un video y queda escogido como las fotos: brillo alrededor, bolitas para el tamaño (con la línea roja al mismo ancho que otra foto o video) y lo arrastras directo" to

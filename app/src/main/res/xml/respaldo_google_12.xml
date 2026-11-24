@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ☁️ Respaldo automático de Google (Android 12 o más): las notas y los ajustes.
+     Las fotos, videos y la bóveda NO (Google solo guarda hasta 25 MB por app). -->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="database" path="notas.db" />
+        <include domain="sharedpref" path="." />
+        <include domain="file" path="lugares.json" />
+        <include domain="file" path="texto_fotos.json" />
+        <exclude domain="file" path="media/" />
+        <exclude domain="file" path="boveda/" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="database" path="notas.db" />
+        <include domain="sharedpref" path="." />
+        <include domain="file" path="." />
+        <exclude domain="file" path="boveda/" />
+    </device-transfer>
+</data-extraction-rules>

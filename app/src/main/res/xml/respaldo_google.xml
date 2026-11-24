@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ☁️ Respaldo automático de Google (Android 11 o menos): las notas y los ajustes.
+     Las fotos, videos y la bóveda NO (Google solo guarda hasta 25 MB por app). -->
+<full-backup-content>
+    <include domain="database" path="notas.db" />
+    <include domain="sharedpref" path="." />
+    <include domain="file" path="lugares.json" />
+    <include domain="file" path="texto_fotos.json" />
+    <exclude domain="file" path="media/" />
+    <exclude domain="file" path="boveda/" />
+</full-backup-content>

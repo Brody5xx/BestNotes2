@@ -1200,6 +1200,7 @@ class MainActivity : Activity() {
             .quick(MoreIcons.RESTORE, L.t("backupRestore"), Sheet.BLUE) { pickFile() }
             .quick(MoreIcons.HISTORY, L.t("autoBk"), Sheet.VIOLET, on = AutoBackup.on(this)) { autoBackupMenu() }
             .custom(tv(L.t("backupHint"), 13.5f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(18), dp(4), dp(18), dp(10)) })
+            .custom(tv("☁️ " + L.t("gBackupHint"), 13f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(18), dp(2), dp(18), dp(10)) })
             .show()
     }
 
@@ -1244,6 +1245,12 @@ class MainActivity : Activity() {
                     .quick(MoreIcons.IMPORT, L.t("backupSave"), Sheet.GREEN) {
                         val i = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/json").putExtra(Intent.EXTRA_TITLE, name)
                         try { startActivityForResult(i, REQ_SAVE_BK) } catch (_: Exception) { toast(L.t("cantOpen")) }
+                    }
+                    .quick(MoreIcons.DRIVE, "Google Drive", Sheet.AMBER) {
+                        // ☁️ directo a Google Drive (con fotos y videos); si no está Drive, se escoge dónde
+                        val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.archivos", out)
+                        val send = Intent(Intent.ACTION_SEND).setType("application/json").putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        try { startActivity(Intent(send).setPackage("com.google.android.apps.docs")) } catch (_: Exception) { startActivity(Intent.createChooser(send, null)) }
                     }
                     .quick(Icons.SEND, L.t("share"), Sheet.BLUE) {
                         val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.archivos", out)
