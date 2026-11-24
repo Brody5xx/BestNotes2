@@ -57,6 +57,10 @@ object MoreIcons {
     const val INBOX = 243
     const val INSERT = 244
     const val QR = 245
+    const val ARROW = 246
+    const val CIRCLE = 247
+    const val RECT = 248
+    const val MEASURE = 249
 
     private val path = Path()
     private val r = RectF()
@@ -356,6 +360,19 @@ object MoreIcons {
                 val d = s * 0.13f
                 c.drawCircle(cx + s * 0.25f, cy + s * 0.25f, d, fl); c.drawCircle(cx + s * 0.7f, cy + s * 0.35f, d, fl)
                 c.drawCircle(cx + s * 0.35f, cy + s * 0.72f, d, fl); c.drawCircle(cx + s * 0.75f, cy + s * 0.75f, d, fl)
+            }
+            ARROW -> {
+                c.drawLine(cx - s * 0.75f, cy + s * 0.75f, cx + s * 0.75f, cy - s * 0.75f, st)
+                c.drawLine(cx + s * 0.75f, cy - s * 0.75f, cx + s * 0.05f, cy - s * 0.75f, st)
+                c.drawLine(cx + s * 0.75f, cy - s * 0.75f, cx + s * 0.75f, cy - s * 0.05f, st)
+            }
+            CIRCLE -> c.drawCircle(cx, cy, s * 0.8f, st)
+            RECT -> { r.set(cx - s * 0.85f, cy - s * 0.65f, cx + s * 0.85f, cy + s * 0.65f); c.drawRoundRect(r, s * 0.18f, s * 0.18f, st) }
+            MEASURE -> {
+                c.drawLine(cx - s * 0.85f, cy + s * 0.2f, cx + s * 0.85f, cy + s * 0.2f, st)
+                c.drawLine(cx - s * 0.85f, cy - s * 0.15f, cx - s * 0.85f, cy + s * 0.55f, st)
+                c.drawLine(cx + s * 0.85f, cy - s * 0.15f, cx + s * 0.85f, cy + s * 0.55f, st)
+                for (k in listOf(-0.42f, 0f, 0.42f)) c.drawLine(cx + s * k, cy + s * 0.2f, cx + s * k, cy - s * 0.12f, st)
             }
             INBOX -> {
                 // 📥 bandeja (sin carpeta)

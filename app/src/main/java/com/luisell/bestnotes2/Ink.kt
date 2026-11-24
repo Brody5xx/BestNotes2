@@ -69,6 +69,7 @@ class Stroke(val t: String, val c: Int, val w: Float, val p: ArrayList<FloatArra
                 for (line in s.txt.split('\n')) { cv.drawText(line, s.p[0][0] * W, y, txtP); y += txtP.textSize * 1.2f }
                 return
             }
+            if (s.t in SHAPES && s.p.size >= 2) { drawShape(cv, s, W); return }
             pen.xfermode = if (s.t == "eraser") clear else null
             pen.color = if (s.t == "eraser") 0xFF000000.toInt() else s.c
             if (s.t == "hl") pen.alpha = (0.35f * 255).toInt()
@@ -84,6 +85,39 @@ class Stroke(val t: String, val c: Int, val w: Float, val p: ArrayList<FloatArra
             if (p.size > 1) path.lineTo(p.last()[0] * W, p.last()[1] * W)
             cv.drawPath(path, pen)
             pen.xfermode = null
+        }
+
+        /** ➜ ◯ ▭ ↔ Figuras: van de un punto a otro (flecha, círculo, cuadro y medida con su texto). */
+        val SHAPES = setOf("arrow", "circle", "rect", "measure")
+        private val pill = Paint(Paint.ANTI_ALIAS_FLAG)
+        private fun drawShape(cv: Canvas, s: Stroke, W: Float) {
+            val x1 = s.p[0][0] * W; val y1 = s.p[0][1] * W; val x2 = s.p.last()[0] * W; val y2 = s.p.last()[1] * W
+            pen.xfermode = null; pen.color = s.c; pen.strokeWidth = s.w * W
+            val sw = s.w * W
+            when (s.t) {
+                "arrow" -> {
+                    cv.drawLine(x1, y1, x2, y2, pen)
+                    val a = Math.atan2((y2 - y1).toDouble(), (x2 - x1).toDouble()); val h = maxOf(sw * 4.5f, 14f)
+                    for (k in listOf(-0.5, 0.5)) cv.drawLine(x2, y2, x2 - (h * Math.cos(a + k)).toFloat(), y2 - (h * Math.sin(a + k)).toFloat(), pen)
+                }
+                "circle" -> cv.drawOval(minOf(x1, x2), minOf(y1, y2), maxOf(x1, x2), maxOf(y1, y2), pen)
+                "rect" -> cv.drawRoundRect(minOf(x1, x2), minOf(y1, y2), maxOf(x1, x2), maxOf(y1, y2), sw * 1.5f, sw * 1.5f, pen)
+                "measure" -> {
+                    cv.drawLine(x1, y1, x2, y2, pen)
+                    // las rayitas de las puntas (como una cinta de medir)
+                    val a = Math.atan2((y2 - y1).toDouble(), (x2 - x1).toDouble()) + Math.PI / 2; val h = maxOf(sw * 3f, 10f)
+                    val dx = (h * Math.cos(a)).toFloat(); val dy = (h * Math.sin(a)).toFloat()
+                    cv.drawLine(x1 - dx, y1 - dy, x1 + dx, y1 + dy, pen); cv.drawLine(x2 - dx, y2 - dy, x2 + dx, y2 + dy, pen)
+                    if (s.txt.isNotEmpty()) {
+                        txtP.clearShadowLayer(); txtP.textSize = maxOf(sw * 5f, W * 0.04f); txtP.color = 0xFFFFFFFF.toInt()
+                        val tw = txtP.measureText(s.txt); val mx = (x1 + x2) / 2; val my = (y1 + y2) / 2
+                        val pad = txtP.textSize * 0.35f
+                        pill.color = s.c
+                        cv.drawRoundRect(mx - tw / 2 - pad, my - txtP.textSize * 0.8f - pad, mx + tw / 2 + pad, my + txtP.textSize * 0.25f + pad, txtP.textSize, txtP.textSize, pill)
+                        cv.drawText(s.txt, mx - tw / 2, my, txtP)
+                    }
+                }
+            }
         }
 
         /** Lo más bajo que llega el dibujo (en píxeles). */
@@ -113,6 +147,11 @@ class InkView(ctx: Context) : View(ctx) {
     var size = 1
     var onChange: (() -> Unit)? = null
     var onPan: ((Float) -> Unit)? = null
+    /** ↔ Terminaste una medida: pregunta el texto (ej. "3 ft") y llama a [addMeasure]. */
+    var onMeasure: ((Stroke) -> Unit)? = null
+    fun addMeasure(s: Stroke, label: String) {
+        strokes.add(Stroke("measure", s.c, s.w, s.p, label.trim())); redo.clear(); cleared = null; invalidate(); onChange?.invoke()
+    }
     /** Tocar con la herramienta "texto": dónde (x, y en 0..1 del ancho). */
     var onTextAt: ((Float, Float) -> Unit)? = null
 
@@ -158,12 +197,17 @@ class InkView(ctx: Context) : View(ctx) {
                     return true
                 }
                 val s = cur ?: return true
+                // figura: solo importan el principio y donde está el dedo ahora
+                if (s.t in Stroke.SHAPES) { if (s.p.size < 2) s.p.add(floatArrayOf(e.x / W, e.y / W)) else s.p[1] = floatArrayOf(e.x / W, e.y / W); invalidate(); return true }
                 for (h in 0 until e.historySize) add(s, e.getHistoricalX(h) / W, e.getHistoricalY(h) / W, W)
                 add(s, e.x / W, e.y / W, W)
                 invalidate()
             }
             MotionEvent.ACTION_POINTER_UP -> if (e.pointerCount <= 2) panY = -1f
             MotionEvent.ACTION_UP -> {
+                val done = cur
+                if (done != null && done.t in Stroke.SHAPES && done.p.size < 2) { cur = null; invalidate(); return true }      // un toque sin arrastrar no hace figura
+                if (done != null && done.t == "measure") { cur = null; onMeasure?.invoke(done); invalidate(); return true }    // ↔ primero pregunta cuánto mide
                 cur?.let { strokes.add(it); redo.clear(); cleared = null; onChange?.invoke() }
                 cur = null; panY = -1f; invalidate()
             }

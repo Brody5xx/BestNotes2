@@ -48,6 +48,7 @@ class PhotoDrawActivity : Activity() {
         area.addView(ink, FrameLayout.LayoutParams(0, 0, Gravity.CENTER))
         root.addView(area, lp(MATCH, 0, 1f))
         ink.onChange = { paint() }
+        ink.onMeasure = { st -> askText(L.t("measureQ")) { t -> ink.addMeasure(st, t.ifBlank { "?" }) } }
         ink.onTextAt = { x, y ->
             askText(L.t("writeOnPhoto")) { t -> if (t.isNotBlank()) { ink.addText(x, y, t.trim(), floatArrayOf(0.045f, 0.065f, 0.095f)[ink.size]) } }
         }
@@ -59,6 +60,10 @@ class PhotoDrawActivity : Activity() {
         fun b(k: String, icon: Int, act: () -> Unit) { val v = iconBtn(icon, 10.5f) { act() }; btns[k] = v; row.addView(v) }
         b("pen", MoreIcons.PEN) { ink.tool = "pen"; paint() }
         b("hl", MoreIcons.HILITE) { ink.tool = "hl"; paint() }
+        b("arrow", MoreIcons.ARROW) { ink.tool = "arrow"; paint(); hint(L.t("shapeDrag")) }
+        b("circle", MoreIcons.CIRCLE) { ink.tool = "circle"; paint(); hint(L.t("shapeDrag")) }
+        b("rect", MoreIcons.RECT) { ink.tool = "rect"; paint(); hint(L.t("shapeDrag")) }
+        b("measure", MoreIcons.MEASURE) { ink.tool = "measure"; paint(); hint(L.t("measureDrag")) }
         b("text", MoreIcons.TEXT_T) { ink.tool = "text"; paint(); toast(L.t("tapToWrite")) }
         b("eraser", MoreIcons.ERASER) { ink.tool = "eraser"; paint() }
         val dot = object : View(this) {
@@ -85,6 +90,9 @@ class PhotoDrawActivity : Activity() {
         }
     }
 
+    private var lastHint = ""
+    private fun hint(m: String) { if (m != lastHint) { lastHint = m; toast(m) } }
+
     /** La hoja de dibujo queda exactamente encima de la foto. */
     private fun fit(W: Int, H: Int) {
         val b = bm ?: return
@@ -96,7 +104,7 @@ class PhotoDrawActivity : Activity() {
     }
 
     private fun paint() {
-        for (k in listOf("pen", "hl", "text", "eraser")) btns[k]?.background = if (ink.tool == k) roundBg(0x33FFFFFF, dp(22).toFloat()) else null
+        for (k in listOf("pen", "hl", "arrow", "circle", "rect", "measure", "text", "eraser")) btns[k]?.background = if (ink.tool == k) roundBg(0x33FFFFFF, dp(22).toFloat()) else null
         btns["color"]?.invalidate()
         btns["undo"]?.alpha = if (ink.canUndo()) 1f else 0.35f
         btns["redo"]?.alpha = if (ink.canRedo()) 1f else 0.35f

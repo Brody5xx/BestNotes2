@@ -296,6 +296,7 @@ object L {
         "ocrRead" to "Copiar el texto de la foto", "ocrReading" to "Leyendo la foto…", "ocrNone" to "No encontré texto en esta foto", "ocrFound" to "Texto de la foto", "ocrPut" to "Poner en la nota", "ocrPutOk" to "Listo: está debajo de la foto",
         "ocrCam" to "Leer texto con la cámara", "ocrCamSub" to "Etiquetas, placas, seriales… se escriben solos",
         "qrScan" to "Escanear código QR o de barras", "qrScanSub" to "El serial o modelo se escribe solo", "qrNone" to "El código no tenía texto", "qrDone" to "Código escrito en la nota", "qrFail" to "No se pudo escanear",
+        "shapeDrag" to "Arrastra el dedo para hacer la figura", "measureDrag" to "Arrastra de una punta a la otra", "measureQ" to "¿Cuánto mide? (ej. 3 ft, 1.5 m)",
     )
 
     private val EN = mapOf(
@@ -495,5 +496,6 @@ object L {
         "ocrRead" to "Copy the text in the photo", "ocrReading" to "Reading the photo…", "ocrNone" to "No text found in this photo", "ocrFound" to "Text in the photo", "ocrPut" to "Put in the note", "ocrPutOk" to "Done: it is below the photo",
         "ocrCam" to "Read text with the camera", "ocrCamSub" to "Labels, plates, serials… typed for you",
         "qrScan" to "Scan a QR or barcode", "qrScanSub" to "The serial or model is typed for you", "qrNone" to "The code had no text", "qrDone" to "Code added to the note", "qrFail" to "Could not scan",
+        "shapeDrag" to "Drag your finger to draw the shape", "measureDrag" to "Drag from one end to the other", "measureQ" to "How long is it? (e.g. 3 ft, 1.5 m)",
     )
 }
