@@ -1240,7 +1240,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
     }
 
     /** ⛶ La foto en grande. */
-    fun viewBig() { (ctx as? android.app.Activity)?.let { PhotoViewer.show(it, block.file) } }
+    fun viewBig() { (ctx as? android.app.Activity)?.let { PhotoViewer.show(it, block.file, block.pins) { ed.host.openPlan(this) } } }
 
     /** ⋮ Igual que los videos: ver en grande, achicar, subir, bajar, abrir con…, quitar. */
     /** CENTER_CROP con su forma original; FIT_XY si la estiraste (como en Samsung Notes). */

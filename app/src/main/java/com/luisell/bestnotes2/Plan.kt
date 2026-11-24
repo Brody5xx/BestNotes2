@@ -111,7 +111,7 @@ class PinsOverlay(ctx: Context) : View(ctx) {
     override fun onDraw(c: Canvas) {
         val d = resources.displayMetrics.density
         val s = (minOf(width, height) / 22f).coerceIn(6 * d, 11 * d)
-        for (p in pins) Pins.draw(c, p.x * width, p.y * height, s, p, width > 220 * d)
+        for (p in pins) Pins.draw(c, p.x * width, p.y * height, s, p, width > 140 * d)
     }
 }
 

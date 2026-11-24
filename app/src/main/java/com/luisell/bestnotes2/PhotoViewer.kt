@@ -16,6 +16,8 @@ import android.view.ScaleGestureDetector
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
+import android.view.View
 import java.io.File
 
 /* ============================================================
@@ -25,7 +27,8 @@ import java.io.File
    - Desliza hacia abajo para cerrar (o toca ✕).
    ============================================================ */
 object PhotoViewer {
-    fun show(act: Activity, file: String) {
+    /** [pins] = los 🗺️ pines de la foto (se pueden tocar); [onEditPins] = abrir el plano para cambiarlos. */
+    fun show(act: Activity, file: String, pins: String = "", onEditPins: (() -> Unit)? = null) {
         val d = blackFullDialog(act)
         val root = FrameLayout(act).apply { setBackgroundColor(Color.BLACK) }
         val iv = ZoomImageView(act)
@@ -39,6 +42,45 @@ object PhotoViewer {
         }
         root.addView(txt, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { setMargins(0, 0, 0, act.dp(40)) })
         iv.onSwipeDown = { k -> root.background.alpha = (255 * (1 - k)).toInt().coerceIn(0, 255); close.alpha = 1 - k; txt.alpha = 1 - k }
+        // 🗺️ los pines: se ven encima de la foto y al tocarlos sale su información
+        iv.pins = Pins.parse(pins)
+        var card: View? = null
+        fun hideCard() { card?.let { c -> c.animate().alpha(0f).translationY(act.dp(40).toFloat()).setDuration(180).withEndAction { root.removeView(c) }.start() }; card = null; iv.selected = null; txt.animate().alpha(1f).setDuration(200).start() }
+        iv.onPinTap = { p ->
+            if (p == null) hideCard() else {
+                card?.let { root.removeView(it) }
+                iv.selected = p
+                val k = Pins.kind(p.k)
+                val c = LinearLayout(act).apply {
+                    orientation = LinearLayout.VERTICAL; background = Glass.make(act, 26f, strong = true); setPadding(act.dp(18), act.dp(14), act.dp(14), act.dp(14)); elevation = act.dp(12).toFloat()
+                    isClickable = true
+                }
+                val head = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+                head.addView(act.tv(k.emoji, 24f).apply { setPadding(0, 0, act.dp(10), 0) })
+                val tcol = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+                tcol.addView(act.tv(p.t.ifBlank { k.label }, 18f, Color.WHITE, true))
+                tcol.addView(act.tv(k.label, 12.5f, k.color, true))
+                head.addView(tcol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                if (onEditPins != null) head.addView(act.tv("✏️ " + L.t("edit"), 14f, Color.WHITE, true).apply {
+                    setPadding(act.dp(14), act.dp(8), act.dp(14), act.dp(8)); background = roundBg(T.accent, act.dp(18).toFloat())
+                    setOnClickListener { v -> Anim.bump(v); d.dismiss(); onEditPins() }
+                })
+                head.addView(act.iconBtn(Icons.CLOSE, 8f, Color.WHITE) { hideCard() }.apply { layoutParams = LinearLayout.LayoutParams(act.dp(40), act.dp(40)) })
+                c.addView(head)
+                if (p.d.isNotBlank()) c.addView(act.tv(p.d, 15f, 0xE6FFFFFF.toInt()).apply { setPadding(0, act.dp(10), 0, 0); setLineSpacing(0f, 1.2f); setTextIsSelectable(true) })
+                if (p.f.isNotEmpty()) {
+                    val im = android.widget.ImageView(act).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP; clipToOutline = true; background = roundBg(0, act.dp(16).toFloat()) }
+                    Thumbs.load(p.f, act.dp(360)) { bm -> im.setImageBitmap(bm) }
+                    im.setOnClickListener { show(act, p.f) }
+                    c.addView(im, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, act.dp(180)).apply { topMargin = act.dp(12) })
+                }
+                root.addView(c, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM).apply { setMargins(act.dp(12), 0, act.dp(12), act.dp(28)) })
+                c.alpha = 0f; c.translationY = act.dp(60).toFloat()
+                c.animate().alpha(1f).translationY(0f).setDuration(340).setInterpolator(android.view.animation.OvershootInterpolator(1.2f)).start()
+                txt.animate().alpha(0f).setDuration(150).start()
+                card = c
+            }
+        }
         iv.onDismiss = { d.dismiss() }
         d.setContentView(root)
         d.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
@@ -57,6 +99,25 @@ object PhotoViewer {
 /** Una foto que se agranda con dos dedos, se mueve con uno y se acerca con dos toques. */
 @SuppressLint("ViewConstructor", "ClickableViewAccessibility")
 class ZoomImageView(ctx: Context) : ImageView(ctx) {
+    /** 🗺️ Pines encima de la foto. */
+    var pins: List<Pins.P> = emptyList()
+        set(v) { field = v; invalidate() }
+    var selected: Pins.P? = null
+        set(v) { field = v; invalidate() }
+    /** Tocaste un pin (o null = tocaste fuera de los pines). */
+    var onPinTap: ((Pins.P?) -> Unit)? = null
+    private fun pinSize(): Float { val d = resources.displayMetrics.density; return (13 * d * Math.sqrt((scaleNow() / base).toDouble()).toFloat()).coerceIn(12 * d, 22 * d) }
+    private fun pinAt(p: Pins.P): FloatArray { val v = floatArrayOf(p.x * bw, p.y * bh); m.mapPoints(v); return v }
+    private fun hitPin(x: Float, y: Float): Pins.P? {
+        val s = pinSize()
+        return pins.lastOrNull { p -> val q = pinAt(p); Math.hypot((x - q[0]).toDouble(), (y - s * 1.5f - q[1]).toDouble()) < s * 1.9f }
+    }
+    override fun onDraw(c: android.graphics.Canvas) {
+        super.onDraw(c)
+        if (pins.isEmpty() || bw == 0) return
+        val s = pinSize()
+        for (p in pins) { val q = pinAt(p); Pins.draw(c, q[0], q[1], s, p, true, 1f, p === selected) }
+    }
     private val m = Matrix()
     private var base = 1f          // la escala que hace que la foto quepa
     private var bw = 0; private var bh = 0
@@ -105,6 +166,12 @@ class ZoomImageView(ctx: Context) : ImageView(ctx) {
                 return true
             }
             m.postTranslate(-dx, -dy); clamp(); imageMatrix = m; return true
+        }
+        override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+            if (pins.isEmpty()) return false
+            val p = hitPin(e.x, e.y)
+            if (p != null) performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+            onPinTap?.invoke(p); return true
         }
         override fun onDoubleTap(e: MotionEvent): Boolean {
             val from = scaleNow(); val to = if (from > base * 1.2f) base else base * 2.6f
