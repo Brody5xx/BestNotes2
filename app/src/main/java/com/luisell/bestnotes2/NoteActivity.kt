@@ -51,6 +51,7 @@ class NoteActivity : Activity(), EditorView.Host {
         const val REQ_CALC = 60
         const val REQ_WALL = 61
         const val REQ_CAM_PERM = 67
+        const val REQ_VREP = 68
     }
 
     private lateinit var meta: NoteMeta
@@ -600,6 +601,7 @@ class NoteActivity : Activity(), EditorView.Host {
         val selB = e?.let { maxOf(it.selectionStart, it.selectionEnd) } ?: -1
         val sel = if (e != null && selA in 0 until selB) e.text.substring(selA, selB) else ""
         Sheet(this, "✨ " + L.t("ai"), L.t("aiFree"))
+            .item(MoreIcons.MIC, L.t("vrepTitle"), Sheet.RED, L.t("vrepSub")) { voiceReport() }
             .item(Icons.BRIEFCASE, L.t("aiAssistant"), Sheet.VIOLET, L.t("aiAssistantSub")) { aiAssistant() }
             .item(Icons.FORMAL, L.t("aiRewrite"), Sheet.BLUE, if (sel.isNotEmpty()) "«" + sel.take(40) + "»" else L.t("aiRewriteSub")) { aiRewrite(e, selA, selB) }
             .item(Icons.BOOK, L.t("aiWord"), Sheet.TEAL, L.t("aiWordSub")) { aiWord(e, selA, selB, "syn") }
@@ -607,6 +609,57 @@ class NoteActivity : Activity(), EditorView.Host {
             .item(Icons.SPELL, L.t("aiSpell"), Sheet.PINK, L.t("aiSpellSub")) { aiSpell() }
             .item(Icons.REPORT, L.t("templates"), Sheet.BLUE, L.t("templatesSub")) { openTemplates() }
             .show()
+    }
+
+    /**
+     * 🎙️→📋 Cuéntale lo que hiciste (como si se lo dijeras a alguien) y la IA lo convierte en un reporte
+     * ordenado y profesional, en el idioma que escojas.
+     */
+    private fun voiceReport() {
+        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQ_VREP); return
+        }
+        val said = StringBuilder()
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(18), dp(6), dp(18), dp(4)) }
+        // el micrófono que "late" mientras escucha
+        val mic = android.widget.FrameLayout(this).apply { background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, intArrayOf(0xFFFF6B6B.toInt(), 0xFFB388FF.toInt())).apply { shape = android.graphics.drawable.GradientDrawable.OVAL } }
+        mic.addView(IconView(this, MoreIcons.MIC, 11f).apply { color = 0xFFFFFFFF.toInt(); isClickable = false }, android.widget.FrameLayout.LayoutParams(MATCH, MATCH))
+        box.addView(mic, lp(dp(72), dp(72)))
+        val pulse = android.animation.ObjectAnimator.ofPropertyValuesHolder(mic, android.animation.PropertyValuesHolder.ofFloat("scaleX", 1f, 1.12f), android.animation.PropertyValuesHolder.ofFloat("scaleY", 1f, 1.12f)).apply {
+            duration = 700; repeatCount = android.animation.ValueAnimator.INFINITE; repeatMode = android.animation.ValueAnimator.REVERSE; start() }
+        box.addView(tv(L.t("vrepTalk"), 14f, T.muted).apply { gravity = Gravity.CENTER; setPadding(0, dp(12), 0, dp(8)) })
+        val live = tv("", 15.5f, T.text).apply { setPadding(dp(4), dp(6), dp(4), dp(6)); minHeight = dp(90) }
+        val sv = android.widget.ScrollView(this).apply { addView(live) }
+        box.addView(sv, lp(MATCH, dp(170)))
+        var lang = if (L.lang == "en") "en" else "es"
+        val langBtn = tv("🗣 " + lang.uppercase(), 14f, T.text, true).apply { setPadding(dp(14), dp(8), dp(14), dp(8)); pressBg(T.cardStrong, 16f, T.border) }
+        box.addView(langBtn, lp(WRAP, WRAP).apply { topMargin = dp(6) })
+        fun paint(partial: String) { live.text = (said.toString() + (if (partial.isNotEmpty()) " $partial" else "")).trim().ifEmpty { L.t("listening") }; sv.post { sv.fullScroll(View.FOCUS_DOWN) } }
+        val d = Dictation(this, lang,
+            onPartial = { t -> paint(t) },
+            onFinal = { t -> if (said.isNotEmpty()) said.append(' '); said.append(t.trim()); paint("") },
+            onState = { on -> mic.alpha = if (on) 1f else 0.5f })
+        if (!d.available()) { toast(L.t("noDictation")); return }
+        langBtn.setOnClickListener { lang = if (lang == "es") "en" else "es"; langBtn.text = "🗣 " + lang.uppercase(); d.lang = lang; d.restart() }
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        fun end() { d.stop(); pulse.cancel(); window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+        dialog().setTitle("🎙️ " + L.t("vrepTitle")).setView(box).setCancelable(false)
+            .setPositiveButton(L.t("vrepMake")) { _, _ ->
+                end()
+                val txt = said.toString().trim()
+                if (txt.length < 5) { toast(L.t("vrepEmpty")); return@setPositiveButton }
+                pickLangs { langs ->
+                    val jobs = langs.map { lg -> AiJob(Ai.langShow(lg)) { Ai.ask(Ai.system("report", lg), txt) } }
+                    aiDialog(L.t("vrepTitle"), jobs, listOf(
+                        AiAction(L.t("aiAppend"), true) { out -> appendBlocks(aiToBlocks(out)) },
+                        AiAction(L.t("aiNewNote")) { out -> openNew(titled(L.t("aiReport")), aiToBlocks(out)) },
+                        AiAction(L.t("share")) { out -> Share.sendText(this, title.text.toString(), out) },
+                    ))
+                }
+            }
+            .setNegativeButton(L.t("cancel")) { _, _ -> end() }
+            .show()
+        d.start()
     }
 
     /** 👔 Asistente de trabajo: trabaja con TODA la nota. */
@@ -1151,6 +1204,7 @@ class NoteActivity : Activity(), EditorView.Host {
             .quick(MoreIcons.TEXT_T, L.t("dictShort"), Sheet.GREEN) { startDictation() }
             .quick(MoreIcons.ATTACH, L.t("fileShort"), Sheet.BLUE) { pickMedia(false) }
             .item(MoreIcons.TEXT_T, L.t("dictate"), Sheet.GREEN, L.t("dictateSub")) { startDictation() }
+            .item(Icons.REPORT, L.t("vrepTitle"), Sheet.VIOLET, L.t("vrepSub")) { voiceReport() }
             .item(MoreIcons.MIC, L.t("recordNow"), Sheet.RED) { startRecording() }
             .item(MoreIcons.ATTACH, L.t("audioFile"), Sheet.BLUE, L.t("audioFileSub")) { pickMedia(false) }
             .show()
@@ -1200,6 +1254,9 @@ class NoteActivity : Activity(), EditorView.Host {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_DICT) {
             if (grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) startDictation() else toast(L.t("micPerm"))
+        }
+        if (requestCode == REQ_VREP) {
+            if (grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) voiceReport() else toast(L.t("micPerm"))
         }
         if (requestCode == REQ_CAM_PERM) {
             val go = afterCamPerm; afterCamPerm = null
