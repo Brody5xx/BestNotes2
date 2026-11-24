@@ -196,7 +196,7 @@ class NoteActivity : Activity(), EditorView.Host {
             typeface = Typeface.DEFAULT_BOLD
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_MULTI_LINE
             imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_NEXT
-            setPadding(dp(18), dp(6), dp(60), dp(6))        // a la derecha queda lugar para 💫 Nova
+            setPadding(dp(18), dp(6), dp(104), dp(6))       // a la derecha queda lugar para 🔊 y 💫 Nova
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                 override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -244,6 +244,9 @@ class NoteActivity : Activity(), EditorView.Host {
         // 💫 Nova, la IA: siempre arriba en la esquina (se mueve sola); un toque abre la IA
         val orb = AiOrb(this).apply { setOnClickListener { burst(); Anim.sparkle(this, 34f, 650); postDelayed({ aiMenu() }, 160) } }
         holder.addView(orb, android.widget.FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP or Gravity.END).apply { setMargins(0, dp(2), dp(10), 0) })
+        // 🔊 el botoncito para leer la nota en voz alta (al lado de Nova)
+        speakBtn = SpeakButton(this).apply { setOnClickListener { v -> Anim.bump(v, 1.2f); speakTap() } }
+        holder.addView(speakBtn, android.widget.FrameLayout.LayoutParams(dp(36), dp(36), Gravity.TOP or Gravity.END).apply { setMargins(0, dp(6), dp(60), 0) })
         root.addView(holder, lp(MATCH, 0, 1f))
 
         // Barra de herramientas: dos filas, igual que en Best Notes
@@ -484,6 +487,7 @@ class NoteActivity : Activity(), EditorView.Host {
         dirty = true
         Store.main.removeCallbacks(saveRun); Store.main.postDelayed(saveRun, 1200)
         Store.main.removeCallbacks(snapRun); Store.main.postDelayed(snapRun, 700); snapPending = true
+        if (speaker != null) { Store.main.removeCallbacks(speakRefresh); Store.main.postDelayed(speakRefresh, 900) }
     }
 
     private fun isEmptyNote(): Boolean = title.text.isBlank() && ink.strokes.isEmpty() && editor.blocks.all {
@@ -565,12 +569,20 @@ class NoteActivity : Activity(), EditorView.Host {
 
     /* ---------- 🔊 leer en voz alta ---------- */
     private var speaker: Speaker? = null
-    private fun readAloud() {
-        editor.flushAll()
-        speaker?.stop()
-        val text = (title.text.toString() + "\n" + blocksPlain(editor.blocks)).trim()
-        speaker = Speaker(this, findViewById(android.R.id.content)).also { s -> s.onClose = { if (speaker === s) speaker = null }; s.start(text) }
+    private lateinit var speakBtn: SpeakButton
+    private fun speakText(): String { editor.flushAll(); return (title.text.toString() + "\n" + blocksPlain(editor.blocks)).trim() }
+    /** Un toque: empieza a leer. Otro toque: pausa. Otro: sigue. */
+    private fun speakTap() {
+        val s = speaker
+        if (s != null) { s.update(speakText()); s.toggle(); return }
+        speaker = Speaker(this, findViewById(android.R.id.content)).also { sp ->
+            sp.onClose = { if (speaker === sp) speaker = null; speakBtn.on = false }
+            sp.onState = { p -> speakBtn.on = p }
+            sp.start(speakText())
+        }
     }
+    /** ✍️ Mientras está leyendo, lo nuevo que escribes también se lee. */
+    private val speakRefresh = Runnable { speaker?.update(speakText()) }
 
     /* ---------- ✍️ firma ---------- */
     private fun signHere() {
@@ -1606,7 +1618,6 @@ class NoteActivity : Activity(), EditorView.Host {
         sh.divider()
         sh.item(MoreIcons.FOLDER, L.t("moveToFolder"), Sheet.ORANGE, Store.folders.firstOrNull { it.id == meta.folder }?.name) { moveFolder() }
         sh.item(Icons.LOCK, L.t(if (meta.locked) "unlock" else "lockPin"), Sheet.GRAY) { toggleLock() }
-        sh.item(Icons.SPEAKER, L.t("ttsTitle"), Sheet.BLUE, L.t("ttsSub")) { readAloud() }
         sh.item(Icons.CLIP, L.t("backTitle"), Sheet.TEAL, L.t("backSub")) { showBacklinks() }
         sh.item(Icons.PIN, L.t("placeItem"), Sheet.GREEN, if (Places.has(this, meta.id)) "📍 " + L.t("placeHas") else L.t("placeNone")) { placeMenu() }
         sh.item(MoreIcons.INFO, L.t("info"), Sheet.GRAY) { info() }

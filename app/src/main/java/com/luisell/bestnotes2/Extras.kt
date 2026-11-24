@@ -35,60 +35,90 @@ class Speaker(private val act: Activity, private val parent: ViewGroup) {
     private var tts: TextToSpeech? = null
     private var parts: List<String> = emptyList()
     private var idx = 0
-    private var playing = false
+    var playing = false
+        private set
     private var rate = 1f
     private var pill: LinearLayout? = null
     private var label: TextView? = null
     private var playBtn: TextView? = null
     private var wave: Wave? = null
+    private var ready = false
+    private var gen = 0                       // para no confundir frases viejas cuando pausas o cambias la velocidad
     var onClose: (() -> Unit)? = null
+    /** Cambió (leyendo / en pausa): para el botoncito 🔊 de la nota. */
+    var onState: ((Boolean) -> Unit)? = null
 
     val active get() = pill != null
 
     fun start(text: String) {
         parts = split(text)
-        if (parts.isEmpty()) { act.toast(L.t("ttsEmpty")); return }
+        if (parts.isEmpty()) { act.toast(L.t("ttsEmpty")); onClose?.invoke(); return }
         idx = 0
         showPill()
         label?.text = L.t("ttsLoading")
         tts = TextToSpeech(act) { ok ->
             if (ok != TextToSpeech.SUCCESS) { act.runOnUiThread { act.toast(L.t("ttsFail")); stop() }; return@TextToSpeech }
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(id: String) { act.runOnUiThread { idx = id.toIntOrNull() ?: idx; paint() } }
-                override fun onDone(id: String) {
-                    act.runOnUiThread { if ((id.toIntOrNull() ?: -1) >= parts.size - 1 && playing) { playing = false; idx = 0; paint(); label?.text = "✓ " + L.t("ttsDone") } }
-                }
-                @Deprecated("Deprecated in Java") override fun onError(id: String) {}
+                override fun onStart(id: String) {}
+                override fun onDone(id: String) { act.runOnUiThread { next(id) } }
+                @Deprecated("Deprecated in Java") override fun onError(id: String) { act.runOnUiThread { next(id) } }
             })
-            act.runOnUiThread { play() }
+            act.runOnUiThread { ready = true; play() }
         }
+    }
+
+    /** ✍️ Escribiste algo nuevo: la lectura sigue con el texto actualizado (sin volver a empezar). */
+    fun update(text: String) {
+        val np = split(text)
+        if (np == parts) return
+        val curText = parts.getOrNull(idx)
+        parts = np
+        if (curText != null) { val k = np.indexOf(curText); if (k >= 0) idx = k }
+        idx = idx.coerceIn(0, maxOf(0, np.size))
+        // ya había terminado y ahora hay frases nuevas: las lee
+        if (!playing && ready && idx < np.size && finished) { finished = false; play() } else paint()
+    }
+    private var finished = false
+
+    /** Lee UNA frase; al terminar pasa a la siguiente (así siempre usa el texto más nuevo). */
+    private fun speakNow() {
+        val t = tts ?: return
+        if (idx >= parts.size) { playing = false; finished = true; paint(); label?.text = "✓ " + L.t("ttsDone"); onState?.invoke(false); return }
+        t.setSpeechRate(rate)
+        t.language = langOf(parts[idx])
+        t.speak(parts[idx], TextToSpeech.QUEUE_FLUSH, null, "$gen:$idx")
+        paint()
+    }
+    private fun next(id: String) {
+        val g = id.substringBefore(':').toIntOrNull(); val k = id.substringAfter(':').toIntOrNull()
+        if (g != gen || !playing || k != idx) return
+        idx++; speakNow()
     }
 
     private fun play() {
-        val t = tts ?: return
-        t.stop(); t.setSpeechRate(rate)
-        playing = true
-        for (i in idx until parts.size) {
-            t.language = langOf(parts[i])
-            t.speak(parts[i], TextToSpeech.QUEUE_ADD, null, i.toString())
-        }
-        paint()
+        if (!ready) return
+        if (idx >= parts.size) idx = 0
+        gen++; playing = true; finished = false
+        speakNow(); onState?.invoke(true)
     }
-    private fun pause() { playing = false; tts?.stop(); paint() }
+    private fun pause() { gen++; playing = false; tts?.stop(); paint(); onState?.invoke(false) }
+    /** El botoncito 🔊: si lee, pausa; si está en pausa, sigue. */
+    fun toggle() { if (playing) pause() else play() }
 
     fun stop() {
-        playing = false
+        playing = false; gen++
         try { tts?.stop(); tts?.shutdown() } catch (_: Exception) {}
         tts = null
         pill?.let { p -> p.animate().alpha(0f).translationY(p.height.toFloat()).setDuration(220).withEndAction { parent.removeView(p) }.start() }
         pill = null; wave = null
+        onState?.invoke(false)
         onClose?.invoke()
     }
 
     private fun paint() {
         playBtn?.text = if (playing) "⏸" else "▶"
         wave?.on = playing
-        if (parts.isNotEmpty()) label?.text = "${idx + 1}/${parts.size} · " + parts[idx.coerceIn(0, parts.size - 1)]
+        if (parts.isNotEmpty() && idx < parts.size) label?.text = "${idx + 1}/${parts.size} · " + parts[idx]
     }
 
     private fun showPill() {
@@ -107,9 +137,9 @@ class Speaker(private val act: Activity, private val parent: ViewGroup) {
         btn("1×") { b ->
             rate = when (rate) { 1f -> 1.25f; 1.25f -> 1.5f; 1.5f -> 0.8f; else -> 1f }
             b.text = (if (rate % 1f == 0f) rate.toInt().toString() else rate.toString()) + "×"
-            if (playing) play()
+            if (playing) play()      // la frase de ahora vuelve a empezar con la nueva velocidad
         }.textSize = 13f
-        playBtn = btn("⏸") { if (playing) pause() else play() }
+        playBtn = btn("⏸") { toggle() }
         btn("✕") { stop() }
         pill = p
         parent.addView(p, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM).apply { setMargins(act.dp(14), 0, act.dp(14), act.dp(96)) })
@@ -559,5 +589,39 @@ class LiveStats(private val act: Activity) : LinearLayout(act) {
                 c.drawText(names.getOrElse(i) { "" }, cx, height - 2 * d, tp)
             }
         }
+    }
+}
+
+
+/** 🔊 El botoncito redondo de "leer en voz alta": cuando lee, salen ondas de sonido que laten. */
+class SpeakButton(ctx: Context) : View(ctx) {
+    var on = false
+        set(v) { field = v; invalidate() }
+    private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val st = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+    private val path = android.graphics.Path()
+    init { background = Glass.make(ctx, 18f); isClickable = true; contentDescription = L.t("ttsTitle") }
+    override fun onDraw(c: Canvas) {
+        val d = resources.displayMetrics.density
+        val cx = width / 2f; val cy = height / 2f
+        val t = android.os.SystemClock.uptimeMillis() / 1000.0
+        // brillo que late detrás cuando lee
+        if (on) { val k = (0.5 + 0.5 * Math.sin(t * 6)).toFloat(); p.color = (((0x30 + 0x30 * k).toInt()) shl 24) or (T.accent and 0xFFFFFF); c.drawCircle(cx, cy, width / 2f * (0.86f + 0.1f * k), p) }
+        val col = if (on) T.accent else T.text
+        // la bocina
+        p.color = col; path.reset()
+        val x0 = cx - 7.5f * d
+        path.moveTo(x0, cy - 3 * d); path.lineTo(x0 + 3.5f * d, cy - 3 * d); path.lineTo(x0 + 8 * d, cy - 7 * d)
+        path.lineTo(x0 + 8 * d, cy + 7 * d); path.lineTo(x0 + 3.5f * d, cy + 3 * d); path.lineTo(x0, cy + 3 * d); path.close()
+        c.drawPath(path, p)
+        // las ondas
+        st.color = col; st.strokeWidth = 1.8f * d
+        for (i in 0..1) {
+            val r = (5f + i * 4.5f) * d
+            val a = if (on) (0.35 + 0.65 * Math.abs(Math.sin(t * 4 - i * 0.9))).toFloat() else 1f
+            st.alpha = (255 * a).toInt()
+            c.drawArc(x0 + 8 * d - r + 1.5f * d, cy - r, x0 + 8 * d + r + 1.5f * d, cy + r, -48f, 96f, false, st)
+        }
+        if (on) postInvalidateOnAnimation()
     }
 }
