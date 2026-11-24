@@ -600,7 +600,7 @@ class SpeakButton(ctx: Context) : View(ctx) {
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private val st = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
     private val path = android.graphics.Path()
-    init { background = Glass.make(ctx, 18f); isClickable = true; contentDescription = L.t("ttsTitle") }
+    init { background = Glass.make(ctx, 20f); isClickable = true; contentDescription = L.t("ttsTitle") }
     override fun onDraw(c: Canvas) {
         val d = resources.displayMetrics.density
         val cx = width / 2f; val cy = height / 2f

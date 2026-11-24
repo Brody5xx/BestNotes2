@@ -165,19 +165,22 @@ class NoteActivity : Activity(), EditorView.Host {
         tint()
 
         // Arriba, como en Best Notes: ← · [deshacer · historial · rehacer · ortografía] · fondo · calculadora · ⋮
-        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(6), dp(6), dp(6)) }
-        fun small(v: View) = v.apply { layoutParams = lp(dp(42), dp(42)).apply { marginStart = dp(2); marginEnd = dp(2) } }
+        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(4), dp(6), dp(4), dp(6)) }
+        fun small(v: View) = v.apply { layoutParams = lp(dp(39), dp(39)).apply { marginStart = dp(1.5f); marginEnd = dp(1.5f) } }
         top.addView(small(glassBtn(Icons.BACK) { finish() }))
         top.addView(View(this), lp(0, 1, 1f))
         val pill = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; background = Glass.make(this@NoteActivity, 22f); setPadding(dp(2), 0, dp(2), 0) }
-        fun pillBtn(icon: Int, size: Float, a: () -> Unit) = iconBtn(icon, size) { v -> pop(v); a() }.apply { layoutParams = lp(dp(38), dp(42)) }
+        fun pillBtn(icon: Int, size: Float, a: () -> Unit) = iconBtn(icon, size) { v -> pop(v); a() }.apply { layoutParams = lp(dp(33), dp(39)) }
         undoBtn = pillBtn(Icons.UNDO, 10.5f) { undo() }
         histBtn = pillBtn(MoreIcons.HISTORY, 10f) { openHistory() }
         redoBtn = pillBtn(MoreIcons.REDO, 10.5f) { redo() }
         spellBtn = pillBtn(Icons.SPELL, 10.5f) { if (spell != null) closeSpell() else startSpell() }
         pill.addView(undoBtn); pill.addView(histBtn); pill.addView(redoBtn); pill.addView(spellBtn)
-        top.addView(pill, lp(WRAP, dp(42)).apply { marginEnd = dp(2) })
+        top.addView(pill, lp(WRAP, dp(39)).apply { marginEnd = dp(2) })
         top.addView(small(glassBtn(MoreIcons.WALLPAPER) { wallMenu() }))
+        // 🔊 leer la nota en voz alta (al lado de la calculadora)
+        speakBtn = SpeakButton(this).apply { setOnClickListener { v -> Anim.bump(v, 1.2f); speakTap() } }
+        top.addView(small(speakBtn))
         top.addView(small(glassBtn(Icons.CALC) { openCalc() }))
         top.addView(small(glassBtn(MoreIcons.DOTS_V) { v -> v.animate().rotationBy(90f).setDuration(300).setInterpolator(android.view.animation.OvershootInterpolator(2f)).start(); options() }))
         star = IconView(this, MoreIcons.STAR5)
@@ -196,7 +199,7 @@ class NoteActivity : Activity(), EditorView.Host {
             typeface = Typeface.DEFAULT_BOLD
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_MULTI_LINE
             imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_NEXT
-            setPadding(dp(18), dp(6), dp(104), dp(6))       // a la derecha queda lugar para 🔊 y 💫 Nova
+            setPadding(dp(18), dp(6), dp(60), dp(6))        // a la derecha queda lugar para 💫 Nova
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                 override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -244,9 +247,6 @@ class NoteActivity : Activity(), EditorView.Host {
         // 💫 Nova, la IA: siempre arriba en la esquina (se mueve sola); un toque abre la IA
         val orb = AiOrb(this).apply { setOnClickListener { burst(); Anim.sparkle(this, 34f, 650); postDelayed({ aiMenu() }, 160) } }
         holder.addView(orb, android.widget.FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP or Gravity.END).apply { setMargins(0, dp(2), dp(10), 0) })
-        // 🔊 el botoncito para leer la nota en voz alta (al lado de Nova)
-        speakBtn = SpeakButton(this).apply { setOnClickListener { v -> Anim.bump(v, 1.2f); speakTap() } }
-        holder.addView(speakBtn, android.widget.FrameLayout.LayoutParams(dp(36), dp(36), Gravity.TOP or Gravity.END).apply { setMargins(0, dp(6), dp(60), 0) })
         root.addView(holder, lp(MATCH, 0, 1f))
 
         // Barra de herramientas: dos filas, igual que en Best Notes
