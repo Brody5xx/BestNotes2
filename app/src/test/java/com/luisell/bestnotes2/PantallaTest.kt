@@ -54,6 +54,15 @@ class PantallaTest {
         return out
     }
 
+    @Test fun textoEnFotoSeMueveYGuardaSuFondo() {
+        val t = Stroke("text", 0xFF3A7BFF.toInt(), 0.06f, arrayListOf(floatArrayOf(0.2f, 0.3f)), "Cable aquí").also { it.bg = 1 }
+        val back = Stroke.fromJson(t.toJson())!!
+        org.junit.Assert.assertEquals(1, back.bg); org.junit.Assert.assertEquals("Cable aquí", back.txt)
+        val c = back.copy(); c.p[0][0] += 0.1f; c.w *= 2
+        org.junit.Assert.assertEquals(0.2f, back.p[0][0], 0.0001f)       // la copia no cambia la original (para deshacer)
+        org.junit.Assert.assertEquals(0.12f, c.w, 0.0001f)
+    }
+
     @Test fun importaTodo() {
         reload(); Store.deleteForever(Store.notes.map { it.id }); waitIo()
         val s = importar()

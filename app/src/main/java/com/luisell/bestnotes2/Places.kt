@@ -66,6 +66,14 @@ object Places {
         here(app) { l -> if (l != null) { synchronized(this) { map[id] = doubleArrayOf(l.latitude, l.longitude) }; save(app) } }
     }
 
+    /** 📍 Guardar esta nota en el lugar donde estás AHORA (aunque ya tuviera otro). */
+    fun setHere(ctx: Context, id: String, onDone: (Boolean) -> Unit) {
+        val app = ctx.applicationContext
+        here(app) { l -> if (l == null) onDone(false) else { load(app); synchronized(this) { map[id] = doubleArrayOf(l.latitude, l.longitude) }; save(app); onDone(true) } }
+    }
+    /** Quitarle el lugar a una nota. */
+    fun forget(ctx: Context, id: String) { load(ctx); synchronized(this) { map.remove(id) }; save(ctx) }
+
     /** Las notas escritas cerca de [l]. */
     fun near(ctx: Context, l: Location?): Set<String> {
         if (l == null) return emptySet()

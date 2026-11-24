@@ -941,6 +941,8 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         // 🖼 la barrita de abajo, igual que la de los videos: tamaño · ⛶ ver en grande · ⋮ opciones
         infoBar.addView(IconView(ctx, Icons.IMAGE, 6.5f).apply { color = T.muted; isClickable = false }, LinearLayout.LayoutParams(dp(18), dp(18)))
         infoBar.addView(infoLabel.apply { setPadding(dp(6), 0, 0, 0) }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        // 🔎 leer las letras de la foto (escoges las palabras que quieras)
+        infoBar.addView(ctx.iconBtn(MoreIcons.TEXT_SCAN, 7.5f, T.accent) { v -> Anim.bump(v); readText() }.apply { layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)) })
         infoBar.addView(ctx.iconBtn(MoreIcons.FULL, 7.5f, T.muted) { v -> Anim.bump(v); viewBig() }.apply { layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)) })
         infoBar.addView(ctx.iconBtn(MoreIcons.DOTS_V, 8f, T.muted) { options() }.apply { layoutParams = LinearLayout.LayoutParams(dp(36), dp(38)) })
         flow.addView(infoBar)
@@ -1245,19 +1247,9 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
     }
 
     /** 🔎 Lee lo escrito en la foto (etiqueta, placa, serial…) y lo puedes poner en la nota o copiar. */
-    private fun readText() {
-        val wait = ctx.dialog().setMessage("🔎 " + L.t("ocrReading")).setCancelable(false).show()
-        Ocr.read(ctx, File(Store.mediaDir, block.file)) { t ->
-            wait.dismiss()
-            if (t.isNullOrBlank()) { ctx.toast(L.t("ocrNone")); return@read }
-            val e = android.widget.EditText(ctx).apply { setText(t); setTextColor(T.text); textSize = 15f; background = null; setPadding(ed.dp(18), ed.dp(6), ed.dp(18), ed.dp(6)) }
-            ctx.dialog().setTitle("🔎 " + L.t("ocrFound")).setView(e)
-                .setPositiveButton(L.t("ocrPut")) { _, _ -> ed.textBelow(this, listOf(Run(e.text.toString()))); ed.host.onDirty(); ctx.toast(L.t("ocrPutOk")) }
-                .setNeutralButton(L.t("copy")) { _, _ ->
-                    (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("foto", e.text.toString()))
-                    ctx.toast(L.t("copied"))
-                }.setNegativeButton(L.t("cancel"), null).show()
-        }
+    fun readText() {
+        val act = ctx as? android.app.Activity ?: return
+        OcrPick.show(act, File(Store.mediaDir, block.file), onPut = { t -> ed.textBelow(this, listOf(Run(t))); ed.host.onDirty(); ctx.toast(L.t("ocrPutOk")) })
     }
 
     /** Achicar la foto (pesa menos): máximo 1600 px y un poquito más comprimida. */

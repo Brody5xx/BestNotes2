@@ -32,7 +32,13 @@ object PhotoViewer {
         root.addView(iv, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         val close = act.glassBtn(Icons.CLOSE, 9f, Color.WHITE) { d.dismiss() }
         root.addView(close, FrameLayout.LayoutParams(act.dp(46), act.dp(46), Gravity.TOP or Gravity.END).apply { setMargins(0, act.dp(36), act.dp(14), 0) })
-        iv.onSwipeDown = { k -> root.background.alpha = (255 * (1 - k)).toInt().coerceIn(0, 255); close.alpha = 1 - k }
+        // 🔎 "Texto": escoger y copiar las palabras de la foto
+        val txt = act.tv("🔎  " + L.t("ocrBtn"), 15f, Color.WHITE, true).apply {
+            background = Glass.make(act, 24f, strong = true); setPadding(act.dp(20), act.dp(12), act.dp(20), act.dp(12))
+            setOnClickListener { v -> Anim.bump(v); OcrPick.show(act, File(Store.mediaDir, file), null) }
+        }
+        root.addView(txt, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { setMargins(0, 0, 0, act.dp(40)) })
+        iv.onSwipeDown = { k -> root.background.alpha = (255 * (1 - k)).toInt().coerceIn(0, 255); close.alpha = 1 - k; txt.alpha = 1 - k }
         iv.onDismiss = { d.dismiss() }
         d.setContentView(root)
         d.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))

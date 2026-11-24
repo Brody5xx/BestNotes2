@@ -52,6 +52,7 @@ class NoteActivity : Activity(), EditorView.Host {
         const val REQ_WALL = 61
         const val REQ_CAM_PERM = 67
         const val REQ_VREP = 68
+        const val REQ_PLACE = 69
     }
 
     private lateinit var meta: NoteMeta
@@ -1256,6 +1257,7 @@ class NoteActivity : Activity(), EditorView.Host {
         if (requestCode == REQ_DICT) {
             if (grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) startDictation() else toast(L.t("micPerm"))
         }
+        if (requestCode == REQ_PLACE) { if (Places.allowed(this)) placeMenu() else toast(L.t("nearPerm")) }
         if (requestCode == REQ_VREP) {
             if (grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) voiceReport() else toast(L.t("micPerm"))
         }
@@ -1375,23 +1377,12 @@ class NoteActivity : Activity(), EditorView.Host {
 
     /** 🔎 Foto → texto: se lee lo escrito y se pone donde estaba el cursor (la foto no se guarda). */
     private fun readPhotoText(f: File) {
-        val wait = dialog().setMessage("🔎 " + L.t("ocrReading")).setCancelable(false).show()
-        Ocr.read(this, f) { t ->
-            wait.dismiss(); f.delete()
-            if (t.isNullOrBlank()) { toast(L.t("ocrNone")); return@read }
-            val e = android.widget.EditText(this).apply { setText(t); setTextColor(T.text); textSize = 15f; background = null; setPadding(dp(18), dp(6), dp(18), dp(6)) }
-            dialog().setTitle("🔎 " + L.t("ocrFound")).setView(e)
-                .setPositiveButton(L.t("ocrPut")) { _, _ ->
-                    val txt = e.text.toString()
-                    val tg = ocrTarget
-                    if (tg != null && tg.first.isAttachedToWindow) { val ed = tg.first; val at = tg.second.coerceIn(0, ed.length()); ed.text.insert(at, txt); ed.requestFocus(); ed.setSelection(at + txt.length) }
-                    else appendBlocks(listOf(Block.Text(mutableListOf(Run(txt)))))
-                    onDirty()
-                }
-                .setNeutralButton(L.t("copy")) { _, _ ->
-                    (getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("foto", e.text.toString())); toast(L.t("copied"))
-                }.setNegativeButton(L.t("cancel"), null).show()
-        }
+        OcrPick.show(this, f, onPut = { txt ->
+            val tg = ocrTarget
+            if (tg != null && tg.first.isAttachedToWindow) { val ed = tg.first; val at = tg.second.coerceIn(0, ed.length()); ed.text.insert(at, txt); ed.requestFocus(); ed.setSelection(at + txt.length) }
+            else appendBlocks(listOf(Block.Text(mutableListOf(Run(txt)))))
+            onDirty()
+        }, onClose = { f.delete() })
     }
 
     private fun openGallery() {
@@ -1515,6 +1506,19 @@ class NoteActivity : Activity(), EditorView.Host {
         }
     }
 
+    /* ---------- 📍 el lugar de esta nota ---------- */
+    private fun placeMenu() {
+        if (!Places.allowed(this)) { requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION), REQ_PLACE); return }
+        save()
+        val sh = Sheet(this, "📍 " + L.t("placeItem"), if (Places.has(this, meta.id)) L.t("placeHas") else L.t("placeNone"))
+        sh.quick(Icons.PIN, L.t("placeSet"), Sheet.GREEN) {
+            Places.setHere(this, meta.id) { ok -> if (ok) { hint("📍 " + L.t("placeSetOk")); Store.changed() } else toast(L.t("placeFail")) }
+        }
+        if (Places.has(this, meta.id)) sh.quick(Icons.CLOSE, L.t("placeForget"), Sheet.GRAY) { Places.forget(this, meta.id); hint(L.t("placeForgetOk")); Store.changed() }
+        sh.custom(tv(L.t("placeHint"), 13f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(18), dp(4), dp(18), dp(10)) })
+        sh.show()
+    }
+
     /* ---------- ⋮ opciones (el panel bonito) ---------- */
     private fun options() {
         save()
@@ -1542,6 +1546,7 @@ class NoteActivity : Activity(), EditorView.Host {
         sh.divider()
         sh.item(MoreIcons.FOLDER, L.t("moveToFolder"), Sheet.ORANGE, Store.folders.firstOrNull { it.id == meta.folder }?.name) { moveFolder() }
         sh.item(Icons.LOCK, L.t(if (meta.locked) "unlock" else "lockPin"), Sheet.GRAY) { toggleLock() }
+        sh.item(Icons.PIN, L.t("placeItem"), Sheet.GREEN, if (Places.has(this, meta.id)) "📍 " + L.t("placeHas") else L.t("placeNone")) { placeMenu() }
         sh.item(MoreIcons.INFO, L.t("info"), Sheet.GRAY) { info() }
         sh.divider()
         sh.item(Icons.DELETE, L.t("clearAll"), danger = true) {

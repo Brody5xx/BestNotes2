@@ -62,6 +62,8 @@ object MoreIcons {
     const val RECT = 248
     const val MEASURE = 249
     const val DRIVE = 250
+    const val TEXT_SCAN = 251
+    const val MOVE = 252
 
     private val path = Path()
     private val r = RectF()
@@ -374,6 +376,26 @@ object MoreIcons {
                 c.drawLine(cx - s * 0.85f, cy - s * 0.15f, cx - s * 0.85f, cy + s * 0.55f, st)
                 c.drawLine(cx + s * 0.85f, cy - s * 0.15f, cx + s * 0.85f, cy + s * 0.55f, st)
                 for (k in listOf(-0.42f, 0f, 0.42f)) c.drawLine(cx + s * k, cy + s * 0.2f, cx + s * k, cy - s * 0.12f, st)
+            }
+            MOVE -> {
+                // ✋ mover: una cruz con flechitas en las cuatro puntas
+                val k = s * 0.9f; val h = s * 0.28f
+                c.drawLine(cx - k, cy, cx + k, cy, st); c.drawLine(cx, cy - k, cx, cy + k, st)
+                for ((dx, dy) in listOf(1f to 0f, -1f to 0f, 0f to 1f, 0f to -1f)) {
+                    val tx = cx + dx * k; val ty = cy + dy * k
+                    c.drawLine(tx, ty, tx - dx * h + dy * h, ty - dy * h + dx * h, st)
+                    c.drawLine(tx, ty, tx - dx * h - dy * h, ty - dy * h - dx * h, st)
+                }
+            }
+            TEXT_SCAN -> {
+                // 🔎 las esquinas de un escáner con una "T" adentro
+                val k = s * 0.85f; val e = s * 0.32f
+                for ((sx, sy) in listOf(-1f to -1f, 1f to -1f, -1f to 1f, 1f to 1f)) {
+                    c.drawLine(cx + sx * k, cy + sy * k, cx + sx * (k - e), cy + sy * k, st)
+                    c.drawLine(cx + sx * k, cy + sy * k, cx + sx * k, cy + sy * (k - e), st)
+                }
+                c.drawLine(cx - s * 0.38f, cy - s * 0.36f, cx + s * 0.38f, cy - s * 0.36f, st)
+                c.drawLine(cx, cy - s * 0.36f, cx, cy + s * 0.42f, st)
             }
             DRIVE -> {
                 // ☁️ nubecita con una flecha hacia arriba

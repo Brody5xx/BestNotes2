@@ -52,6 +52,42 @@ object Ocr {
         Tasks.await(rec.process(img)).text.trim()
     } catch (_: Throwable) { null }
 
+    /** Una palabra que se encontró en la foto, con su cajita (en píxeles del [android.graphics.Bitmap]). */
+    class Word(val text: String, val box: android.graphics.RectF, val line: Int) {
+        val cjk = text.any { Character.UnicodeScript.of(it.code) in CJK }
+    }
+    private val CJK = setOf(Character.UnicodeScript.HAN, Character.UnicodeScript.HIRAGANA, Character.UnicodeScript.KATAKANA, Character.UnicodeScript.HANGUL)
+
+    /** La foto derechita (igual que la ves) para poder marcar las palabras encima. */
+    private fun upright(f: File, max: Int): android.graphics.Bitmap? {
+        val bm = Thumbs.decode(f, max) ?: return null
+        val o = try { android.media.ExifInterface(f.path).getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, 1) } catch (_: Exception) { 1 }
+        val deg = when (o) { 6 -> 90f; 3 -> 180f; 8 -> 270f; else -> 0f }
+        if (deg == 0f) return bm
+        val m = android.graphics.Matrix().apply { postRotate(deg) }
+        return try { android.graphics.Bitmap.createBitmap(bm, 0, 0, bm.width, bm.height, m, true) } catch (_: Throwable) { bm }
+    }
+
+    /** 🔎 Lee la foto palabra por palabra (para escoger cuáles copiar). */
+    fun words(ctx: Context, f: File, onImage: (android.graphics.Bitmap) -> Unit, onDone: (android.graphics.Bitmap?, List<Word>) -> Unit) {
+        Loader.pool.execute {
+            val bm = upright(f, 2200)
+            if (bm != null) Store.main.post { onImage(bm) }
+            val out = ArrayList<Word>()
+            if (bm != null) try {
+                val r = Tasks.await(rec.process(InputImage.fromBitmap(bm, 0)))
+                var line = 0
+                for (b in r.textBlocks) for (l in b.lines) {
+                    for (e in l.elements) { val bx = e.boundingBox ?: continue; out.add(Word(e.text, android.graphics.RectF(bx), line)) }
+                    line++
+                }
+                val t = r.text.trim()
+                if (t.isNotEmpty()) synchronized(this) { photoText[f.name] = t }
+            } catch (_: Throwable) {}
+            Store.main.post { onDone(bm, out) }
+        }
+    }
+
     /** Lee una foto y te da el texto en la pantalla. */
     fun read(ctx: Context, f: File, onDone: (String?) -> Unit) {
         Loader.pool.execute {

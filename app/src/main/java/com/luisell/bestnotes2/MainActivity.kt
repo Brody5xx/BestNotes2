@@ -452,7 +452,14 @@ class MainActivity : Activity() {
     }
     /** Ver las notas de aquí (la primera vez pide el permiso de ubicación). */
     private fun openNear() {
-        if (!Places.allowed(this)) { requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION), REQ_LOC); return }
+        if (!Places.allowed(this)) {
+            // 📍 primero se explica qué hace (con un dibujito), y después se pide el permiso
+            Sheet(this, "📍 " + L.t("nearTitle"), L.t("nearSub"))
+                .custom(tv(L.t("nearExplain"), 15f, T.text).apply { setLineSpacing(0f, 1.25f); setPadding(dp(22), dp(4), dp(22), dp(12)) })
+                .quick(Icons.PIN, L.t("nearOn"), Sheet.GREEN) { requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION), REQ_LOC) }
+                .show()
+            return
+        }
         view = "near"; selected.clear(); nearAsked = 0L; checkNear(); refresh(); list.scrollToPosition(0)
         toast(L.t("nearHow"))
     }
@@ -516,6 +523,7 @@ class MainActivity : Activity() {
             view == "trash" -> L.t("trashEmpty")
             view == "fav" -> L.t("noFav")
             view.startsWith("f:") -> L.t("folderEmpty")
+            view == "near" -> L.t("nearEmpty")
             else -> L.t("noNotes")
         }
         paintHeader()

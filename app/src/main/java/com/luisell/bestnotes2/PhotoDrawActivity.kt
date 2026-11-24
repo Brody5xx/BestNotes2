@@ -27,6 +27,7 @@ class PhotoDrawActivity : Activity() {
     private lateinit var img: ImageView
     private var bm: Bitmap? = null
     private val btns = HashMap<String, View>()
+    private lateinit var objBar: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,8 +45,16 @@ class PhotoDrawActivity : Activity() {
         val area = FrameLayout(this)
         img = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
         area.addView(img, FrameLayout.LayoutParams(MATCH, MATCH))
-        ink = InkView(this).apply { drawing = true; color = 0xFFFF453A.toInt() }
+        ink = InkView(this).apply { drawing = true; objects = true; color = 0xFFFF453A.toInt() }
         area.addView(ink, FrameLayout.LayoutParams(0, 0, Gravity.CENTER))
+        // ✋ la barrita del texto / figura escogida (color, tamaño, fondo, copiar, borrar)
+        objBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; visibility = View.GONE
+            background = Glass.make(this@PhotoDrawActivity, 24f, strong = true); setPadding(dp(6), dp(4), dp(6), dp(4)); elevation = dp(8).toFloat()
+        }
+        area.addView(objBar, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { setMargins(0, 0, 0, dp(12)) })
+        ink.onSelect = { st -> showObjBar(st) }
+        ink.onEditText = { st -> editObjText(st) }
         root.addView(area, lp(MATCH, 0, 1f))
         ink.onChange = { paint() }
         ink.onMeasure = { st -> askText(L.t("measureQ")) { t -> ink.addMeasure(st, t.ifBlank { "?" }) } }
@@ -58,14 +67,15 @@ class PhotoDrawActivity : Activity() {
         val hs = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; setBackgroundColor(0xFF1C1C1F.toInt()) }
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(4), dp(6), dp(4)) }
         fun b(k: String, icon: Int, act: () -> Unit) { val v = iconBtn(icon, 10.5f) { act() }; btns[k] = v; row.addView(v) }
-        b("pen", MoreIcons.PEN) { ink.tool = "pen"; paint() }
-        b("hl", MoreIcons.HILITE) { ink.tool = "hl"; paint() }
+        b("move", MoreIcons.MOVE) { ink.tool = "move"; paint(); hint(L.t("moveHint")) }
+        b("pen", MoreIcons.PEN) { ink.tool = "pen"; ink.select(null); paint() }
+        b("hl", MoreIcons.HILITE) { ink.tool = "hl"; ink.select(null); paint() }
         b("arrow", MoreIcons.ARROW) { ink.tool = "arrow"; paint(); hint(L.t("shapeDrag")) }
         b("circle", MoreIcons.CIRCLE) { ink.tool = "circle"; paint(); hint(L.t("shapeDrag")) }
         b("rect", MoreIcons.RECT) { ink.tool = "rect"; paint(); hint(L.t("shapeDrag")) }
         b("measure", MoreIcons.MEASURE) { ink.tool = "measure"; paint(); hint(L.t("measureDrag")) }
         b("text", MoreIcons.TEXT_T) { ink.tool = "text"; paint(); toast(L.t("tapToWrite")) }
-        b("eraser", MoreIcons.ERASER) { ink.tool = "eraser"; paint() }
+        b("eraser", MoreIcons.ERASER) { ink.tool = "eraser"; ink.select(null); paint() }
         val dot = object : View(this) {
             val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
             override fun onDraw(c: Canvas) { p.style = android.graphics.Paint.Style.FILL; p.color = ink.color; c.drawCircle(width / 2f, height / 2f, dp(11).toFloat(), p); p.style = android.graphics.Paint.Style.STROKE; p.strokeWidth = dp(2).toFloat(); p.color = T.text; c.drawCircle(width / 2f, height / 2f, dp(12).toFloat(), p) }
@@ -90,6 +100,52 @@ class PhotoDrawActivity : Activity() {
         }
     }
 
+    /* ---------- ✋ lo escogido ---------- */
+    private var barFor: String? = null
+    private fun showObjBar(s: Stroke?) {
+        if (s == null) {
+            barFor = null
+            if (objBar.visibility == View.VISIBLE) objBar.animate().alpha(0f).translationY(dp(20).toFloat()).setDuration(160).withEndAction { objBar.visibility = View.GONE }.start()
+            return
+        }
+        val kind = s.t + (if (s.t == "text") s.bg.toString() else "")
+        if (barFor == kind && objBar.visibility == View.VISIBLE) { (objBar.findViewWithTag<View>("dot"))?.invalidate(); return }
+        barFor = kind
+        objBar.removeAllViews()
+        fun pill(label: String, go: () -> Unit) = objBar.addView(tv(label, 15f, T.text, true).apply {
+            gravity = Gravity.CENTER; setPadding(dp(11), dp(9), dp(11), dp(9))
+            setOnClickListener { v -> Anim.bump(v); go() }
+        })
+        if (s.t == "text" || s.t == "measure") pill("✏️") { ink.sel?.let { editObjText(it) } }
+        val dot = object : View(this) {
+            val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+            override fun onDraw(c: Canvas) { p.style = android.graphics.Paint.Style.FILL; p.color = ink.sel?.c ?: ink.color; c.drawCircle(width / 2f, height / 2f, dp(10).toFloat(), p); p.style = android.graphics.Paint.Style.STROKE; p.strokeWidth = dp(2).toFloat(); p.color = T.text; c.drawCircle(width / 2f, height / 2f, dp(11).toFloat(), p) }
+        }.apply { tag = "dot" }
+        dot.setOnClickListener { v -> Anim.bump(v); pickColor(L.t("penColor"), ink.sel?.c ?: ink.color, T.textColors) { c -> if (c != 0) { ink.color = c; ink.editSel { it.c = c }; dot.invalidate(); paint() } } }
+        objBar.addView(dot, lp(dp(42), dp(42)))
+        if (s.t == "text") {
+            pill("A−") { ink.editSel { it.w = (it.w / 1.18f).coerceAtLeast(0.012f) } }
+            pill("A+") { ink.editSel { it.w = (it.w * 1.18f).coerceAtMost(0.45f) } }
+            pill(if (s.bg == 1) "🏷✓" else "🏷") { ink.editSel { it.bg = if (it.bg == 1) 0 else 1 } }
+        } else {
+            pill("−") { ink.editSel { it.w = (it.w / 1.3f).coerceAtLeast(0.002f) } }
+            pill("+") { ink.editSel { it.w = (it.w * 1.3f).coerceAtMost(0.05f) } }
+        }
+        pill("⧉") { ink.duplicateSel() }
+        objBar.addView(tv("🗑", 15f, T.danger, true).apply { gravity = Gravity.CENTER; setPadding(dp(11), dp(9), dp(11), dp(9)); setOnClickListener { v -> Anim.bump(v); ink.deleteSel(); paint() } })
+        if (objBar.visibility != View.VISIBLE) {
+            objBar.visibility = View.VISIBLE; objBar.alpha = 0f; objBar.translationY = dp(24).toFloat(); objBar.scaleX = 0.9f; objBar.scaleY = 0.9f
+            objBar.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f).setDuration(300).setInterpolator(android.view.animation.OvershootInterpolator(1.4f)).start()
+        }
+        if (s.t == "text") hint(L.t("objHint"))
+    }
+
+    private fun editObjText(s: Stroke) {
+        askText(L.t(if (s.t == "measure") "measureQ" else "writeOnPhoto"), s.txt) { t ->
+            if (t.isBlank() && s.t == "text") { ink.deleteSel(); paint() } else ink.editSel { it.txt = t.trim() }
+        }
+    }
+
     private var lastHint = ""
     private fun hint(m: String) { if (m != lastHint) { lastHint = m; toast(m) } }
 
@@ -104,7 +160,7 @@ class PhotoDrawActivity : Activity() {
     }
 
     private fun paint() {
-        for (k in listOf("pen", "hl", "arrow", "circle", "rect", "measure", "text", "eraser")) btns[k]?.background = if (ink.tool == k) roundBg(0x33FFFFFF, dp(22).toFloat()) else null
+        for (k in listOf("move", "pen", "hl", "arrow", "circle", "rect", "measure", "text", "eraser")) btns[k]?.background = if (ink.tool == k) roundBg(0x33FFFFFF, dp(22).toFloat()) else null
         btns["color"]?.invalidate()
         btns["undo"]?.alpha = if (ink.canUndo()) 1f else 0.35f
         btns["redo"]?.alpha = if (ink.canRedo()) 1f else 0.35f
