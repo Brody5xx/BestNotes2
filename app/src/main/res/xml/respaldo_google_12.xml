@@ -7,8 +7,6 @@
         <include domain="sharedpref" path="." />
         <include domain="file" path="lugares.json" />
         <include domain="file" path="texto_fotos.json" />
-        <exclude domain="file" path="media/" />
-        <exclude domain="file" path="boveda/" />
     </cloud-backup>
     <device-transfer>
         <include domain="database" path="notas.db" />
