@@ -86,6 +86,8 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume(); if (Store.loaded) refresh()
+        // 🔎 leer (de a poquito) lo escrito en las fotos para el buscador
+        if (android.os.Build.FINGERPRINT != "robolectric") Store.load { Ocr.indexLater(this) }
         afterLock?.let { f -> if (AppLock.unlocked) root.postDelayed({ f() }, 120) }
         pendingTrash?.let { ids -> pendingTrash = null; root.postDelayed({ trashSnack(ids) }, 350) }
     }

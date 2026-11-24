@@ -80,7 +80,7 @@ object Store {
             db.rawQuery("SELECT id,name,color,ord FROM folders ORDER BY ord", null).use { c ->
                 while (c.moveToNext()) fl.add(Folder(c.getString(0), c.getString(1) ?: "", c.getInt(2), c.getInt(3)))
             }
-            list.forEach { it.folded = fold(it.title + "\n" + it.plain) }
+            list.forEach { it.folded = fold(it.title + "\n" + it.plain + "\n" + Ocr.textOf(appCtx, it.id)) }      // 🔎 también lo escrito en las fotos
             // notas de antes sin vista previa: se hace una sola vez
             val redo = appCtx?.getSharedPreferences("ajustes", 0)?.getInt("pvVer", 0) ?: 0
             for (m in list) if (m.pv == null || redo < 2) try {
@@ -132,7 +132,7 @@ object Store {
         blocks.forEach { b -> if (b is Block.ListB && b.kind == "check") b.items.forEach { if (runsPlain(it.runs).isNotBlank()) { t++; if (it.done) d++ } } }
         m.checkTotal = t; m.checkDone = d
         m.hasMedia = blocks.any { it is Block.Media }
-        m.folded = fold(m.title + "\n" + m.plain)
+        m.folded = fold(m.title + "\n" + m.plain + "\n" + Ocr.textOf(appCtx, m.id))
     }
 
     /** Guarda la nota completa (lista + contenido). [extra] = lo que se guarda para después (dibujos, fondo…). */

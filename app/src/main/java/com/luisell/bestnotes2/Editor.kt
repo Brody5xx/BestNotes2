@@ -1233,6 +1233,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
     private fun options() {
         val items = listOfNotNull<Pair<String, () -> Unit>>(
             ("⛶  " + L.t("viewBig")) to { viewBig() },
+            ("🔎  " + L.t("ocrRead")) to { readText() },
             if (block.ar > 0f) ("↺  " + L.t("origShape")) to { animateChange(); block.ar = 0f; applyShape(); relayout(); ed.host.onDirty(); ed.host.onImageChanged(this) } else null,
             L.t("shrink") to { shrinkPhoto() },
             L.t("moveUp") to { ed.moveBlock(this, -1) },
@@ -1241,6 +1242,22 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             L.t("remove") to { ctx.confirm(L.t("remove"), null, L.t("remove"), true) { ed.removeImage(this) } },
         )
         ctx.dialog().setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }.show()
+    }
+
+    /** 🔎 Lee lo escrito en la foto (etiqueta, placa, serial…) y lo puedes poner en la nota o copiar. */
+    private fun readText() {
+        val wait = ctx.dialog().setMessage("🔎 " + L.t("ocrReading")).setCancelable(false).show()
+        Ocr.read(ctx, File(Store.mediaDir, block.file)) { t ->
+            wait.dismiss()
+            if (t.isNullOrBlank()) { ctx.toast(L.t("ocrNone")); return@read }
+            val e = android.widget.EditText(ctx).apply { setText(t); setTextColor(T.text); textSize = 15f; background = null; setPadding(ed.dp(18), ed.dp(6), ed.dp(18), ed.dp(6)) }
+            ctx.dialog().setTitle("🔎 " + L.t("ocrFound")).setView(e)
+                .setPositiveButton(L.t("ocrPut")) { _, _ -> ed.textBelow(this, listOf(Run(e.text.toString()))); ed.host.onDirty(); ctx.toast(L.t("ocrPutOk")) }
+                .setNeutralButton(L.t("copy")) { _, _ ->
+                    (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("foto", e.text.toString()))
+                    ctx.toast(L.t("copied"))
+                }.setNegativeButton(L.t("cancel"), null).show()
+        }
     }
 
     /** Achicar la foto (pesa menos): máximo 1600 px y un poquito más comprimida. */

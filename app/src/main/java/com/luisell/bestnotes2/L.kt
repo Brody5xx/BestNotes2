@@ -293,6 +293,9 @@ object L {
         "videoSelHint" to "Arrástralo para moverlo · bolitas: tamaño", "sameWidth" to "Mismo ancho que la otra",
         "wallCamera" to "Cámara en vivo", "camPerm" to "Sin permiso de la cámara no se puede",
         "camPermWall" to "Sin permiso de cámara: se verá el fondo de tu teléfono",
+        "ocrRead" to "Copiar el texto de la foto", "ocrReading" to "Leyendo la foto…", "ocrNone" to "No encontré texto en esta foto", "ocrFound" to "Texto de la foto", "ocrPut" to "Poner en la nota", "ocrPutOk" to "Listo: está debajo de la foto",
+        "ocrCam" to "Leer texto con la cámara", "ocrCamSub" to "Etiquetas, placas, seriales… se escriben solos",
+        "qrScan" to "Escanear código QR o de barras", "qrScanSub" to "El serial o modelo se escribe solo", "qrNone" to "El código no tenía texto", "qrDone" to "Código escrito en la nota", "qrFail" to "No se pudo escanear",
     )
 
     private val EN = mapOf(
@@ -489,5 +492,8 @@ object L {
         "videoSelHint" to "Drag to move it · dots: size", "sameWidth" to "Same width as the other",
         "wallCamera" to "Live camera", "camPerm" to "Can't do it without camera permission",
         "camPermWall" to "No camera permission: your phone wallpaper will show",
+        "ocrRead" to "Copy the text in the photo", "ocrReading" to "Reading the photo…", "ocrNone" to "No text found in this photo", "ocrFound" to "Text in the photo", "ocrPut" to "Put in the note", "ocrPutOk" to "Done: it is below the photo",
+        "ocrCam" to "Read text with the camera", "ocrCamSub" to "Labels, plates, serials… typed for you",
+        "qrScan" to "Scan a QR or barcode", "qrScanSub" to "The serial or model is typed for you", "qrNone" to "The code had no text", "qrDone" to "Code added to the note", "qrFail" to "Could not scan",
     )
 }

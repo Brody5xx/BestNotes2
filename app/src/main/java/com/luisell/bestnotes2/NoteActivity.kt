@@ -1274,6 +1274,8 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     private var scanMode = false
+    private var ocrMode = false
+    private var ocrTarget: Pair<RichEdit, Int>? = null
 
     /** Al tener la app permiso de cámara declarado (por el fondo en vivo), Android pide permiso también para tomar fotos. */
     private var afterCamPerm: (() -> Unit)? = null
@@ -1282,14 +1284,56 @@ class NoteActivity : Activity(), EditorView.Host {
         else { afterCamPerm = go; requestPermissions(arrayOf(android.Manifest.permission.CAMERA), REQ_CAM_PERM) }
     }
 
-    private fun openCamera(scan: Boolean = false) {
-        if (checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) { withCamera { openCamera(scan) }; return }
+    private fun openCamera(scan: Boolean = false, ocr: Boolean = false) {
+        if (checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) { withCamera { openCamera(scan, ocr) }; return }
         val f = File(cacheDir, "camara_" + System.currentTimeMillis() + ".jpg")
-        camFile = f; scanMode = scan
+        camFile = f; scanMode = scan; ocrMode = ocr
+        ocrTarget = if (ocr) editor.focused?.let { it to maxOf(0, it.selectionEnd) } else null
         val uri = FileProvider.getUriForFile(this, "$packageName.archivos", f)
         val i = Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE).putExtra(android.provider.MediaStore.EXTRA_OUTPUT, uri)
             .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
         try { startActivityForResult(i, REQ_CAMERA) } catch (_: Exception) { toast(L.t("cantOpen")) }
+    }
+
+    /** ▦ Escanear un código QR o de barras (serial, modelo, enlace…) y escribirlo donde está el cursor. */
+    private fun scanCode() {
+        val target = editor.focused?.let { it to maxOf(0, it.selectionEnd) }
+        val opts = com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions.Builder().enableAutoZoom().build()
+        try {
+            com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(this, opts).startScan()
+                .addOnSuccessListener { b ->
+                    val v = (b.rawValue ?: b.displayValue ?: "").trim()
+                    if (v.isEmpty()) { toast(L.t("qrNone")); return@addOnSuccessListener }
+                    val isUrl = Regex("^https?://\\S+$").matches(v)
+                    if (target != null && target.first.isAttachedToWindow) {
+                        val ed = target.first; val at = target.second.coerceIn(0, ed.length())
+                        ed.text.insert(at, v); ed.requestFocus(); ed.setSelection(at + v.length)
+                    } else appendBlocks(listOf(Block.Text(mutableListOf(if (isUrl) Run(v, St(href = v, u = true)) else Run(v)))))
+                    onDirty(); hint("▦ " + L.t("qrDone"))
+                }
+                .addOnFailureListener { toast(L.t("qrFail")) }
+        } catch (_: Throwable) { toast(L.t("qrFail")) }
+    }
+
+    /** 🔎 Foto → texto: se lee lo escrito y se pone donde estaba el cursor (la foto no se guarda). */
+    private fun readPhotoText(f: File) {
+        val wait = dialog().setMessage("🔎 " + L.t("ocrReading")).setCancelable(false).show()
+        Ocr.read(this, f) { t ->
+            wait.dismiss(); f.delete()
+            if (t.isNullOrBlank()) { toast(L.t("ocrNone")); return@read }
+            val e = android.widget.EditText(this).apply { setText(t); setTextColor(T.text); textSize = 15f; background = null; setPadding(dp(18), dp(6), dp(18), dp(6)) }
+            dialog().setTitle("🔎 " + L.t("ocrFound")).setView(e)
+                .setPositiveButton(L.t("ocrPut")) { _, _ ->
+                    val txt = e.text.toString()
+                    val tg = ocrTarget
+                    if (tg != null && tg.first.isAttachedToWindow) { val ed = tg.first; val at = tg.second.coerceIn(0, ed.length()); ed.text.insert(at, txt); ed.requestFocus(); ed.setSelection(at + txt.length) }
+                    else appendBlocks(listOf(Block.Text(mutableListOf(Run(txt)))))
+                    onDirty()
+                }
+                .setNeutralButton(L.t("copy")) { _, _ ->
+                    (getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("foto", e.text.toString())); toast(L.t("copied"))
+                }.setNegativeButton(L.t("cancel"), null).show()
+        }
     }
 
     private fun openGallery() {
@@ -1345,6 +1389,7 @@ class NoteActivity : Activity(), EditorView.Host {
             }
             REQ_CAMERA -> camFile?.let { f ->
                 if (f.length() == 0L) return@let
+                if (ocrMode) { readPhotoText(f); return@let }
                 if (scanMode) {
                     // 📄 escanear: primero se endereza y aclara
                     Loader.pool.execute {
@@ -1538,6 +1583,8 @@ class NoteActivity : Activity(), EditorView.Host {
             .quick(Icons.REPORT, L.t("scanDocQuick"), Sheet.TEAL) { openCamera(scan = true) }
             .quick(Icons.IMAGE, L.t("gallery"), Sheet.BLUE) { openGallery() }
             .quick(MoreIcons.VIDEO, L.t("video"), Sheet.ORANGE) { videoMenu() }
+            .item(Icons.SCAN, L.t("ocrCam"), Sheet.SKY, L.t("ocrCamSub")) { openCamera(ocr = true) }
+            .item(MoreIcons.QR, L.t("qrScan"), Sheet.GREEN, L.t("qrScanSub")) { scanCode() }
             .quick(MoreIcons.MIC, L.t("audio"), Sheet.RED) { audioMenu() }
             .show()
     }

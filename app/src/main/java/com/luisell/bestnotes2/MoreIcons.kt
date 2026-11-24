@@ -56,6 +56,7 @@ object MoreIcons {
     const val ROTATE = 242
     const val INBOX = 243
     const val INSERT = 244
+    const val QR = 245
 
     private val path = Path()
     private val r = RectF()
@@ -346,6 +347,15 @@ object MoreIcons {
                 path.reset()
                 path.moveTo(sx, sy - k); path.quadTo(sx, sy, sx + k, sy); path.quadTo(sx, sy, sx, sy + k); path.quadTo(sx, sy, sx - k, sy); path.quadTo(sx, sy, sx, sy - k)
                 path.close(); c.drawPath(path, fl)
+            }
+            QR -> {
+                // ▦ código QR: tres cuadritos en las esquinas y puntitos
+                val a = s * 0.9f; val q = s * 0.62f
+                fun corner(x: Float, y: Float) { r.set(x, y, x + q, y + q); c.drawRoundRect(r, s * 0.12f, s * 0.12f, st); r.set(x + q * 0.32f, y + q * 0.32f, x + q * 0.68f, y + q * 0.68f); c.drawRect(r, fl) }
+                corner(cx - a, cy - a); corner(cx + a - q, cy - a); corner(cx - a, cy + a - q)
+                val d = s * 0.13f
+                c.drawCircle(cx + s * 0.25f, cy + s * 0.25f, d, fl); c.drawCircle(cx + s * 0.7f, cy + s * 0.35f, d, fl)
+                c.drawCircle(cx + s * 0.35f, cy + s * 0.72f, d, fl); c.drawCircle(cx + s * 0.75f, cy + s * 0.75f, d, fl)
             }
             INBOX -> {
                 // 📥 bandeja (sin carpeta)
