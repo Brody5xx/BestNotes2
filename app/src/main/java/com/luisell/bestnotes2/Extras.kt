@@ -259,6 +259,26 @@ object Confetti {
 
 /* ---------------------------- 📊 Resumen ---------------------------- */
 object Stats {
+    class Quick(val week: Int, val pct: Int, val total: Int, val streak: Int)
+    /** Lo de la pastilla de la pantalla principal. */
+    fun quick(): Quick {
+        val notes = Store.notes.filter { !it.deleted }
+        val day = 86_400_000L
+        val today0 = java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0) }.timeInMillis
+        val t = notes.sumOf { it.checkTotal }; val d = notes.sumOf { it.checkDone }
+        return Quick(notes.count { it.created >= today0 - 6 * day }, if (t == 0) 0 else d * 100 / t, t, streak(notes, today0))
+    }
+    private fun streak(notes: List<NoteMeta>, today0: Long): Int {
+        val day = 86_400_000L
+        val days = HashSet<Long>()
+        for (n in notes) for (x in longArrayOf(n.created, n.updated)) days.add(Math.floorDiv(x - today0, day))
+        var s = 0
+        // si hoy todavía no escribiste, la racha cuenta desde ayer
+        var k = if (0L in days) 0L else -1L
+        while (k in days && s < 3650) { s++; k-- }
+        return s
+    }
+
     fun show(act: Activity) {
         val notes = Store.notes.filter { !it.deleted }
         val now = System.currentTimeMillis()
@@ -279,8 +299,7 @@ object Stats {
         val videos = media.count { it.name.endsWith(".mp4") }
         val audios = media.count { it.name.endsWith(".m4a") || it.name.endsWith(".3gp") || it.name.endsWith(".aac") }
         // racha: días seguidos (hasta hoy) en que escribiste algo
-        var streak = 0
-        while (streak < 365 && notes.any { n -> listOf(n.created, n.updated).any { it >= today0 - streak * day && it < today0 - (streak - 1) * day } }) streak++
+        val streak = streak(notes, today0)
 
         val box = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(act.dp(14), act.dp(4), act.dp(14), act.dp(12)) }
         // 1) las tres tarjetas con números que suben
@@ -320,6 +339,8 @@ object Stats {
             "⭐ " + L.t("stFav", "n" to notes.count { it.fav }) + "   🔒 " + L.t("stLocked", "n" to notes.count { it.locked }),
             14f, T.text).apply { setLineSpacing(0f, 1.45f); setPadding(act.dp(10), act.dp(14), act.dp(10), 0) }
         box.addView(more); Anim.enter(more, 320)
+        // 🎉 todos los pendientes hechos: confeti cuando el anillo se llena
+        if (ckT > 0 && ckD >= ckT) ringRow.postDelayed({ if (ringRow.isAttachedToWindow) Confetti.burst(act) }, 1500)
         Sheet(act, "📊 " + L.t("stTitle"), java.text.SimpleDateFormat("EEEE d MMMM", L.locale).format(java.util.Date(now))).custom(box).show()
     }
 

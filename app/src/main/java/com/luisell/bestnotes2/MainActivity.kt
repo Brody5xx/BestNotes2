@@ -110,7 +110,16 @@ class MainActivity : Activity() {
             visibility = View.GONE; setPadding(dp(14), dp(9), dp(14), dp(9)); background = Glass.make(this@MainActivity, 18f)
             setOnClickListener { Anim.press(it); view = "near"; selected.clear(); refresh(); list.scrollToPosition(0) }
         }
-        col.addView(nearPill, lp(WRAP, WRAP).apply { setMargins(dp(14), dp(2), dp(14), dp(6)) })
+        // 📍 lugar  ·  📊 resumen de la semana (una al lado de la otra)
+        statsPill = tv("", 14f, T.text, true).apply {
+            visibility = View.GONE; setPadding(dp(14), dp(9), dp(14), dp(9)); background = Glass.make(this@MainActivity, 18f); maxLines = 1
+            setOnClickListener { Anim.press(it); Stats.show(this@MainActivity) }
+        }
+        val pills = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        pills.addView(nearPill, lp(WRAP, WRAP).apply { marginEnd = dp(8) })
+        pills.addView(statsPill, lp(WRAP, WRAP))
+        col.addView(android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(14), 0, dp(14), 0); addView(pills) },
+            lp(MATCH, WRAP).apply { setMargins(0, dp(2), 0, dp(6)) })
 
         // Buscar
         val sb = LinearLayout(this).apply {
@@ -439,6 +448,21 @@ class MainActivity : Activity() {
     /* ---------- 📍 notas de este lugar ---------- */
     private var nearIds: Set<String> = emptySet()
     private lateinit var nearPill: TextView
+    private lateinit var statsPill: TextView
+    private var statsShownOnce = false
+    /** 📊 La pastilla del resumen: notas de esta semana · % de pendientes hechos · racha. */
+    private fun paintStats() {
+        if (!::statsPill.isInitialized) return
+        val show = Store.loaded && view == "all" && selected.isEmpty() && query.isBlank() && Store.notes.any { !it.deleted }
+        if (!show) { statsPill.visibility = View.GONE; return }
+        val q = Stats.quick()
+        statsPill.text = "📊 " + L.t("stPill", "n" to q.week) + (if (q.total > 0) "  ·  ☑️ ${q.pct}%" else "") + (if (q.streak > 0) "  ·  🔥 ${q.streak}" else "") + "  ›"
+        if (statsPill.visibility != View.VISIBLE) {
+            statsPill.visibility = View.VISIBLE
+            if (!statsShownOnce) { statsShownOnce = true; statsPill.alpha = 0f; statsPill.translationX = dp(30).toFloat()
+                statsPill.animate().alpha(1f).translationX(0f).setStartDelay(150).setDuration(420).setInterpolator(android.view.animation.OvershootInterpolator(1.5f)).start() }
+        }
+    }
     private var nearAsked = 0L
 
     /** Mira dónde estás y, si hay notas de aquí, muestra el aviso "📍 N notas de este lugar". */
@@ -448,6 +472,7 @@ class MainActivity : Activity() {
         Places.here(this) { l -> nearIds = Places.near(this, l).filter { id -> Store.notes.any { it.id == id && !it.deleted } }.toSet(); paintNear(); if (view == "near") refresh() }
     }
     private fun paintNear() {
+        paintStats()
         if (!::nearPill.isInitialized) return
         val n = nearIds.size
         val show = n > 0 && view == "all" && selected.isEmpty() && query.isBlank()
