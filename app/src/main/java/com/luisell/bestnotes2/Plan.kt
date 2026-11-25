@@ -33,7 +33,10 @@ import java.io.File
    así se ven igual aunque la foto cambie de tamaño.
    ============================================================ */
 object Pins {
-    class P(var x: Float, var y: Float, var k: String, var t: String, var d: String = "", var f: String = "")
+    class P(var x: Float, var y: Float, var k: String, var t: String, var d: String = "", var f: String = "", var e: String = "") {
+        /** El dibujito del pin: el que tú escogiste, o el de su tipo. */
+        val emoji get() = e.ifEmpty { kind(k).emoji }
+    }
     class Kind(val id: String, val emoji: String, val color: Int, val es: String, val en: String) {
         val label get() = if (L.lang == "es") es else en
     }
@@ -53,16 +56,52 @@ object Pins {
         if (s.isNullOrBlank()) return out
         try {
             val a = JSONArray(s)
-            for (i in 0 until a.length()) { val o = a.getJSONObject(i); out.add(P(o.optDouble("x").toFloat(), o.optDouble("y").toFloat(), o.optString("k", "pin"), o.optString("t"), o.optString("d"), o.optString("f"))) }
+            for (i in 0 until a.length()) { val o = a.getJSONObject(i); out.add(P(o.optDouble("x").toFloat(), o.optDouble("y").toFloat(), o.optString("k", "pin"), o.optString("t"), o.optString("d"), o.optString("f"), o.optString("e"))) }
         } catch (_: Exception) {}
         return out
     }
     fun json(l: List<P>): String = if (l.isEmpty()) "" else JSONArray().also { a ->
-        l.forEach { p -> a.put(JSONObject().put("x", Math.round(p.x * 10000) / 10000.0).put("y", Math.round(p.y * 10000) / 10000.0).put("k", p.k).put("t", p.t).apply { if (p.d.isNotEmpty()) put("d", p.d); if (p.f.isNotEmpty()) put("f", p.f) }) }
+        l.forEach { p -> a.put(JSONObject().put("x", Math.round(p.x * 10000) / 10000.0).put("y", Math.round(p.y * 10000) / 10000.0).put("k", p.k).put("t", p.t).apply { if (p.d.isNotEmpty()) put("d", p.d); if (p.f.isNotEmpty()) put("f", p.f); if (p.e.isNotEmpty()) put("e", p.e) }) }
     }.toString()
 
     /** El texto de los pines (para buscar y para la IA). */
-    fun plain(s: String?): String = parse(s).joinToString("\n") { p -> kind(p.k).emoji + " " + p.t + (if (p.d.isNotEmpty()) ": " + p.d else "") }
+    fun plain(s: String?): String = parse(s).joinToString("\n") { p -> p.emoji + " " + p.t + (if (p.d.isNotEmpty()) ": " + p.d else "") }
+
+    /** Emojis para escoger (también se puede escribir cualquiera). */
+    val EMOJIS = listOf("📍", "⭐", "🔥", "💡", "⚡", "🔋", "🔌", "🔧", "🪛", "🧰", "🪜", "🔦", "📶", "📡", "🖥️", "💻", "🖨️", "☎️", "📞", "🔊",
+        "🔒", "🔑", "🚨", "🚧", "🧯", "🚿", "🚽", "🛗", "🚪", "🪟", "🛏️", "🛋️", "🏢", "🏠", "🅿️", "🚗", "🌳", "📦", "🗑️", "🧱",
+        "✅", "❌", "❓", "❗", "💬", "📝", "📷", "🎥", "🔔", "❤️")
+
+    /** El panel para escoger el emoji del pin (o escribir cualquiera). */
+    fun pickEmoji(act: Activity, cur: String, onPick: (String) -> Unit) {
+        val box = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(act.dp(12), 0, act.dp(12), act.dp(4)) }
+        val type = android.widget.EditText(act).apply {
+            hint = L.t("planEmojiType"); setText(cur); setTextColor(T.text); setHintTextColor(T.faint); textSize = 22f; gravity = Gravity.CENTER; isSingleLine = true
+            background = Glass.make(act, 16f); setPadding(act.dp(14), act.dp(8), act.dp(14), act.dp(8))
+        }
+        box.addView(type)
+        val grid = android.widget.GridLayout(act).apply { columnCount = 8; setPadding(0, act.dp(10), 0, 0) }
+        var sh: Sheet? = null
+        val cell = (act.resources.displayMetrics.widthPixels - act.dp(60)) / 8
+        for ((i, em) in EMOJIS.withIndex()) {
+            val v = act.tv(em, 26f).apply {
+                gravity = Gravity.CENTER
+                background = if (em == cur) roundBg((0x55 shl 24) or (T.accent and 0xFFFFFF), act.dp(14).toFloat()) else null
+                setOnClickListener { x -> Anim.bump(x, 1.35f); sh?.dismiss(); onPick(em) }
+            }
+            grid.addView(v, android.widget.GridLayout.LayoutParams().apply { width = cell; height = cell })
+            v.scaleX = 0.3f; v.scaleY = 0.3f; v.alpha = 0f
+            v.animate().scaleX(1f).scaleY(1f).alpha(1f).setStartDelay(100L + i * 8).setDuration(260).setInterpolator(android.view.animation.OvershootInterpolator(2.5f)).start()
+        }
+        box.addView(grid)
+        sh = Sheet(act, "😀 " + L.t("planEmoji"), L.t("planEmojiSub")).custom(box)
+            .done(L.t("done")) {
+                // lo escrito: solo el primer emoji (o lo primero que escribiste)
+                val t = type.text.toString().trim()
+                val one = if (t.isEmpty()) "" else { val it = java.text.BreakIterator.getCharacterInstance(); it.setText(t); t.substring(0, it.next().coerceAtLeast(1)) }
+                sh?.dismiss(); if (one.isNotEmpty()) onPick(one)
+            }.show()
+    }
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val txt = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
@@ -88,7 +127,7 @@ object Pins {
         fill.color = k.color; c.drawPath(path, fill)
         fill.color = Color.WHITE; c.drawCircle(0f, -s * 1.55f, s * 0.74f, fill)
         txt.textSize = s * 0.95f; txt.color = Color.BLACK
-        c.drawText(k.emoji, 0f, -s * 1.55f + s * 0.33f, txt)
+        c.drawText(p.emoji, 0f, -s * 1.55f + s * 0.33f, txt)
         if (label && p.t.isNotEmpty()) {
             txt.textSize = s * 0.78f; txt.isFakeBoldText = true
             val w = txt.measureText(p.t) + s * 0.8f
@@ -190,12 +229,13 @@ class PlanActivity : Activity() {
         val p = Pins.P(x, y, k, Pins.kind(k).label + " " + n)
         view.add(p); changed = true; paintCount()
         view.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
-        view.postDelayed({ pinSheet(p, fresh = true) }, 450)
+        if (k == "pin") view.postDelayed({ Pins.pickEmoji(this, "") { e -> p.e = e; view.invalidate(); paintCount(); pinSheet(p, fresh = true) } }, 450)
+        else view.postDelayed({ pinSheet(p, fresh = true) }, 450)
     }
 
     private fun paintCount() {
         val l = view.pins
-        countTv.text = if (l.isEmpty()) L.t("planEmpty") else Pins.KINDS.mapNotNull { k -> l.count { it.k == k.id }.takeIf { it > 0 }?.let { "${k.emoji} $it" } }.joinToString("   ")
+        countTv.text = if (l.isEmpty()) L.t("planEmpty") else l.groupBy { it.emoji }.map { (e, g) -> "$e ${g.size}" }.joinToString("   ")
     }
 
     /** La hoja de un pin: nombre, nota, foto, tipo, borrar. */
@@ -219,24 +259,32 @@ class PlanActivity : Activity() {
             box.addView(iv, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(170)).apply { topMargin = dp(10) })
         }
         var sh: Sheet? = null
+        var deleted = false
         fun save() {
             val t = name.text.toString().trim(); val d = note.text.toString().trim()
             if (t != p.t || d != p.d) { p.t = t; p.d = d; changed = true; view.invalidate() }
         }
-        sh = Sheet(this, k.emoji + " " + p.t.ifEmpty { k.label }, L.t("planPinSub"))
+        sh = Sheet(this, p.emoji + " " + p.t.ifEmpty { k.label }, L.t("planPinSub"))
             .custom(box)
             .quick(Icons.SCAN, L.t("camera"), Sheet.PINK) { save(); photoFor = p; takePhoto() }
             .quick(Icons.IMAGE, L.t("gallery"), Sheet.BLUE) { save(); photoFor = p; try { startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).setType("image/*").addCategory(Intent.CATEGORY_OPENABLE), REQ_GAL) } catch (_: Exception) { toast(L.t("cantOpen")) } }
             .quick(MoreIcons.PALETTE, L.t("planKind"), Sheet.VIOLET) { save(); kindMenu(p) }
-            .quick(Icons.TRASH, L.t("del"), Sheet.RED) { view.remove(p); changed = true; paintCount() }
-            .done(L.t("done")) { save() }
-            .show()
+            .quick(Icons.EMOJI, L.t("planEmoji"), Sheet.AMBER) { save(); Pins.pickEmoji(this, p.e) { e -> p.e = e; changed = true; view.invalidate(); paintCount(); pinSheet(p) } }
+            .quick(Icons.TRASH, L.t("del"), Sheet.RED) { deleted = true; view.remove(p); changed = true; paintCount() }
+            .done(L.t("done")) { save(); sh?.dismiss() }
+        // ✍️ lo que escribiste se guarda aunque cierres el panel deslizándolo
+        sh!!.onClose = { if (!deleted) save(); if (view.selected === p) view.selected = null; paintCount() }
+        sh!!.show()
         if (fresh) name.post { name.requestFocus(); name.selectAll() }
     }
 
     private fun kindMenu(p: Pins.P) {
         val sh = Sheet(this, L.t("planKind"))
-        for (k in Pins.KINDS) sh.item(MoreIcons.TEXT_T, k.emoji + "  " + k.label, Sheet.SKY) { p.k = k.id; changed = true; view.invalidate(); paintCount() }
+        for (k in Pins.KINDS) sh.item(MoreIcons.TEXT_T, k.emoji + "  " + k.label, Sheet.SKY) {
+            p.k = k.id; changed = true
+            if (k.id == "pin") Pins.pickEmoji(this, p.e) { e -> p.e = e; view.invalidate(); paintCount(); pinSheet(p) }
+            else { p.e = ""; view.invalidate(); paintCount(); pinSheet(p) }
+        }
         sh.show()
     }
 

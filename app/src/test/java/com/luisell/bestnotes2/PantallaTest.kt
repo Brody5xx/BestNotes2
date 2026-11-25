@@ -60,6 +60,9 @@ class PantallaTest {
         val back = Block.fromJson(img.toJson()) as Block.Img
         val l = Pins.parse(back.pins)
         assertEquals(2, l.size); assertEquals("Cámara 1", l[0].t); assertEquals("fpin.jpg", l[0].f); assertEquals(0.8f, l[1].x, 0.001f)
+        // "Otro" con cualquier emoji
+        val o = Pins.parse(Pins.json(listOf(Pins.P(0.1f, 0.1f, "pin", "Escalera", e = "🪜"))))[0]
+        assertEquals("🪜", o.emoji); assertEquals("📹", l[0].emoji)
         // el buscador y la IA ven lo que dicen los pines
         assertTrue(blocksPlain(listOf(back)).contains("IP 10.0.0.5"))
         // la foto del pin NO se borra al limpiar (va guardada como texto con \")

@@ -314,6 +314,7 @@ object L {
         "hwTitle" to "Escribir a mano", "hwSub" to "Escribe con el dedo y se convierte en letras", "hwEmpty" to "Escribe abajo con el dedo…", "hwLoading" to "Preparando el idioma…", "hwDownload" to "Bajando el idioma (una sola vez, ~20 MB)…", "hwReady" to "Escribe una palabra; «Siguiente» para seguir con otra", "hwNoNet" to "Hace falta internet la primera vez para bajar el idioma", "hwErase" to "Borrar", "hwNext" to "Siguiente", "hwOk" to "Listo: tu letra ya es texto",
         "workTitle" to "Modo trabajo", "workSub" to "Botones grandes, para usar con guantes", "workDictate" to "Dictar nota", "workPhotoNew" to "Foto · nota nueva", "workPhotoLast" to "Foto · última nota", "workHere" to "Notas de aquí", "workCable" to "Calculadora", "workSaved" to "Guardado", "workAdded" to "Foto agregada a «{t}»",
         "edit" to "Editar",
+        "pvPinN" to "Pin {i} de {n}", "pvNote" to "NOTA", "pvNoNote" to "Sin nota. Toca ✏️ Editar para escribirle una.", "pvPhoto" to "FOTO DEL PIN", "planEmoji" to "Emoji", "planEmojiSub" to "Toca uno o escribe cualquier emoji arriba", "planEmojiType" to "Escribe aquí tu emoji 😀",
     )
 
     private val EN = mapOf(
@@ -531,5 +532,6 @@ object L {
         "hwTitle" to "Handwriting", "hwSub" to "Write with your finger and it becomes text", "hwEmpty" to "Write below with your finger…", "hwLoading" to "Getting the language ready…", "hwDownload" to "Downloading the language (only once, ~20 MB)…", "hwReady" to "Write a word; «Next» to continue with another", "hwNoNet" to "Internet is needed the first time to download the language", "hwErase" to "Erase", "hwNext" to "Next", "hwOk" to "Done: your handwriting is now text",
         "workTitle" to "Work mode", "workSub" to "Big buttons, for use with gloves", "workDictate" to "Dictate note", "workPhotoNew" to "Photo · new note", "workPhotoLast" to "Photo · last note", "workHere" to "Notes here", "workCable" to "Calculator", "workSaved" to "Saved", "workAdded" to "Photo added to «{t}»",
         "edit" to "Edit",
+        "pvPinN" to "Pin {i} of {n}", "pvNote" to "NOTE", "pvNoNote" to "No note. Tap ✏️ Edit to write one.", "pvPhoto" to "PIN PHOTO", "planEmoji" to "Emoji", "planEmojiSub" to "Tap one or type any emoji above", "planEmojiType" to "Type your emoji here 😀",
     )
 }

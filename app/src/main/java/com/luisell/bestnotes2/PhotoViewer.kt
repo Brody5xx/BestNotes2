@@ -45,41 +45,76 @@ object PhotoViewer {
         // 🗺️ los pines: se ven encima de la foto y al tocarlos sale su información
         iv.pins = Pins.parse(pins)
         var card: View? = null
+        var showCard: (Pins.P) -> Unit = {}
         fun hideCard() { card?.let { c -> c.animate().alpha(0f).translationY(act.dp(40).toFloat()).setDuration(180).withEndAction { root.removeView(c) }.start() }; card = null; iv.selected = null; txt.animate().alpha(1f).setDuration(200).start() }
         iv.onPinTap = { p ->
-            if (p == null) hideCard() else {
-                card?.let { root.removeView(it) }
-                iv.selected = p
-                val k = Pins.kind(p.k)
-                val c = LinearLayout(act).apply {
-                    orientation = LinearLayout.VERTICAL; background = Glass.make(act, 26f, strong = true); setPadding(act.dp(18), act.dp(14), act.dp(14), act.dp(14)); elevation = act.dp(12).toFloat()
-                    isClickable = true
-                }
-                val head = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-                head.addView(act.tv(k.emoji, 24f).apply { setPadding(0, 0, act.dp(10), 0) })
-                val tcol = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
-                tcol.addView(act.tv(p.t.ifBlank { k.label }, 18f, Color.WHITE, true))
-                tcol.addView(act.tv(k.label, 12.5f, k.color, true))
-                head.addView(tcol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-                if (onEditPins != null) head.addView(act.tv("✏️ " + L.t("edit"), 14f, Color.WHITE, true).apply {
-                    setPadding(act.dp(14), act.dp(8), act.dp(14), act.dp(8)); background = roundBg(T.accent, act.dp(18).toFloat())
-                    setOnClickListener { v -> Anim.bump(v); d.dismiss(); onEditPins() }
-                })
-                head.addView(act.iconBtn(Icons.CLOSE, 8f, Color.WHITE) { hideCard() }.apply { layoutParams = LinearLayout.LayoutParams(act.dp(40), act.dp(40)) })
-                c.addView(head)
-                if (p.d.isNotBlank()) c.addView(act.tv(p.d, 15f, 0xE6FFFFFF.toInt()).apply { setPadding(0, act.dp(10), 0, 0); setLineSpacing(0f, 1.2f); setTextIsSelectable(true) })
-                if (p.f.isNotEmpty()) {
-                    val im = android.widget.ImageView(act).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP; clipToOutline = true; background = roundBg(0, act.dp(16).toFloat()) }
-                    Thumbs.load(p.f, act.dp(360)) { bm -> im.setImageBitmap(bm) }
-                    im.setOnClickListener { show(act, p.f) }
-                    c.addView(im, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, act.dp(180)).apply { topMargin = act.dp(12) })
-                }
-                root.addView(c, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM).apply { setMargins(act.dp(12), 0, act.dp(12), act.dp(28)) })
-                c.alpha = 0f; c.translationY = act.dp(60).toFloat()
-                c.animate().alpha(1f).translationY(0f).setDuration(340).setInterpolator(android.view.animation.OvershootInterpolator(1.2f)).start()
-                txt.animate().alpha(0f).setDuration(150).start()
-                card = c
+            if (p == null) hideCard() else showCard(p)
+        }
+        // ◀ ▶ ir al pin de antes / el que sigue
+        fun go(dir: Int) { val l = iv.pins; val cur = l.indexOf(iv.selected); if (l.isEmpty()) return; val n = l[(cur + dir + l.size) % l.size]; iv.onPinTap?.invoke(n) }
+        showCard = { p ->
+            card?.let { root.removeView(it) }
+            iv.selected = p; iv.focusOn(p)
+            val k = Pins.kind(p.k)
+            val all = iv.pins; val idx = all.indexOf(p)
+            val c = LinearLayout(act).apply {
+                orientation = LinearLayout.VERTICAL; isClickable = true; elevation = act.dp(14).toFloat()
+                background = android.graphics.drawable.LayerDrawable(arrayOf(roundBg(0xF51C1C20.toInt(), act.dp(26).toFloat()), Glass.make(act, 26f, strong = true)))
+                setPadding(act.dp(16), act.dp(14), act.dp(12), act.dp(14))
             }
+            // arriba: el dibujito grande, el nombre, el tipo y cerrar
+            val head = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            val badge = act.tv(p.emoji, 26f).apply { gravity = Gravity.CENTER; background = roundBg((0x40 shl 24) or (k.color and 0xFFFFFF), act.dp(18).toFloat(), k.color, act.dp(2)) }
+            head.addView(badge, LinearLayout.LayoutParams(act.dp(52), act.dp(52)))
+            val tcol = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(act.dp(12), 0, act.dp(6), 0) }
+            tcol.addView(act.tv(p.t.ifBlank { k.label }, 19f, Color.WHITE, true).apply { maxLines = 2 })
+            val chips = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, act.dp(4), 0, 0) }
+            chips.addView(act.tv(k.emoji + " " + k.label, 12f, Color.WHITE, true).apply { setPadding(act.dp(9), act.dp(3), act.dp(9), act.dp(3)); background = roundBg(k.color, act.dp(10).toFloat()) })
+            if (all.size > 1) chips.addView(act.tv(L.t("pvPinN", "i" to idx + 1, "n" to all.size), 12f, 0xCCFFFFFF.toInt(), true).apply { setPadding(act.dp(9), act.dp(3), act.dp(9), act.dp(3)); background = roundBg(0x33FFFFFF, act.dp(10).toFloat()) },
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginStart = act.dp(6) })
+            tcol.addView(chips)
+            head.addView(tcol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            head.addView(act.iconBtn(Icons.CLOSE, 8f, Color.WHITE) { hideCard() }.apply { layoutParams = LinearLayout.LayoutParams(act.dp(40), act.dp(40)) })
+            c.addView(head)
+            // la nota del pin
+            val sc = android.widget.ScrollView(act)
+            val inner = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+            sc.addView(inner)
+            if (p.d.isNotBlank()) {
+                inner.addView(act.tv("📝 " + L.t("pvNote"), 12f, 0x99FFFFFF.toInt(), true).apply { setPadding(0, act.dp(12), 0, act.dp(4)) })
+                inner.addView(act.tv(p.d, 15.5f, Color.WHITE).apply { setLineSpacing(0f, 1.25f); setTextIsSelectable(true); background = roundBg(0x1AFFFFFF, act.dp(14).toFloat()); setPadding(act.dp(12), act.dp(10), act.dp(12), act.dp(10)) })
+            } else inner.addView(act.tv(L.t("pvNoNote"), 13.5f, 0x80FFFFFF.toInt()).apply { setPadding(0, act.dp(10), 0, 0) })
+            // su foto
+            if (p.f.isNotEmpty()) {
+                inner.addView(act.tv("📷 " + L.t("pvPhoto"), 12f, 0x99FFFFFF.toInt(), true).apply { setPadding(0, act.dp(12), 0, act.dp(4)) })
+                val im = android.widget.ImageView(act).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP; clipToOutline = true; background = roundBg(0, act.dp(16).toFloat()) }
+                Thumbs.load(p.f, act.dp(360)) { bm -> im.setImageBitmap(bm) }
+                im.setOnClickListener { v -> Anim.bump(v, 1.03f); show(act, p.f) }
+                inner.addView(im, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, act.dp(170)))
+            }
+            c.addView(sc, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { })
+            // abajo: ◀ copiar · editar ▶
+            val bar = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, act.dp(12), 0, 0) }
+            fun b(label: String, color: Int, w: Float, go: () -> Unit) = bar.addView(act.tv(label, 14f, Color.WHITE, true).apply {
+                gravity = Gravity.CENTER; setPadding(act.dp(6), act.dp(10), act.dp(6), act.dp(10)); background = roundBg(color, act.dp(18).toFloat())
+                setOnClickListener { v -> Anim.bump(v); go() }
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, w).apply { setMargins(act.dp(3), 0, act.dp(3), 0) })
+            if (all.size > 1) b("◀", 0x33FFFFFF, 0.6f) { go(-1) }
+            b("📋 " + L.t("copy"), 0x33FFFFFF, 1.2f) {
+                val t = p.emoji + " " + p.t + (if (p.d.isNotBlank()) "\n" + p.d else "")
+                (act.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("pin", t)); act.toast(L.t("copied"))
+            }
+            if (onEditPins != null) b("✏️ " + L.t("edit"), T.accent, 1.2f) { d.dismiss(); onEditPins() }
+            if (all.size > 1) b("▶", 0x33FFFFFF, 0.6f) { go(1) }
+            c.addView(bar)
+            root.addView(c, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM).apply { setMargins(act.dp(10), 0, act.dp(10), act.dp(24)) })
+            // que no tape más de la mitad de la pantalla
+            sc.post { val max = (act.resources.displayMetrics.heightPixels * 0.3f).toInt(); if (sc.height > max) sc.layoutParams = sc.layoutParams.apply { height = max } }
+            c.alpha = 0f; c.translationY = act.dp(60).toFloat()
+            c.animate().alpha(1f).translationY(0f).setDuration(340).setInterpolator(android.view.animation.OvershootInterpolator(1.2f)).start()
+            badge.scaleX = 0.3f; badge.scaleY = 0.3f; badge.animate().scaleX(1f).scaleY(1f).setStartDelay(120).setDuration(380).setInterpolator(android.view.animation.OvershootInterpolator(2.6f)).start()
+            txt.animate().alpha(0f).setDuration(150).start()
+            card = c
         }
         iv.onDismiss = { d.dismiss() }
         d.setContentView(root)
@@ -110,7 +145,21 @@ class ZoomImageView(ctx: Context) : ImageView(ctx) {
     private fun pinAt(p: Pins.P): FloatArray { val v = floatArrayOf(p.x * bw, p.y * bh); m.mapPoints(v); return v }
     private fun hitPin(x: Float, y: Float): Pins.P? {
         val s = pinSize()
-        return pins.lastOrNull { p -> val q = pinAt(p); Math.hypot((x - q[0]).toDouble(), (y - s * 1.5f - q[1]).toDouble()) < s * 1.9f }
+        // se puede tocar la gota (con su dibujito) o el nombre de abajo
+        return pins.lastOrNull { p -> val q = pinAt(p); x in (q[0] - s * 2.6f)..(q[0] + s * 2.6f) && y in (q[1] - s * 3.2f)..(q[1] + s * 1.9f) }
+    }
+    /** 🎯 Acerca la foto hasta el pin (y lo deja en el centro). */
+    fun focusOn(p: Pins.P) {
+        if (bw == 0) return
+        val from = Matrix(m)
+        val sc = maxOf(scaleNow(), base * 2.2f).coerceAtMost(base * 6)
+        val to = Matrix().apply { postScale(sc, sc); val px = p.x * bw * sc; val py = p.y * bh * sc; postTranslate(width / 2f - px, height * 0.38f - py) }
+        val a = FloatArray(9); val b = FloatArray(9); from.getValues(a); to.getValues(b)
+        android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 420; interpolator = android.view.animation.DecelerateInterpolator(2f)
+            addUpdateListener { an -> val k = an.animatedValue as Float; val v = FloatArray(9) { i -> a[i] + (b[i] - a[i]) * k }; m.setValues(v); imageMatrix = m }
+            start()
+        }
     }
     override fun onDraw(c: android.graphics.Canvas) {
         super.onDraw(c)
