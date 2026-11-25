@@ -46,7 +46,7 @@ object PhotoViewer {
         iv.pins = Pins.parse(pins)
         var card: View? = null
         var showCard: (Pins.P) -> Unit = {}
-        fun hideCard() { card?.let { c -> c.animate().alpha(0f).translationY(act.dp(40).toFloat()).setDuration(180).withEndAction { root.removeView(c) }.start() }; card = null; iv.selected = null; txt.animate().alpha(1f).setDuration(200).start() }
+        fun hideCard() { if (card != null) iv.resetZoom(); card?.let { c -> c.animate().alpha(0f).translationY(act.dp(40).toFloat()).setDuration(180).withEndAction { root.removeView(c) }.start() }; card = null; iv.selected = null; txt.animate().alpha(1f).setDuration(200).start() }
         iv.onPinTap = { p ->
             if (p == null) hideCard() else showCard(p)
         }
@@ -148,18 +148,27 @@ class ZoomImageView(ctx: Context) : ImageView(ctx) {
         // se puede tocar la gota (con su dibujito) o el nombre de abajo
         return pins.lastOrNull { p -> val q = pinAt(p); x in (q[0] - s * 2.6f)..(q[0] + s * 2.6f) && y in (q[1] - s * 3.2f)..(q[1] + s * 1.9f) }
     }
-    /** 🎯 Acerca la foto hasta el pin (y lo deja en el centro). */
-    fun focusOn(p: Pins.P) {
-        if (bw == 0) return
-        val from = Matrix(m)
-        val sc = maxOf(scaleNow(), base * 2.2f).coerceAtMost(base * 6)
-        val to = Matrix().apply { postScale(sc, sc); val px = p.x * bw * sc; val py = p.y * bh * sc; postTranslate(width / 2f - px, height * 0.38f - py) }
-        val a = FloatArray(9); val b = FloatArray(9); from.getValues(a); to.getValues(b)
-        android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+    /** 🔙 Vuelve la foto a su tamaño de siempre (suavecito). */
+    fun resetZoom() {
+        if (bw == 0 || width == 0) return
+        val s = minOf(width.toFloat() / bw, height.toFloat() / bh)
+        animateTo(Matrix().apply { postScale(s, s); postTranslate((width - bw * s) / 2, (height - bh * s) / 2) })
+    }
+    private var zoomAnim: android.animation.ValueAnimator? = null
+    private fun animateTo(to: Matrix) {
+        val a = FloatArray(9); val b = FloatArray(9); Matrix(m).getValues(a); to.getValues(b)
+        zoomAnim?.cancel()
+        zoomAnim = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 420; interpolator = android.view.animation.DecelerateInterpolator(2f)
             addUpdateListener { an -> val k = an.animatedValue as Float; val v = FloatArray(9) { i -> a[i] + (b[i] - a[i]) * k }; m.setValues(v); imageMatrix = m }
             start()
         }
+    }
+    /** 🎯 Acerca la foto hasta el pin (y lo deja en el centro). */
+    fun focusOn(p: Pins.P) {
+        if (bw == 0) return
+        val sc = maxOf(scaleNow(), base * 2.2f).coerceAtMost(base * 6)
+        animateTo(Matrix().apply { postScale(sc, sc); val px = p.x * bw * sc; val py = p.y * bh * sc; postTranslate(width / 2f - px, height * 0.38f - py) })
     }
     override fun onDraw(c: android.graphics.Canvas) {
         super.onDraw(c)
