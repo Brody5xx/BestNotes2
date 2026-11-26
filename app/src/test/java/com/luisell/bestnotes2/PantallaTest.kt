@@ -527,6 +527,37 @@ class PantallaTest {
         assertEquals(listOf(true, false), after.map(bad))
     }
 
+    @Test fun quitarEstiloAPalabrasMezcladas() {
+        importar()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n1")).setup().get(); waitIo(); idle()
+        val e = find(act.window.decorView, RichEdit::class.java).filter { it !is TitleEdit && it.text.isNotEmpty() }.first()
+        @Suppress("UNCHECKED_CAST") val btn = (NoteActivity::class.java.getDeclaredField("toolBtns").apply { isAccessible = true }.get(act) as HashMap<String, View>)
+        val ms = NoteActivity::class.java.getDeclaredMethod("multiStart", RichEdit::class.java, Boolean::class.java, Int::class.java, Int::class.java, Boolean::class.java).apply { isAccessible = true }
+        val me = NoteActivity::class.java.getDeclaredMethod("multiEnd").apply { isAccessible = true }
+        val it = St(i = true, u = true)
+        e.requestFocus(); e.setText(Rich.build(listOf(Run("uno "), Run("dos tres", it), Run(" cuatro"))), android.widget.TextView.BufferType.EDITABLE); idle()
+        fun word(w: String) = Rich.runs(e.text).let { rs -> var i = 0; var st = St.PLAIN; val at = e.text.indexOf(w); for (r in rs) { if (at >= i && at < i + r.text.length) st = r.st; i += r.text.length }; st }
+        // 1) con la selección del teléfono: una palabra modificada (antes miraba la letra de ANTES y no se quitaba)
+        RichEdit.onUserSelect = null       // (en la prueba el reloj empieza en 0 y parecería un dedo)
+        val a = e.text.indexOf("dos"); e.setSelection(a, a + 3); idle()
+        btn["i"]!!.performClick(); idle(); btn["u"]!!.performClick(); idle()
+        assertEquals("se quitó la cursiva y el subrayado", St.PLAIN, word("dos"))
+        assertEquals("tres no se tocó", it, word("tres"))
+        // 2) con la selección de la app: "tres cuatro" (una modificada y una normal) → primer toque a todas, segundo se quita a todas
+        val b = e.text.indexOf("tres")
+        ms.invoke(act, e, false, b, e.text.length, false); idle()
+        btn["u"]!!.performClick(); idle()
+        assertTrue(word("tres").u && word("cuatro").u)
+        btn["u"]!!.performClick(); idle()
+        assertTrue(!word("tres").u && !word("cuatro").u)
+        btn["i"]!!.performClick(); idle()
+        assertTrue(word("tres").i && word("cuatro").i)
+        btn["i"]!!.performClick(); idle()
+        assertEquals(St.PLAIN, word("cuatro")); assertEquals(St.PLAIN, word("tres"))
+        me.invoke(act); idle()
+        assertEquals("uno no se tocó", St.PLAIN, word("uno"))
+    }
+
     @Test fun respaldoIdaYVuelta() {
         importar()
         val n1 = Store.meta("n1")!!

@@ -394,7 +394,25 @@ class NoteActivity : Activity(), EditorView.Host {
         if (multi != null) mPieces().firstOrNull()?.first?.let { if (it is RichEdit) return it }
         return if (::title.isInitialized && title.hasFocus()) title else editor.focused
     }
-    private fun cur(): St = target()?.currentStyle() ?: St.PLAIN
+    /**
+     * El estilo de lo que tienes seleccionado (como en Word/Docs):
+     * negrita, cursiva… "encendida" solo si TODO lo seleccionado la tiene; un color solo si todo tiene el mismo.
+     * Así: con 2 palabras modificadas y 1 normal, el primer toque se lo pone a todas y el segundo se lo quita a todas.
+     * Sin nada seleccionado: lo que tendrá lo próximo que escribas.
+     */
+    private fun cur(): St {
+        val runs: List<Run> = if (multi != null) mPieces().flatMap { (e, a, b) -> Rich.runs(e.text, a, minOf(b, e.text.length)) }
+        else target()?.let { e ->
+            val a = minOf(e.selectionStart, e.selectionEnd); val b = maxOf(e.selectionStart, e.selectionEnd)
+            if (a in 0 until b && b <= e.text.length) Rich.runs(e.text, a, b) else null
+        } ?: return target()?.currentStyle() ?: St.PLAIN
+        val rs = runs.filter { it.text.isNotBlank() }.ifEmpty { runs }
+        if (rs.isEmpty()) return target()?.currentStyle() ?: St.PLAIN
+        val f = rs.first().st
+        fun <T> same(g: (St) -> T, none: T): T = g(f).let { v -> if (rs.all { g(it.st) == v }) v else none }
+        return St(b = rs.all { it.st.b }, i = rs.all { it.st.i }, u = rs.all { it.st.u }, s = rs.all { it.st.s },
+            size = same({ it.size }, 0), color = same({ it.color }, 0), bg = same({ it.bg }, 0), o = same({ it.o }, 0))
+    }
     /**
      * Qué cambia de verdad el botón que tocaste, para ponérselo a TODO lo seleccionado:
      * - si el botón PONE algo fijo (un color, "sin color", un tamaño), se pone igual en todo,
@@ -431,6 +449,7 @@ class NoteActivity : Activity(), EditorView.Host {
         e.applyStyle(styleChange(c, fn))
         // cambiar el estilo SIEMPRE cuenta como cambio (para que se guarde al salir)
         onDirty(); dirty = true
+        Store.main.post { paintTools(e) }
     }
 
     private fun pickSize() {
@@ -476,7 +495,8 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     private fun paintTools(e: RichEdit?) {
-        val st = e?.currentStyle() ?: St.PLAIN
+        // con algo seleccionado, los botones muestran lo que tiene TODO lo seleccionado
+        val st = if (multi != null || (e != null && e.selectionStart != e.selectionEnd)) cur() else e?.currentStyle() ?: St.PLAIN
         fun on(k: String, v: Boolean) {
             if (toolOn[k] == v) return
             toolOn[k] = v
@@ -1834,7 +1854,7 @@ class NoteActivity : Activity(), EditorView.Host {
         val p = stylePanel ?: return
         p.removeAllViews()
         val inTitle = title.hasFocus()
-        val st = target()?.currentStyle() ?: St.PLAIN
+        val st = cur()
         val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), 0, 0, 0) }
         head.addView(tv((if (inTitle) L.t("titleStyle") else L.t("textStyle")).uppercase(L.locale), 12f, T.muted, true).apply { letterSpacing = 0.1f }, lp(0, WRAP, 1f))
         head.addView(iconBtn(Icons.CLOSE, 8.5f) { closeStyle() }.apply { layoutParams = lp(dp(36), dp(36)) })
@@ -2314,6 +2334,16 @@ class NoteActivity : Activity(), EditorView.Host {
     }
     private fun lineOf(e: EditText, off: Int): Int = e.text.toString().substring(0, off.coerceIn(0, e.text.length)).count { it == '\n' }
 
+    /** Dónde empieza y termina la palabra que está en [off] (letras, números, #, @…). */
+    private fun wordAt(t: String, off: Int): Pair<Int, Int> {
+        fun w(c: Char) = c.isLetterOrDigit() || c == '_' || c == '#' || c == '@' || c == '\'' || c == '-'
+        var a = off.coerceIn(0, t.length); var b = a
+        if ((a >= t.length || !w(t[a])) && a > 0 && w(t[a - 1])) { a--; b = a }
+        while (a > 0 && w(t[a - 1])) a--
+        while (b < t.length && w(t[b])) b++
+        return a to b
+    }
+
     /** Los pedazos seleccionados, en orden: (cajita, desde, hasta). */
     private fun mPieces(): List<Triple<EditText, Int, Int>> {
         if (mLinesMode) return mRanges.map { ordered(it) }.sortedWith(compareBy({ it.first.first }, { it.first.second })).flatMap { (a, b) -> piecesOf(a, b) }
@@ -2444,17 +2474,21 @@ class NoteActivity : Activity(), EditorView.Host {
             }
         }
 
+        /** La gotita que tocaste: si dos quedan juntitas (una palabra corta), gana la MÁS cercana al dedo. */
         private fun hit(x: Float, y: Float): Int {
+            var best = 0; var bestD = Float.MAX_VALUE; var bestPt: Pair<Int, Int>? = null
             for ((k, pt, isStart) in pts()) {
                 val r = rect(k, pt, isStart) ?: continue
-                val big = android.graphics.Rect(r); big.inset(-dp(14), -dp(10))
-                if (big.contains(x.toInt(), y.toInt())) {
-                    val xy = spotXY(pt)!!
-                    grabDx = xy[0] - x; grabDy = (xy[1] + xy[2]) / 2 - y      // dónde agarraste la gotita
-                    return k
-                }
+                val big = android.graphics.Rect(r); big.inset(-dp(20), -dp(16))
+                if (!big.contains(x.toInt(), y.toInt())) continue
+                val dx = r.exactCenterX() - x; val dy = r.exactCenterY() - y
+                val d = dx * dx + dy * dy
+                if (d < bestD) { bestD = d; best = k; bestPt = pt }
             }
-            return 0
+            val pt = bestPt ?: return 0
+            val xy = spotXY(pt) ?: return 0
+            grabDx = xy[0] - x; grabDy = (xy[1] + xy[2]) / 2 - y      // dónde agarraste la gotita
+            return best
         }
 
         private fun move() {
@@ -2532,18 +2566,54 @@ class NoteActivity : Activity(), EditorView.Host {
             // ⚠️ el dedo que dejó presionada la palabra TODAVÍA está en la pantalla:
             // ese toque NO quita la selección; si lo mueves, la selección crece (como en el teléfono)
             var mine = false
+            var held = false                 // dejaste presionado OTRA palabra: se selecciona esa (como en el teléfono)
+            var downX = 0f; var downY = 0f
+            var anchor: Pair<Pair<Int, Int>, Pair<Int, Int>>? = null
+            val slop = android.view.ViewConfiguration.get(this).scaledTouchSlop
+            val press = Runnable {
+                if (multi == null || mLinesMode) return@Runnable
+                val off = e.getOffsetForPosition(downX, downY).coerceIn(0, e.text.length)
+                val (ws, we) = wordAt(e.text.toString(), off)
+                if (ws >= we) return@Runnable
+                held = true
+                e.parent?.requestDisallowInterceptTouchEvent(true)     // que la nota no se mueva mientras arrastras
+                mA = k to ws; mB = k to we; anchor = mA to mB
+                e.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                multiPaint(false); handles?.invalidate(); Anim.bump(e, 1.015f)
+            }
             e.setOnTouchListener { v, ev ->
                 when (ev.actionMasked) {
-                    android.view.MotionEvent.ACTION_DOWN -> { mine = true; return@setOnTouchListener true }
-                    android.view.MotionEvent.ACTION_CANCEL -> { mine = false; return@setOnTouchListener true }
+                    android.view.MotionEvent.ACTION_DOWN -> {
+                        mine = true; held = false; anchor = null; downX = ev.x; downY = ev.y
+                        v.postDelayed(press, android.view.ViewConfiguration.getLongPressTimeout().toLong())
+                        return@setOnTouchListener true
+                    }
+                    android.view.MotionEvent.ACTION_CANCEL -> { v.removeCallbacks(press); mine = false; anchor = null; if (held) { held = false; placeSelBar() }; return@setOnTouchListener true }
                     android.view.MotionEvent.ACTION_MOVE -> {
-                        if (!mine && !mLinesMode) {
+                        if (mine && !held && (Math.abs(ev.x - downX) > slop || Math.abs(ev.y - downY) > slop)) v.removeCallbacks(press)
+                        if ((!mine || held) && !mLinesMode) {
+                            // arrastrando después de dejar presionado: la selección crece por palabras enteras
                             val hs = IntArray(2); noteHolder.getLocationOnScreen(hs)
-                            spotAt(ev.rawX - hs[0], ev.rawY - hs[1])?.let { sp -> if (sp != mB) { mB = sp; multiPaint(false); handles?.invalidate() } }
+                            spotAt(ev.rawX - hs[0], ev.rawY - hs[1])?.let { sp ->
+                                val t = mEdits.getOrNull(sp.first)?.text?.toString() ?: return@let
+                                val (ws, we) = wordAt(t, sp.second)
+                                // la palabra que dejaste presionada se queda siempre seleccionada (hacia arriba o hacia abajo)
+                                val an = anchor ?: mRange().also { anchor = it }
+                                fun lt(x: Pair<Int, Int>, y: Pair<Int, Int>) = x.first < y.first || (x.first == y.first && x.second < y.second)
+                                val (na, nb) = when {
+                                    lt(sp, an.first) -> an.second to (if (ws < we) sp.first to ws else sp)
+                                    lt(an.second, sp) -> an.first to (if (ws < we) sp.first to we else sp)
+                                    else -> an.first to an.second
+                                }
+                                if (na != mA || nb != mB) { mA = na; mB = nb; multiPaint(false); handles?.invalidate(); selBar?.alpha = 0f }
+                            }
                         }
                         return@setOnTouchListener true
                     }
-                    android.view.MotionEvent.ACTION_UP -> if (!mine) { placeSelBar(); return@setOnTouchListener true }
+                    android.view.MotionEvent.ACTION_UP -> {
+                        v.removeCallbacks(press)
+                        if (!mine || held) { mine = false; held = false; anchor = null; placeSelBar(); return@setOnTouchListener true }
+                    }
                 }
                 if (ev.actionMasked == android.view.MotionEvent.ACTION_UP) {
                     mine = false
@@ -2647,6 +2717,7 @@ class NoteActivity : Activity(), EditorView.Host {
         dirty = true; onDirty()
         multiPaint(false)
         snapshot()
+        Store.main.post { paintTools(target()) }
     }
 
     private fun multiDelete() {
