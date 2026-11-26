@@ -1311,7 +1311,13 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             val dx = sx * (box.width / 2f + m); val dy = sy * (box.height / 2f + m)
             (cx + (dx * Math.cos(a) - dy * Math.sin(a)).toFloat()) to (cy + (dx * Math.sin(a) + dy * Math.cos(a)).toFloat())
         }
-        val corners = cornersAt(s2 + dp(5)) + cornersAt(-s2 - dp(6))     // flotando afuera, sin tocar la foto
+        // al lado derecho (o izquierdo), un poco arriba de la esquina de abajo: lejos de la barrita y de las bolitas
+        fun sideLow(sx: Float): Pair<Float, Float> {
+            val dx = sx * (box.width / 2f + s2 + dp(5)); val dy = box.height / 2f - maxOf(box.height * 0.2f, s2 * 2.4f)
+            return (cx + (dx * Math.cos(a) - dy * Math.sin(a)).toFloat()) to (cy + (dx * Math.sin(a) + dy * Math.cos(a)).toFloat())
+        }
+        val out = cornersAt(s2 + dp(5))
+        val corners = listOf(out[0], out[1], sideLow(1f), sideLow(-1f), out[2], out[3]) + cornersAt(-s2 - dp(6))     // flotando afuera, sin tocar la foto
         // ¿dónde se ve? (dentro del pedazo de la nota que está en la pantalla)
         val vis = android.graphics.Rect()
         var sv: View? = flow; while (sv != null && sv !is android.widget.ScrollView) sv = sv.parent as? View
@@ -1319,7 +1325,10 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         val fl = IntArray(2); flow.getLocationOnScreen(fl)
         val screenW = flow.rootView.width.takeIf { it > 0 } ?: flow.resources.displayMetrics.widthPixels
         // tiene que caber entero: dentro de la nota (si no, se corta) y dentro de la pantalla
-        fun ok(p: Pair<Float, Float>) = p.first - s2 >= 0 && p.first + s2 <= flow.width &&
+        // ...y que no quede encima de la barrita de botones de abajo (si no, choca con el › y los demás)
+        fun onBar(p: Pair<Float, Float>) = infoShown && infoBar.visibility == View.VISIBLE && infoBar.width > 0 &&
+            p.first + s2 > infoBar.left - dp(16) && p.first - s2 < infoBar.right + dp(16) && p.second + s2 > infoBar.top + infoBar.translationY - dp(6) && p.second - s2 < infoBar.bottom + infoBar.translationY + dp(6)
+        fun ok(p: Pair<Float, Float>) = !onBar(p) && p.first - s2 >= 0 && p.first + s2 <= flow.width &&
             fl[0] + p.first - s2 >= dp(4) && fl[0] + p.first + s2 <= screenW - dp(4) &&
             (vis.isEmpty || (fl[1] + p.second - s2 >= vis.top + dp(2) && fl[1] + p.second + s2 <= vis.bottom - dp(2)))
         // mientras la agarras no se cambia de esquina (si no, se te escaparía del dedo)
