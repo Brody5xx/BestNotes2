@@ -901,7 +901,10 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             box.measure(MeasureSpec.makeMeasureSpec(pw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(ph, MeasureSpec.EXACTLY))
             val (bw, bh0) = rotBox(pw, ph)
             // 🖼 la barrita va pegada debajo de la foto y es del MISMO ancho (cambia de tamaño con ella)
-            infoBar.measure(MeasureSpec.makeMeasureSpec(maxOf(pw, dp(96)), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+            // ...pero nunca más angosta que sus botones (si no, se van perdiendo uno por uno al achicar la foto)
+            var btnW = dp(30)
+            for (k in 0 until infoBar.childCount) { val c = infoBar.getChildAt(k); if (c !== infoLabel && c.visibility != View.GONE && c.layoutParams.width > 0) btnW += c.layoutParams.width }
+            infoBar.measure(MeasureSpec.makeMeasureSpec(minOf(W, maxOf(pw, btnW, dp(96))), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
             knob.measure(MeasureSpec.makeMeasureSpec(dp(28), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(28), MeasureSpec.EXACTLY))
             for (d in dots) d.measure(MeasureSpec.makeMeasureSpec(dp(44), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(44), MeasureSpec.EXACTLY))
             val bh = bh0 + infoH()
