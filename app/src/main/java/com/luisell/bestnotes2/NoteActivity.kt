@@ -2636,8 +2636,10 @@ class NoteActivity : Activity(), EditorView.Host {
         val pieces = mPieces()
         val c = pieces.firstOrNull()?.let { (e, a, _) -> Rich.styleAt(e.text, minOf(a + 1, e.text.length)) } ?: St.PLAIN
         val change = styleChange(c, fn)
-        for ((e, a, b) in pieces) {
+        for ((e, a, b0) in pieces) {
             val r = e as? RichEdit ?: continue
+            // el "Enter" invisible al final del renglón también (si no, lo que escribas abajo sale con el estilo viejo)
+            val b = if (b0 < r.text.length && r.text[b0] == '\n') b0 + 1 else b0
             r.setSelection(a, b)
             r.applyStyle(change)
             r.setSelection(b)

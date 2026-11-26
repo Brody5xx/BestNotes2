@@ -49,12 +49,12 @@ class SearchS : BackgroundColorSpan(T.search)
 
 object Rich {
     fun build(runs: List<Run>): SpannableStringBuilder {
+        // ⚠️ primero TODO el texto y después los estilos: si se pintara mientras se va pegando,
+        // cada estilo "crecería" sobre lo que viene después (y los colores que quitaste volvían)
         val sb = SpannableStringBuilder()
-        for (r in runs) {
-            val a = sb.length
-            sb.append(r.text)
-            setStyle(sb, a, sb.length, r.st)
-        }
+        for (r in runs) sb.append(r.text)
+        var i = 0
+        for (r in runs) { setStyle(sb, i, i + r.text.length, r.st); i += r.text.length }
         return sb
     }
 

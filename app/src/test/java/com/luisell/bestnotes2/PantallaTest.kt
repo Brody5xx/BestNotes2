@@ -480,7 +480,51 @@ class PantallaTest {
         act.finish(); idle(); waitIo()
         act = open()
         val runs = edits(act).flatMap { Rich.runs(it.text) }
+        // y si después de quitarlos sigues escribiendo al final, lo nuevo sale sin color y todo se queda así
+        val me = NoteActivity::class.java.getDeclaredMethod("multiEnd").apply { isAccessible = true }
+        ms.invoke(act, null, true, -1, -1, false); idle()
+        style.invoke(act, { s: St -> s.copy(color = 0) }); idle()
+        me.invoke(act); idle()
+        val e2 = edits(act).last()
+        e2.requestFocus(); e2.setSelection(e2.text.length)
+        e2.text.insert(e2.text.length, "\nJdjd"); idle()
+        val vis = edits(act).flatMap { Rich.runs(it.text) }
+        assertTrue("en pantalla sin color: " + vis.filter { it.st.color != 0 || it.st.bg != 0 || it.st.o != 0 }.map { it.text }, vis.none { it.st.color != 0 || it.st.bg != 0 || it.st.o != 0 })
+        act.finish(); idle(); waitIo()
+        act = open()
+        val r3 = edits(act).flatMap { Rich.runs(it.text) }
+        assertTrue("guardado con lo nuevo", r3.any { it.text.contains("Jdjd") })
+        assertTrue("sigue sin color: " + r3.filter { it.st.color != 0 || it.st.bg != 0 || it.st.o != 0 }.map { it.text }, r3.none { it.st.color != 0 || it.st.bg != 0 || it.st.o != 0 })
         assertTrue("los colores se quitaron: " + runs.filter { it.st.color != 0 || it.st.bg != 0 || it.st.o != 0 }.map { it.text }, runs.none { it.st.color != 0 || it.st.bg != 0 || it.st.o != 0 })
+    }
+
+    @Test fun quitarColoresComoEnElVideo() {
+        importar()
+        fun open(): NoteActivity { val a = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n1")).setup().get(); waitIo(); idle(); return a }
+        fun edits(a: NoteActivity) = find(a.window.decorView, RichEdit::class.java).filter { it !is TitleEdit && it.text.isNotEmpty() }
+        val style = NoteActivity::class.java.getDeclaredMethod("style", Function1::class.java).apply { isAccessible = true }
+        val ms = NoteActivity::class.java.getDeclaredMethod("multiStart", RichEdit::class.java, Boolean::class.java, Int::class.java, Int::class.java, Boolean::class.java).apply { isAccessible = true }
+        val me = NoteActivity::class.java.getDeclaredMethod("multiEnd").apply { isAccessible = true }
+        val bad = { r: Run -> r.st.color != 0 || r.st.bg != 0 || r.st.o != 0 }
+        var act = open()
+        var e = edits(act).first()
+        val pink = St(color = 0xFF0A84FF.toInt(), bg = 0x73690AFF, o = 0xFF0A84FF.toInt(), b = true)
+        e.requestFocus(); e.setText(Rich.build(listOf(Run("Jdkd\n\nNdnd\n\nJdjdkd\nJdkd\n", pink))), android.widget.TextView.BufferType.EDITABLE); idle()
+        act.finish(); idle(); waitIo()
+        act = open(); e = edits(act).first()
+        val a = e.text.indexOf("Ndnd"); val b = e.text.lastIndexOf("Jdkd") + 4
+        ms.invoke(act, e, false, a, b, false); idle()
+        style.invoke(act, { s: St -> s.copy(bg = 0) }); idle()
+        style.invoke(act, { s: St -> s.copy(o = 0) }); idle()
+        style.invoke(act, { s: St -> s.copy(color = 0) }); idle()
+        me.invoke(act); idle()
+        e.requestFocus(); e.setSelection(e.text.length)
+        e.text.insert(e.text.length, "Jdjd"); idle()
+        act.finish(); idle(); waitIo()
+        act = open(); e = edits(act).first()
+        val after = Rich.runs(e.text)
+        assertEquals("al volver a entrar queda igual que en pantalla", listOf("Jdkd\n\n", "Ndnd\n\nJdjdkd\nJdkd\nJdjd"), after.map { it.text })
+        assertEquals(listOf(true, false), after.map(bad))
     }
 
     @Test fun respaldoIdaYVuelta() {
