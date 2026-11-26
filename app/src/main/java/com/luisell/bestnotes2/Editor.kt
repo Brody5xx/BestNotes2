@@ -839,7 +839,8 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
     /** Mientras giras con dos dedos, el panel de abajo se actualiza (sin hacerlo mil veces). */
     private var panelPending = false
     private fun panelLater() {
-        if (panelPending) return
+        // mientras estiras NO se vuelve a armar el panel de abajo (eso cambiaba el alto de la pantalla y la nota saltaba)
+        if (panelPending || stretching) return
         panelPending = true
         flow.postDelayed({ panelPending = false; if (selected) ed.host.onImageChanged(this) }, 140)
     }
@@ -1064,6 +1065,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         private var snapped: Float = Float.NaN; private var origSnap = false
         /** El ancho al que está pegada (o -1). Se pega cerquita y se suelta solo si te alejas más (no tiembla). */
         private var lockW = -1
+        private var minH0 = 0
         private var screenL = 0
         @SuppressLint("ClickableViewAccessibility")
         override fun onTouch(v: View, e: MotionEvent): Boolean {
@@ -1075,6 +1077,9 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                     val fl = IntArray(2); flow.getLocationOnScreen(fl); screenL = fl[0]
                     snapped = Float.NaN; origSnap = false; lockW = -1
                     stretching = true
+                    // 📌 la nota no se mueve mientras estiras: si la foto se achica, la página guarda su alto
+                    // (si no, la pantalla se corre y la orilla ya no queda debajo del dedo)
+                    minH0 = ed.minimumHeight; ed.minimumHeight = ed.height
                     knob.animate().alpha(0f).setDuration(120).start()          // la perilla se esconde: así no salta de esquina en esquina
                     (v as StretchDot).grab(true)
                     v.parent.requestDisallowInterceptTouchEvent(true)
@@ -1139,6 +1144,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     (v as StretchDot).grab(false)
                     stretching = false
+                    ed.minimumHeight = minH0
                     placeKnob(); knob.animate().alpha(1f).setDuration(220).start()
                     if (block.ar <= 0f) img.scaleType = ImageView.ScaleType.CENTER_CROP
                     ed.host.showEdge(-1f, 0f, 0f); ed.host.showGuides(-1f, -1f, "", null)
@@ -1777,7 +1783,7 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
 
     /** Cambiar el tamaño con las bolitas (el video no se deforma). Se pega al MISMO ancho que otra foto o video (línea roja). */
     private inner class SizeTouch(val which: Int) : View.OnTouchListener {
-        private var x0 = 0f; private var l0 = 0; private var r0 = 0; private var screenL = 0; private var snapped = false
+        private var x0 = 0f; private var l0 = 0; private var r0 = 0; private var screenL = 0; private var snapped = false; private var minH0 = 0
         @SuppressLint("ClickableViewAccessibility")
         override fun onTouch(v: View, e: MotionEvent): Boolean {
             val W = flow.width.takeIf { it > 0 } ?: return false
@@ -1785,6 +1791,7 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
                 MotionEvent.ACTION_DOWN -> {
                     if (block.pin) return false
                     x0 = e.rawX; l0 = card.left; r0 = card.right; snapped = false
+                    minH0 = ed.minimumHeight; ed.minimumHeight = ed.height          // la nota no se corre mientras cambias el tamaño
                     val fl = IntArray(2); flow.getLocationOnScreen(fl); screenL = fl[0]
                     (v as StretchDot).grab(true); v.parent.requestDisallowInterceptTouchEvent(true)
                     v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
@@ -1818,6 +1825,7 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
                     ed.host.showGuides(-1f, -1f, "", if (ok) "📏 " + L.t("sameWidth") else "↔ ${Math.round(block.pct)}%")
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    ed.minimumHeight = minH0
                     (v as StretchDot).grab(false)
                     ed.host.showEdge(-1f, 0f, 0f); ed.host.showGuides(-1f, -1f, "", null)
                     ed.host.onDirty()
