@@ -100,6 +100,64 @@ object Fx {
         return out
     }
 
+    /**
+     * Rastro de una fila que se abre o se cierra (como el menú lateral, pero de lado):
+     * una barrita de luz la recorre y va dejando estrellitas que titilan y se quedan atrás.
+     * [forward] = de izquierda a derecha (abrir); si no, de derecha a izquierda (cerrar).
+     */
+    fun rowTrail(ctx: Context, left: Float, top: Float, w: Float, h: Float, forward: Boolean): List<Star> {
+        val d = ctx.resources.displayMetrics.density
+        val out = ArrayList<Star>()
+        val bands = 12
+        for (g in 0 until bands) {
+            val k = g.toFloat() / bands
+            val x0 = if (forward) left + w * k else left + w * (1 - k - 1f / bands)
+            val passed = k * 0.55f
+            for (j in 0 until 5) out.add(Star(x0 + rnd() * w / bands, top + rnd() * h, (3.5f + rnd() * 5) * d, rnd() * 45,
+                passed + rnd() * 0.06f, 0.35f + rnd() * 0.18f, (if (forward) -1f else 1f) * (4 + rnd() * 10) * d, (rnd() - 0.5f) * 8 * d, rnd() > 0.5f))
+        }
+        return out
+    }
+
+    /**
+     * ✦ La barrita de luz que recorre la fila en [ms] (y al final un destello).
+     * [onPos] recibe dónde va la luz (0..1) para ir mostrando o escondiendo los botones a su paso.
+     */
+    fun sweep(root: ViewGroup, left: Float, top: Float, w: Float, h: Float, forward: Boolean, ms: Long, onPos: (Float) -> Unit, onEnd: () -> Unit) {
+        val ctx = root.context; val d = ctx.resources.displayMetrics.density
+        val bar = View(ctx).apply {
+            background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(0x00FFFFFF, 0xEEFFFFFF.toInt(), 0x00FFFFFF)).apply { cornerRadius = 3 * d }
+            isClickable = false
+        }
+        val bw = 14 * d
+        root.addView(bar, android.widget.FrameLayout.LayoutParams(bw.toInt(), h.toInt()))
+        bar.translationY = top
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = ms; interpolator = android.view.animation.DecelerateInterpolator(1.4f)
+            addUpdateListener { a ->
+                val p = a.animatedValue as Float
+                val x = if (forward) left + w * p else left + w * (1 - p)
+                bar.translationX = x - bw / 2
+                bar.alpha = if (p < 0.1f) p * 10 else if (p > 0.85f) (1 - p) / 0.15f else 1f
+                bar.scaleY = 0.6f + 0.4f * Math.sin(p * Math.PI).toFloat()
+                onPos(p)
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(a: android.animation.Animator) {
+                    root.removeView(bar)
+                    // ✦ destello donde terminó la luz
+                    val ex = if (forward) left + w else left
+                    val sp = SparkleView(ctx, listOf(Star(ex, top + h / 2, 22 * d, 0f, 0f, 1f, 0f, 0f, false), Star(ex, top + h / 2, 12 * d, 45f, 0.1f, 0.8f, 0f, 0f, true)))
+                    root.addView(sp, android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                    sp.play(520)
+                    onEnd()
+                }
+            })
+            start()
+        }
+    }
+
     /** Estrellitas alrededor del círculo que se abre (al abrir una nota). */
     fun ring(ctx: Context, cx: Float, cy: Float, rMax: Float): List<Star> {
         val d = ctx.resources.displayMetrics.density

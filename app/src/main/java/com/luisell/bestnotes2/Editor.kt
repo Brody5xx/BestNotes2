@@ -825,34 +825,58 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             setOnClickListener { v ->
                 if (busyBar) return@setOnClickListener
                 val open = !barOpen
-                // la flechita da la vuelta despacito y rebota
-                v.animate().rotation(if (open) 180f else 0f).scaleX(1.15f).scaleY(1.15f).setDuration(420).setInterpolator(android.view.animation.OvershootInterpolator(1.8f))
-                    .withEndAction { v.animate().scaleX(1f).scaleY(1f).setDuration(200).start() }.start()
+                val act = ctx as? android.app.Activity
+                val root = act?.findViewById<ViewGroup>(android.R.id.content)
+                v.animate().rotation(if (open) 180f else 0f).setDuration(650).setInterpolator(android.view.animation.OvershootInterpolator(1.4f)).start()
+                // ✨ como el menú lateral: una luz recorre la fila y deja un rastro de estrellitas
+                fun trail(forward: Boolean, btns: List<View>, onEnd: () -> Unit) {
+                    if (root == null || btns.isEmpty()) { onEnd(); return }
+                    val rl = IntArray(2); root.getLocationInWindow(rl)
+                    val a = IntArray(2); btns.first().getLocationInWindow(a)
+                    val z = IntArray(2); btns.last().getLocationInWindow(z)
+                    val left = (minOf(a[0], z[0]) - rl[0]).toFloat(); val right = (maxOf(a[0], z[0]) - rl[0] + btns.last().width).toFloat()
+                    val top = (a[1] - rl[1]).toFloat(); val h = btns.first().height.toFloat()
+                    val sp = SparkleView(ctx, Fx.rowTrail(ctx, left, top, right - left, h, forward))
+                    root.addView(sp, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                    sp.play(1300)
+                    // cada botón aparece (o se apaga) justo cuando la luz pasa por él
+                    val xs = btns.map { b -> val q = IntArray(2); b.getLocationInWindow(q); ((q[0] - rl[0] + b.width / 2f) - left) / maxOf(1f, right - left) }
+                    val done = BooleanArray(btns.size)
+                    Fx.sweep(root, left, top, right - left, h, forward, 820, { p ->
+                        for ((k, b) in btns.withIndex()) {
+                            val reached = if (forward) p >= xs[k] else (1 - p) <= xs[k]
+                            if (reached && !done[k]) {
+                                done[k] = true
+                                if (forward) { b.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(300).setInterpolator(android.view.animation.OvershootInterpolator(2f)).start() }
+                                else b.animate().alpha(0f).scaleX(0.6f).scaleY(0.6f).setDuration(220).start()
+                            }
+                        }
+                    }, onEnd)
+                }
                 if (open) {
                     val before = barBtns.filter { it.visibility == View.VISIBLE }.toSet()
                     barOpen = true; flow.requestLayout()
-                    Anim.sparkle(v, 26f, 700)
-                    // ✨ los que estaban escondidos entran uno por uno: girando, creciendo y con un rebotito
+                    busyBar = true
                     infoBar.post {
-                        var k = 0
-                        for (bt in barBtns) if (bt.visibility == View.VISIBLE && bt !in before) {
-                            bt.alpha = 0f; bt.translationX = -ed.dp(26).toFloat(); bt.scaleX = 0.3f; bt.scaleY = 0.3f; bt.rotation = -40f
-                            bt.animate().alpha(1f).translationX(0f).scaleX(1f).scaleY(1f).rotation(0f).setStartDelay(120L + k++ * 110L).setDuration(520)
-                                .setInterpolator(android.view.animation.OvershootInterpolator(2.2f)).start()
-                        }
+                        val fresh = barBtns.filter { it.visibility == View.VISIBLE && it !in before }
+                        fresh.forEach { it.alpha = 0f; it.scaleX = 0.6f; it.scaleY = 0.6f }
+                        trail(true, fresh) { busyBar = false; fresh.forEach { it.alpha = 1f; it.scaleX = 1f; it.scaleY = 1f } }
                     }
                 } else {
-                    // se van en reversa (el último primero) y después la fila se recoge
-                    val extra = barBtns.filter { it.visibility == View.VISIBLE }.drop(1).reversed()
+                    // los que se van a esconder: la luz pasa de derecha a izquierda y se apagan a su paso
+                    val vis = barBtns.filter { it.visibility == View.VISIBLE }
+                    barOpen = false
+                    // cuáles quedan cuando la fila está recogida
+                    val keep = HashSet<View>()
+                    run { var room = maxOf(box.width, dp(96)) - dp(30) - dp(36); for (b in barBtns.filter { wantBtn(it) }) { val w = b.layoutParams.width; if (w <= room) { keep.add(b); room -= w } else break } }
+                    barOpen = true
+                    val going = vis.filter { it !in keep }
                     busyBar = true
-                    var k = 0
-                    for (bt in extra) bt.animate().alpha(0f).translationX(-ed.dp(20).toFloat()).scaleX(0.4f).scaleY(0.4f).rotation(-30f).setStartDelay(k++ * 70L).setDuration(260)
-                        .setInterpolator(android.view.animation.AccelerateInterpolator()).start()
-                    v.postDelayed({
+                    trail(false, going) {
                         busyBar = false; barOpen = false
-                        barBtns.forEach { it.alpha = 1f; it.translationX = 0f; it.scaleX = 1f; it.scaleY = 1f; it.rotation = 0f }
+                        barBtns.forEach { it.alpha = 1f; it.scaleX = 1f; it.scaleY = 1f }
                         flow.requestLayout()
-                    }, 260L + k * 70L)
+                    }
                 }
             }
         }
