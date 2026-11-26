@@ -218,7 +218,7 @@ object NotePack {
         val m = Store.meta(noteId)!!
         val (body, extra) = Store.readBody(noteId)
         val blocks = blocksFromJson(body)
-        val names = blocks.flatMap { b -> when (b) { is Block.Img -> listOf(b.file) + Pins.parse(b.pins).map { it.f }.filter { it.isNotEmpty() }; is Block.Media -> listOf(b.file); else -> emptyList() } }.distinct()
+        val names = blocks.flatMap { b -> when (b) { is Block.Img -> (listOf(b.file, b.orig) + Pins.parse(b.pins).map { it.f }).filter { it.isNotEmpty() }; is Block.Media -> listOf(b.file); else -> emptyList() } }.distinct()
         val dir = File(ctx.cacheDir, "paquete").apply { mkdirs(); listFiles()?.forEach { it.delete() } }
         val out = File(dir, Share.fileName(m.title.ifBlank { L.t("untitled") }, "zip"))
         ZipOutputStream(out.outputStream().buffered()).use { z ->

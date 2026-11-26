@@ -69,6 +69,13 @@ class PantallaTest {
         val re = Regex("\\\\?\"(?:f|wall)\\\\?\":\\\\?\"([^\"\\\\]+)")
         val found = re.findAll(blocksJson(listOf(back))).map { it.groupValues[1] }.toSet()
         assertTrue(found.contains("fplano.jpg")); assertTrue(found.contains("fpin.jpg"))
+        // ↔️ la foto limpia de antes de editarla se guarda (y no se borra al limpiar)
+        val ed = Block.Img("fdibujada.jpg", 80f, orig = "flimpia.jpg")
+        val eb = Block.fromJson(ed.toJson()) as Block.Img
+        assertEquals("flimpia.jpg", eb.orig)
+        val re2 = Regex("\\\\?\"(?:f|wall|of)\\\\?\":\\\\?\"([^\"\\\\]+)")
+        assertTrue(re2.findAll(blocksJson(listOf(eb))).map { it.groupValues[1] }.toSet().containsAll(setOf("fdibujada.jpg", "flimpia.jpg")))
+        val k = Block.Img("a.jpg"); k.keepOrig(); k.file = "b.jpg"; k.keepOrig(); assertEquals("a.jpg", k.orig)
     }
 
     @Test fun pasarNotaPorQrIdaYVuelta() {

@@ -356,7 +356,7 @@ object Backup {
                 // notas
                 w.write("\"notes\":[")
                 val used = HashSet<String>()
-                val re = Regex("\\\\?\"(?:f|wall)\\\\?\":\\\\?\"([^\"\\\\]+)")      // (también las fotos de los 🗺️ pines)
+                val re = Regex("\\\\?\"(?:f|wall|of)\\\\?\":\\\\?\"([^\"\\\\]+)")      // (también las fotos de los 🗺️ pines)
                 var first = true; var n = 0
                 val ids = Store.notes.map { it.id }
                 for (id in ids) {
@@ -382,7 +382,7 @@ object Backup {
                 for (dir in listOf("historial", "registro")) for (f in File(ctx.filesDir, dir).listFiles() ?: emptyArray()) {
                     if (!f.name.endsWith(".json")) continue
                     val txt = f.readText()
-                    Regex("\\\\?\"(?:f|wall)\\\\?\":\\\\?\"([^\"\\\\]+)").findAll(txt).forEach { used.add(it.groupValues[1]) }
+                    Regex("\\\\?\"(?:f|wall|of)\\\\?\":\\\\?\"([^\"\\\\]+)").findAll(txt).forEach { used.add(it.groupValues[1]) }
                     Regex("\\\\u0001([^\"\\\\]+)").findAll(txt).forEach { used.add(it.groupValues[1]) }
                     if (!ff) w.write(","); ff = false
                     w.write(str("$dir/${f.name}") + ":" + str(txt))

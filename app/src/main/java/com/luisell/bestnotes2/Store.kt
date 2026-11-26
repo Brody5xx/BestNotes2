@@ -193,7 +193,7 @@ object Store {
     /** Borra fotos/audios/videos que ya no usa ninguna nota. */
     fun cleanMedia() {
         val used = HashSet<String>()
-        val re2 = Regex("\\\\?\"(?:f|wall)\\\\?\":\\\\?\"([^\"\\\\]+)")
+        val re2 = Regex("\\\\?\"(?:f|wall|of)\\\\?\":\\\\?\"([^\"\\\\]+)")
         db.rawQuery("SELECT body,extra FROM notes", null).use { c ->
             val re = re2      // (también las fotos de los 🗺️ pines, que van guardadas como texto con \")
             while (c.moveToNext()) {

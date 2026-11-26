@@ -812,6 +812,8 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
     private val img = ImageView(ctx)
     private val stampTv = TextView(ctx)
     private val pinsView = PinsOverlay(ctx)
+    private val baBtn by lazy { ctx.tv("↔", 17f, 0xFF64D2FF.toInt(), true).apply { gravity = Gravity.CENTER; setOnClickListener { v -> Anim.bump(v); ed.host.beforeAfter(this@FotoView) } } }
+    fun paintBa() { baBtn.visibility = if (block.orig.isNotEmpty()) View.VISIBLE else View.GONE }
     /** 🗺️ Volvió del plano con los pines nuevos. */
     fun setPins(json: String) { block.pins = json; pinsView.pins = Pins.parse(json); Anim.sparkle(box, 50f, 600); ed.host.onDirty() }
     private val edit = RichEdit(ctx)                    // el texto de al lado
@@ -977,6 +979,9 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         infoBar.addView(infoLabel.apply { setPadding(dp(6), 0, 0, 0) }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         // 🔎 leer las letras de la foto (escoges las palabras que quieras)
         infoBar.addView(ctx.iconBtn(MoreIcons.TEXT_SCAN, 7.5f, T.accent) { v -> Anim.bump(v); readText() }.apply { layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)) })
+        // ↔️ antes y después (solo sale cuando la foto ya se editó)
+        infoBar.addView(baBtn.apply { layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)) })
+        paintBa()
         // 🗺️ plano con pines
         infoBar.addView(ctx.iconBtn(Icons.MAP_PIN, 7.5f, 0xFFFF6FB5.toInt()) { v -> Anim.bump(v); ed.host.openPlan(this) }.apply { layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)) })
         infoBar.addView(ctx.iconBtn(MoreIcons.FULL, 7.5f, T.muted) { v -> Anim.bump(v); viewBig() }.apply { layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)) })
@@ -1301,7 +1306,8 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             ("⛶  " + L.t("viewBig")) to { viewBig() },
             ("🔎  " + L.t("ocrRead")) to { readText() },
             ("🗺️  " + L.t("planOpt")) to { ed.host.openPlan(this) },
-            ("↔️  " + L.t("baOpt")) to { ed.host.beforeAfter(this) },
+            ("↔️  " + L.t(if (block.orig.isNotEmpty()) "baOptEdited" else "baOpt")) to { ed.host.beforeAfter(this) },
+            if (block.orig.isNotEmpty()) ("↩️  " + L.t("baRestore")) to { restoreOrig() } else null,
             if (block.ar > 0f) ("↺  " + L.t("origShape")) to { animateChange(); block.ar = 0f; applyShape(); relayout(); ed.host.onDirty(); ed.host.onImageChanged(this) } else null,
             L.t("shrink") to { shrinkPhoto() },
             L.t("moveUp") to { ed.moveBlock(this, -1) },
@@ -1310,6 +1316,19 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             L.t("remove") to { ctx.confirm(L.t("remove"), null, L.t("remove"), true) { ed.removeImage(this) } },
         )
         ctx.dialog().setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }.show()
+    }
+
+    /** ↩️ Volver a la foto limpia (como era antes de editarla). */
+    private fun restoreOrig() {
+        val o = block.orig; if (o.isEmpty()) return
+        ctx.confirm(L.t("baRestore"), L.t("baRestoreMsg"), L.t("baRestoreOk")) {
+            val opt = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeFile(File(Store.mediaDir, o).path, opt)
+            block.file = o; block.orig = ""
+            if (opt.outWidth > 0) { block.w = opt.outWidth; block.h = opt.outHeight }
+            block.ar = 0f; applyShape(); reload(); flow.requestLayout(); paintBa()
+            Anim.sparkle(box, 60f, 600); ed.host.onDirty(); ed.host.onImageChanged(this)
+        }
     }
 
     /** 🔎 Lee lo escrito en la foto (etiqueta, placa, serial…) y lo puedes poner en la nota o copiar. */

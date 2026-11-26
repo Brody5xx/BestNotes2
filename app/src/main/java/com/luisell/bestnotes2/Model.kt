@@ -115,7 +115,12 @@ sealed class Block {
         var ar: Float = 0f,
         /** 🗺️ Pines del plano (JSON; "" = sin pines). */
         var pins: String = "",
-    ) : Block()
+        /** ↔️ La foto como era ANTES de editarla (dibujar, recortar…). "" = nunca se editó. */
+        var orig: String = "",
+    ) : Block() {
+        /** Se llama antes de cambiar la foto por una editada: guarda la limpia (solo la primera vez). */
+        fun keepOrig() { if (orig.isEmpty()) orig = file }
+    }
 
     /** Audio o video (kind = "audio" / "video"). */
     class Media(var kind: String, var file: String, var dur: Double = 0.0, var size: Long = 0L, var muted: Boolean = false,
@@ -137,7 +142,7 @@ sealed class Block {
         }
         is Img -> JSONObject().put("t", "img").put("f", file).put("pct", pct.toDouble()).put("side", side)
             .put("x", x.toDouble()).put("y", y.toDouble()).put("w", w).put("h", h).put("stamp", stamp)
-            .put("rot", rot.toDouble()).put("tk", taken).put("bs", runsJson(beside)).put("pin", if (pin) 1 else 0).apply { if (ar > 0f) put("ar", ar.toDouble()); if (pins.isNotEmpty()) put("pn", pins) }
+            .put("rot", rot.toDouble()).put("tk", taken).put("bs", runsJson(beside)).put("pin", if (pin) 1 else 0).apply { if (ar > 0f) put("ar", ar.toDouble()); if (pins.isNotEmpty()) put("pn", pins); if (orig.isNotEmpty()) put("of", orig) }
         is Media -> JSONObject().put("t", "media").put("k", kind).put("f", file).put("dur", dur)
             .put("sz", size).put("mu", if (muted) 1 else 0).apply {
                 if (pct < 100f) put("pct", pct.toDouble()); if (x != 0f) put("x", x.toDouble()); if (side.isNotEmpty()) put("side", side)
@@ -164,7 +169,7 @@ sealed class Block {
                 o.optString("f"), o.optDouble("pct", 40.0).toFloat(), o.optString("side"),
                 o.optDouble("x", 30.0).toFloat(), o.optDouble("y", 0.0).toFloat(), o.optInt("w"), o.optInt("h"),
                 o.optString("stamp"), o.optDouble("rot", 0.0).toFloat(), o.optLong("tk"),
-                runsFromJson(o.optJSONArray("bs")), o.optInt("pin") == 1, o.optDouble("ar", 0.0).toFloat(), o.optString("pn"),
+                runsFromJson(o.optJSONArray("bs")), o.optInt("pin") == 1, o.optDouble("ar", 0.0).toFloat(), o.optString("pn"), o.optString("of"),
             )
             "media" -> Media(o.optString("k", "audio"), o.optString("f"), o.optDouble("dur", 0.0), o.optLong("sz"), o.optInt("mu") == 1,
                 o.optDouble("pct", 100.0).toFloat(), o.optDouble("x", 0.0).toFloat(), o.optString("side"), runsFromJson(o.optJSONArray("bs")), o.optInt("pin") == 1)

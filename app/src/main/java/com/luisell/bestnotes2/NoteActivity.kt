@@ -1404,8 +1404,11 @@ class NoteActivity : Activity(), EditorView.Host {
     /* ---------- ↔️ antes y después ---------- */
     private var baFirst: String? = null
     override fun beforeAfter(f: FotoView) {
+        // ✏️ la foto se editó: el ANTES es la foto limpia y el DESPUÉS es como quedó
+        if (f.block.orig.isNotEmpty() && File(Store.mediaDir, f.block.orig).exists()) { BeforeAfter.show(this, f.block.orig, f.block.file) { nf, w, h -> putBa(nf, w, h) }; return }
         val others = editor.blocks.filterIsInstance<Block.Img>().filter { it !== f.block }
         val sh = Sheet(this, "↔️ " + L.t("baTitle"), L.t("baPick"))
+        sh.custom(tv("💡 " + L.t("baTip"), 13f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(18), 0, dp(18), dp(10)) })
         // las otras fotos de la nota, en chiquito
         if (others.isNotEmpty()) {
             val hs = android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; setPadding(dp(14), 0, dp(14), dp(8)); clipToPadding = false }
@@ -1560,6 +1563,7 @@ class NoteActivity : Activity(), EditorView.Host {
                 val t = cropTarget ?: return
                 val nf = data?.getStringExtra(CropActivity.OUT) ?: return
                 editor.flushAll()
+                t.keepOrig()          // ↔️ la foto limpia se guarda para "Antes y después"
                 t.file = nf; t.w = data.getIntExtra(CropActivity.OUT_W, 0); t.h = data.getIntExtra(CropActivity.OUT_H, 0)
                 editor.rebuild(null, t); onDirty()
             }
@@ -1589,6 +1593,7 @@ class NoteActivity : Activity(), EditorView.Host {
                 val t = cropTarget ?: return
                 val nf = data?.getStringExtra(CropActivity.OUT) ?: return
                 editor.flushAll()
+                t.keepOrig()
                 t.file = nf; t.w = data.getIntExtra(CropActivity.OUT_W, 0); t.h = data.getIntExtra(CropActivity.OUT_H, 0); t.ar = 0f      // recortada: vuelve a su forma
                 editor.rebuild(null, t); onDirty()
             }
@@ -1625,9 +1630,11 @@ class NoteActivity : Activity(), EditorView.Host {
         val b = f.block
         Loader.pool.execute {
             val r = Photos.rotate90(b.file)
+            val ro = if (b.orig.isNotEmpty()) Photos.rotate90(b.orig) else null      // la original también gira (para que se comparen derechitas)
             runOnUiThread {
                 if (r == null) return@runOnUiThread
                 b.file = r.file; b.w = r.w; b.h = r.h; if (b.ar > 0f) b.ar = 1f / b.ar
+                if (ro != null) b.orig = ro.file
                 f.reload(); onDirty()
             }
         }
