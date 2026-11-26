@@ -881,7 +881,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             }
         }
     }
-    private fun wantBtn(v: View) = v !== baBtn || block.orig.isNotEmpty()
+    private fun wantBtn(v: View) = v !== baBtn || block.orig.isNotEmpty() || block.pins.isNotEmpty()
     private fun setVis(v: View, on: Boolean) { val w = if (on) View.VISIBLE else View.GONE; if (v.visibility != w) v.visibility = w }
     /** Decide qué botones se ven y qué ancho tiene la barrita. */
     private fun fitBar(pw: Int, W: Int): Int {
@@ -899,7 +899,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         return base
     }
     /** 🗺️ Volvió del plano con los pines nuevos. */
-    fun setPins(json: String) { block.pins = json; pinsView.pins = Pins.parse(json); Anim.sparkle(box, 50f, 600); ed.host.onDirty() }
+    fun setPins(json: String) { block.pins = json; pinsView.pins = Pins.parse(json); Anim.sparkle(box, 50f, 600); flow.requestLayout(); ed.host.onDirty() }
     private val edit = RichEdit(ctx)                    // el texto de al lado
     private var anchorPill: View? = null
     var selected = false
@@ -1395,7 +1395,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             ("⛶  " + L.t("viewBig")) to { viewBig() },
             ("🔎  " + L.t("ocrRead")) to { readText() },
             ("🗺️  " + L.t("planOpt")) to { ed.host.openPlan(this) },
-            ("↔️  " + L.t(if (block.orig.isNotEmpty()) "baOptEdited" else "baOpt")) to { ed.host.beforeAfter(this) },
+            ("↔️  " + L.t(if (block.orig.isNotEmpty() || block.pins.isNotEmpty()) "baOptEdited" else "baOpt")) to { ed.host.beforeAfter(this) },
             if (block.orig.isNotEmpty()) ("↩️  " + L.t("baRestore")) to { restoreOrig() } else null,
             if (block.ar > 0f) ("↺  " + L.t("origShape")) to { animateChange(); block.ar = 0f; applyShape(); relayout(); ed.host.onDirty(); ed.host.onImageChanged(this) } else null,
             L.t("shrink") to { shrinkPhoto() },

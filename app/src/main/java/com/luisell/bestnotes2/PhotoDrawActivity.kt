@@ -88,10 +88,17 @@ class PhotoDrawActivity : Activity() {
         }
         sz.setOnClickListener { ink.size = (ink.size + 1) % 3; sz.invalidate() }
         row.addView(sz, lp(dp(44), dp(44)))
-        b("undo", Icons.UNDO) { ink.undo(); paint() }
-        b("redo", MoreIcons.REDO) { ink.redoOne(); paint() }
         hs.addView(row)
-        root.addView(hs, lp(MATCH, WRAP))
+        // ↶ ↷ deshacer y rehacer: SIEMPRE primero y siempre a la vista (fijos a la izquierda; las demás herramientas se deslizan)
+        val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(0xFF1C1C1F.toInt()) }
+        val fixed = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(4), dp(2), dp(4)) }
+        fun fb(k: String, icon: Int, act: () -> Unit) { val v = iconBtn(icon, 10.5f) { act() }; btns[k] = v; fixed.addView(v) }
+        fb("undo", Icons.UNDO) { ink.undo(); paint() }
+        fb("redo", MoreIcons.REDO) { ink.redoOne(); paint() }
+        bar.addView(fixed)
+        bar.addView(View(this).apply { setBackgroundColor(0x33FFFFFF) }, lp(dp(1), dp(30)))
+        bar.addView(hs, lp(0, WRAP, 1f))
+        root.addView(bar, lp(MATCH, WRAP))
         setContentView(root)
         paint()
         Loader.pool.execute {

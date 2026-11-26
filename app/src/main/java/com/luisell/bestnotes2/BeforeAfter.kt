@@ -27,10 +27,11 @@ import java.io.FileOutputStream
    letreros) o compartir.
    ============================================================ */
 object BeforeAfter {
-    fun show(act: Activity, before: String, after: String, onInsert: (file: String, w: Int, h: Int) -> Unit) {
+    /** [pins] y [stamp] = lo que va ENCIMA de la foto de después (los 🗺️ pines y el sello), para que se vea todo. */
+    fun show(act: Activity, before: String, after: String, pins: String = "", stamp: String = "", onInsert: (file: String, w: Int, h: Int) -> Unit) {
         val d = blackFullDialog(act)
         val root = FrameLayout(act).apply { setBackgroundColor(Color.BLACK) }
-        val cv = CompareView(act)
+        val cv = CompareView(act).apply { afterPins = Pins.parse(pins); afterStamp = stamp }
         root.addView(cv, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         root.addView(act.glassBtn(Icons.CLOSE, 9f, Color.WHITE) { d.dismiss() }, FrameLayout.LayoutParams(act.dp(46), act.dp(46), Gravity.TOP or Gravity.END).apply { setMargins(0, act.dp(36), act.dp(14), 0) })
         root.addView(act.tv("↔️ " + L.t("baTitle"), 16f, Color.WHITE, true).apply { setPadding(act.dp(16), act.dp(9), act.dp(16), act.dp(9)); background = Glass.make(act, 20f, strong = true) },
@@ -64,6 +65,8 @@ object BeforeAfter {
                 val p = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
                 c.drawBitmap(a, null, Rect(gap, gap, gap + wa, gap + h), p)
                 c.drawBitmap(b, null, Rect(gap * 2 + wa, gap, gap * 2 + wa + wb, gap + h), p)
+                // lo de encima de la foto de después: el sello y los pines
+                CompareView.overlay(c, RectF((gap * 2 + wa).toFloat(), gap.toFloat(), (gap * 2 + wa + wb).toFloat(), (gap + h).toFloat()), cv.afterPins, cv.afterStamp, h / 46f)
                 fun label(t: String, x: Float, col: Int) {
                     val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 56f; isFakeBoldText = true; color = Color.WHITE }
                     val w = tp.measureText(t) + 48; val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = col }
@@ -88,6 +91,8 @@ object BeforeAfter {
 /** Las dos fotos con la rayita que se desliza. */
 @SuppressLint("ViewConstructor", "ClickableViewAccessibility")
 class CompareView(ctx: Context) : View(ctx) {
+    var afterPins: List<Pins.P> = emptyList()
+    var afterStamp: String = ""
     var a: Bitmap? = null; private set
     var b: Bitmap? = null; private set
     private var k = 0.5f
@@ -104,6 +109,20 @@ class CompareView(ctx: Context) : View(ctx) {
         ValueAnimator.ofFloat(0.92f, 0.08f, 0.5f).apply { duration = 1600; interpolator = android.view.animation.AccelerateDecelerateInterpolator(); addUpdateListener { k = it.animatedValue as Float; invalidate() }; start() }
     }
     fun swap() { val t = a; a = b; b = t; invalidate(); Anim.bump(this, 1.02f) }
+
+    companion object {
+        private val sp = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; isFakeBoldText = true; textAlign = Paint.Align.RIGHT; setShadowLayer(3f, 0f, 1f, Color.BLACK) }
+        /** Dibuja encima de la foto [r] el sello (abajo, a la derecha) y los pines (con su nombre). [s] = tamaño de los pines. */
+        fun overlay(c: Canvas, r: RectF, pins: List<Pins.P>, stamp: String, s: Float) {
+            if (stamp.isNotEmpty()) {
+                val th = s * 1.05f
+                val strip = Paint().apply { shader = android.graphics.LinearGradient(0f, r.bottom - th * 3f, 0f, r.bottom, 0x00000000, 0x9E000000.toInt(), android.graphics.Shader.TileMode.CLAMP) }
+                c.drawRect(r.left, r.bottom - th * 3f, r.right, r.bottom, strip)
+                sp.textSize = th; c.drawText(stamp, r.right - th * 0.7f, r.bottom - th * 0.6f, sp)
+            }
+            for (pn in pins) Pins.draw(c, r.left + pn.x * r.width(), r.top + pn.y * r.height(), s, pn, true)
+        }
+    }
 
     /** Dónde va la foto (las dos del mismo tamaño, del tamaño de la de "después"). */
     private fun area(): RectF {
@@ -124,6 +143,8 @@ class CompareView(ctx: Context) : View(ctx) {
         val r = area()
         c.drawBitmap(y, src(y, r), r, p)
         val cut = r.left + r.width() * k
+        // lo de encima de la foto de después (sello y pines), solo del lado de "después"
+        c.save(); c.clipRect(cut, r.top, r.right, r.bottom); overlay(c, r, afterPins, afterStamp, (r.height() / 40f).coerceIn(9 * d, 16 * d)); c.restore()
         c.save(); c.clipRect(r.left, r.top, cut, r.bottom); c.drawBitmap(x, src(x, r), r, p); c.restore()
         // la rayita con su bolita
         line.strokeWidth = 3 * d; c.drawLine(cut, r.top, cut, r.bottom, line)

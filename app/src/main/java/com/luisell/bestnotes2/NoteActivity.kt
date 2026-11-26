@@ -1405,7 +1405,10 @@ class NoteActivity : Activity(), EditorView.Host {
     private var baFirst: String? = null
     override fun beforeAfter(f: FotoView) {
         // ✏️ la foto se editó: el ANTES es la foto limpia y el DESPUÉS es como quedó
-        if (f.block.orig.isNotEmpty() && File(Store.mediaDir, f.block.orig).exists()) { BeforeAfter.show(this, f.block.orig, f.block.file) { nf, w, h -> putBa(nf, w, h) }; return }
+        // ✏️ la foto se editó (o tiene pines o sello): ANTES = la foto limpia, DESPUÉS = como quedó, con TODO encima
+        val b = f.block
+        val clean = b.orig.takeIf { it.isNotEmpty() && File(Store.mediaDir, it).exists() } ?: b.file
+        if (b.orig.isNotEmpty() || b.pins.isNotEmpty() || b.stamp.isNotEmpty()) { BeforeAfter.show(this, clean, b.file, b.pins, b.stamp) { nf, w, h -> putBa(nf, w, h) }; return }
         val others = editor.blocks.filterIsInstance<Block.Img>().filter { it !== f.block }
         val sh = Sheet(this, "↔️ " + L.t("baTitle"), L.t("baPick"))
         sh.custom(tv("💡 " + L.t("baTip"), 13f, T.muted).apply { gravity = Gravity.CENTER; setPadding(dp(18), 0, dp(18), dp(10)) })
