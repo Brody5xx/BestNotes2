@@ -818,15 +818,42 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
     /* ---------- la barrita debajo de la foto: si la foto es chiquita, los botones que no caben se esconden detrás de › ---------- */
     private val barBtns = ArrayList<View>()
     private var barOpen = false
+    private var busyBar = false
     private val moreBtn by lazy {
         ctx.tv("›", 22f, T.accent, true).apply {
             gravity = Gravity.CENTER; setPadding(0, 0, 0, ed.dp(3)); background = Glass.make(ctx, 17f)
             setOnClickListener { v ->
-                barOpen = !barOpen
-                v.animate().rotationBy(180f).setDuration(260).setInterpolator(android.view.animation.OvershootInterpolator(1.6f)).start()
-                flow.requestLayout()
-                // los botones que aparecen entran deslizándose
-                if (barOpen) infoBar.post { for ((i, b) in barBtns.withIndex()) if (b.visibility == View.VISIBLE) { b.alpha = 0f; b.translationX = -ed.dp(12).toFloat(); b.animate().alpha(1f).translationX(0f).setStartDelay(i * 35L).setDuration(220).start() } }
+                if (busyBar) return@setOnClickListener
+                val open = !barOpen
+                // la flechita da la vuelta despacito y rebota
+                v.animate().rotation(if (open) 180f else 0f).scaleX(1.15f).scaleY(1.15f).setDuration(420).setInterpolator(android.view.animation.OvershootInterpolator(1.8f))
+                    .withEndAction { v.animate().scaleX(1f).scaleY(1f).setDuration(200).start() }.start()
+                if (open) {
+                    val before = barBtns.filter { it.visibility == View.VISIBLE }.toSet()
+                    barOpen = true; flow.requestLayout()
+                    Anim.sparkle(v, 26f, 700)
+                    // ✨ los que estaban escondidos entran uno por uno: girando, creciendo y con un rebotito
+                    infoBar.post {
+                        var k = 0
+                        for (bt in barBtns) if (bt.visibility == View.VISIBLE && bt !in before) {
+                            bt.alpha = 0f; bt.translationX = -ed.dp(26).toFloat(); bt.scaleX = 0.3f; bt.scaleY = 0.3f; bt.rotation = -40f
+                            bt.animate().alpha(1f).translationX(0f).scaleX(1f).scaleY(1f).rotation(0f).setStartDelay(120L + k++ * 110L).setDuration(520)
+                                .setInterpolator(android.view.animation.OvershootInterpolator(2.2f)).start()
+                        }
+                    }
+                } else {
+                    // se van en reversa (el último primero) y después la fila se recoge
+                    val extra = barBtns.filter { it.visibility == View.VISIBLE }.drop(1).reversed()
+                    busyBar = true
+                    var k = 0
+                    for (bt in extra) bt.animate().alpha(0f).translationX(-ed.dp(20).toFloat()).scaleX(0.4f).scaleY(0.4f).rotation(-30f).setStartDelay(k++ * 70L).setDuration(260)
+                        .setInterpolator(android.view.animation.AccelerateInterpolator()).start()
+                    v.postDelayed({
+                        busyBar = false; barOpen = false
+                        barBtns.forEach { it.alpha = 1f; it.translationX = 0f; it.scaleX = 1f; it.scaleY = 1f; it.rotation = 0f }
+                        flow.requestLayout()
+                    }, 260L + k * 70L)
+                }
             }
         }
     }
