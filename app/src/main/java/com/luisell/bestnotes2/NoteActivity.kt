@@ -395,6 +395,29 @@ class NoteActivity : Activity(), EditorView.Host {
         return if (::title.isInitialized && title.hasFocus()) title else editor.focused
     }
     private fun cur(): St = target()?.currentStyle() ?: St.PLAIN
+    /**
+     * Qué cambia de verdad el botón que tocaste, para ponérselo a TODO lo seleccionado:
+     * - si el botón PONE algo fijo (un color, "sin color", un tamaño), se pone igual en todo,
+     *   aunque la primera letra ya lo tuviera (antes, "Sin color" no quitaba el color del resto);
+     * - si el botón PRENDE/APAGA (negrita, cursiva…), se usa lo que tenía la primera letra.
+     */
+    private fun styleChange(c: St, fn: (St) -> St): (St) -> St {
+        val p1 = St(b = true, i = true, u = true, s = true, size = 77, color = 0x12345678, bg = 0x23456789, o = 0x3456789A)
+        val f0 = fn(St.PLAIN); val f1 = fn(p1); val next = fn(c)
+        return { s ->
+            var r = s
+            if (f0.b == f1.b) r = r.copy(b = f0.b) else if (next.b != c.b) r = r.copy(b = next.b)
+            if (f0.i == f1.i) r = r.copy(i = f0.i) else if (next.i != c.i) r = r.copy(i = next.i)
+            if (f0.u == f1.u) r = r.copy(u = f0.u) else if (next.u != c.u) r = r.copy(u = next.u)
+            if (f0.s == f1.s) r = r.copy(s = f0.s) else if (next.s != c.s) r = r.copy(s = next.s)
+            if (f0.size == f1.size) r = r.copy(size = f0.size) else if (next.size != c.size) r = r.copy(size = next.size)
+            if (f0.color == f1.color) r = r.copy(color = f0.color) else if (next.color != c.color) r = r.copy(color = next.color)
+            if (f0.bg == f1.bg) r = r.copy(bg = f0.bg) else if (next.bg != c.bg) r = r.copy(bg = next.bg)
+            if (f0.o == f1.o) r = r.copy(o = f0.o) else if (next.o != c.o) r = r.copy(o = next.o)
+            r
+        }
+    }
+
     private fun style(fn: (St) -> St) {
         if (multi != null) { multiStyle(fn); return }      // ↕ con la selección de la app: a todo lo seleccionado
         val e = target() ?: return
@@ -405,20 +428,7 @@ class NoteActivity : Activity(), EditorView.Host {
             e.setSelection(0, e.text.length); style(fn); e.setSelection(pos.coerceAtMost(e.text.length)); return
         }
         val c = e.currentStyle()
-        val next = fn(c)
-        // se guarda solo lo que cambió (así no se pisan otros estilos al aplicarlo a un pedazo)
-        e.applyStyle { s ->
-            var r = s
-            if (next.b != c.b) r = r.copy(b = next.b)
-            if (next.i != c.i) r = r.copy(i = next.i)
-            if (next.u != c.u) r = r.copy(u = next.u)
-            if (next.s != c.s) r = r.copy(s = next.s)
-            if (next.size != c.size) r = r.copy(size = next.size)
-            if (next.color != c.color) r = r.copy(color = next.color)
-            if (next.bg != c.bg) r = r.copy(bg = next.bg)
-            if (next.o != c.o) r = r.copy(o = next.o)
-            r
-        }
+        e.applyStyle(styleChange(c, fn))
         // cambiar el estilo SIEMPRE cuenta como cambio (para que se guarde al salir)
         onDirty(); dirty = true
     }
@@ -2625,22 +2635,11 @@ class NoteActivity : Activity(), EditorView.Host {
         if (snapPending) snapshot()
         val pieces = mPieces()
         val c = pieces.firstOrNull()?.let { (e, a, _) -> Rich.styleAt(e.text, minOf(a + 1, e.text.length)) } ?: St.PLAIN
-        val next = fn(c)
+        val change = styleChange(c, fn)
         for ((e, a, b) in pieces) {
             val r = e as? RichEdit ?: continue
             r.setSelection(a, b)
-            r.applyStyle { s ->
-                var x = s
-                if (next.b != c.b) x = x.copy(b = next.b)
-                if (next.i != c.i) x = x.copy(i = next.i)
-                if (next.u != c.u) x = x.copy(u = next.u)
-                if (next.s != c.s) x = x.copy(s = next.s)
-                if (next.size != c.size) x = x.copy(size = next.size)
-                if (next.color != c.color) x = x.copy(color = next.color)
-                if (next.bg != c.bg) x = x.copy(bg = next.bg)
-                if (next.o != c.o) x = x.copy(o = next.o)
-                x
-            }
+            r.applyStyle(change)
             r.setSelection(b)
         }
         dirty = true; onDirty()

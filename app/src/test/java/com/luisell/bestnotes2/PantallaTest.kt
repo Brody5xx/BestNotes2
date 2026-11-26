@@ -459,6 +459,30 @@ class PantallaTest {
         assertTrue(Store.meta("n1")!!.pv!!.contains("\"t\""))
     }
 
+    @Test fun quitarColoresSeGuarda() {
+        importar()
+        fun open(): NoteActivity { val a = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n1")).setup().get(); waitIo(); idle(); return a }
+        fun edits(a: NoteActivity) = find(a.window.decorView, RichEdit::class.java).filter { it !is TitleEdit && it.text.isNotEmpty() }
+        val style = NoteActivity::class.java.getDeclaredMethod("style", Function1::class.java).apply { isAccessible = true }
+        var act = open()
+        val e = edits(act).first()
+        e.requestFocus(); e.setSelection(0, e.text.length)
+        style.invoke(act, { s: St -> s.copy(color = 0xFF0A84FF.toInt(), bg = 0xFF690AFF.toInt(), o = 0xFF0A84FF.toInt()) })
+        act.finish(); idle(); waitIo()
+        act = open()
+        assertTrue("se guardó el color", Rich.runs(edits(act).first().text).any { it.st.color != 0 })
+        // ahora se quitan con la selección de varias líneas (Seleccionar todo)
+        val ms = NoteActivity::class.java.getDeclaredMethod("multiStart", RichEdit::class.java, Boolean::class.java, Int::class.java, Int::class.java, Boolean::class.java).apply { isAccessible = true }
+        ms.invoke(act, null, true, -1, -1, false); idle()
+        style.invoke(act, { s: St -> s.copy(color = 0) }); idle()
+        style.invoke(act, { s: St -> s.copy(bg = 0) }); idle()
+        style.invoke(act, { s: St -> s.copy(o = 0) }); idle()
+        act.finish(); idle(); waitIo()
+        act = open()
+        val runs = edits(act).flatMap { Rich.runs(it.text) }
+        assertTrue("los colores se quitaron: " + runs.filter { it.st.color != 0 || it.st.bg != 0 || it.st.o != 0 }.map { it.text }, runs.none { it.st.color != 0 || it.st.bg != 0 || it.st.o != 0 })
+    }
+
     @Test fun respaldoIdaYVuelta() {
         importar()
         val n1 = Store.meta("n1")!!
