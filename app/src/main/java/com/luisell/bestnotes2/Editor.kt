@@ -87,14 +87,16 @@ class EditorView(ctx: Context, val host: Host) : LinearLayout(ctx) {
             val k = knobView; val t = knobTouch
             if (k != null && t != null) all.add(k to t)
             all.addAll(floaters)
-            val slop = 8 * resources.displayMetrics.density
-            for ((v, l) in all) {
-                if (!v.isShown || v.width == 0 || v.alpha < 0.5f) continue
+            // 🎯 la bolita MÁS CERCANA al dedo (con un área más grande para atinarle fácil)
+            val slop = 14 * resources.displayMetrics.density
+            val near = all.mapNotNull { (v, l) ->
+                if (!v.isShown || v.width == 0 || v.alpha < 0.5f) return@mapNotNull null
                 val p = IntArray(2); v.getLocationOnScreen(p)
-                if (e.rawX >= p[0] - slop && e.rawX <= p[0] + v.width + slop && e.rawY >= p[1] - slop && e.rawY <= p[1] + v.height + slop && l.onTouch(v, e)) {
-                    routeV = v; routeT = l; return true
-                }
-            }
+                if (e.rawX < p[0] - slop || e.rawX > p[0] + v.width + slop || e.rawY < p[1] - slop || e.rawY > p[1] + v.height + slop) return@mapNotNull null
+                val dx = e.rawX - (p[0] + v.width / 2f); val dy = e.rawY - (p[1] + v.height / 2f)
+                Triple(v, l, dx * dx + dy * dy)
+            }.sortedBy { it.third }
+            for ((v, l, _) in near) if (l.onTouch(v, e)) { routeV = v; routeT = l; return true }
         } else {
             val v = routeV; val l = routeT
             if (v != null && l != null) {
@@ -894,7 +896,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                 }
             }
             setMeasuredDimension(W, h)
-            if (pw > loadedW * 1.3f || loadedW == 0) { loadedW = pw; post { loadImg(pw) } }
+            if (!stretching && (pw > loadedW * 1.3f || loadedW == 0)) { loadedW = pw; post { loadImg(pw) } }
         }
         override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
             val W = r - l; val pw = box.measuredWidth; val ph = box.measuredHeight
@@ -1053,10 +1055,15 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         return android.graphics.RectF(p[0].toFloat(), p[1].toFloat(), (p[0] + box.width).toFloat(), (p[1] + box.height).toFloat())
     }
 
+    /** Mientras estiras con una bolita (la foto no se vuelve a cargar a medio camino). */
+    private var stretching = false
+
     /** Estirar con las bolitas. which: 0 izq, 1 der, 2 abajo, 3 esquina. */
     private inner class StretchTouch(val which: Int) : View.OnTouchListener {
         private var x0 = 0f; private var y0 = 0f; private var pw0 = 0; private var ph0 = 0; private var l0 = 0; private var r0 = 0
         private var snapped: Float = Float.NaN; private var origSnap = false
+        /** El ancho al que está pegada (o -1). Se pega cerquita y se suelta solo si te alejas más (no tiembla). */
+        private var lockW = -1
         private var screenL = 0
         @SuppressLint("ClickableViewAccessibility")
         override fun onTouch(v: View, e: MotionEvent): Boolean {
@@ -1066,7 +1073,9 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                     if (block.pin || !straight()) return false
                     x0 = e.rawX; y0 = e.rawY; pw0 = box.width; ph0 = box.height; l0 = box.left; r0 = box.right
                     val fl = IntArray(2); flow.getLocationOnScreen(fl); screenL = fl[0]
-                    snapped = Float.NaN; origSnap = false
+                    snapped = Float.NaN; origSnap = false; lockW = -1
+                    stretching = true
+                    knob.animate().alpha(0f).setDuration(120).start()          // la perilla se esconde: así no salta de esquina en esquina
                     (v as StretchDot).grab(true)
                     v.parent.requestDisallowInterceptTouchEvent(true)
                     v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
@@ -1088,13 +1097,14 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                     var edgeX = Float.NaN; var span: android.graphics.RectF? = null
                     if (which != 2) {
                         val cw = (nr - nl).toFloat()
-                        var best = dp(9).toFloat(); var bestW = -1
+                        var best = (if (lockW > 0) dp(16) else dp(7)).toFloat(); var bestW = -1
                         for (o in ed.views) {
                             if (o === this@FotoView || o !is FotoView) continue
                             val rr = o.edgesOnScreen() ?: continue
                             val dd = Math.abs(rr.width() - cw)
                             if (dd < best) { best = dd; bestW = Math.round(rr.width()); span = rr }
                         }
+                        lockW = bestW
                         if (bestW > 0) {
                             if (movingLeft) nl = (nr - bestW).coerceAtLeast(0) else nr = (nl + bestW).coerceAtMost(W)
                             if (nr - nl == bestW) edgeX = screenL + (if (movingLeft) nl else nr).toFloat() else span = null
@@ -1104,7 +1114,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                     if (which == 3) nh = (nw * ph0.toFloat() / pw0).toInt()        // la esquina: crece sin deformar
                     // ↕ abajo: se pega a la forma original de la foto
                     var orig = false
-                    if (which == 2) { val oh = (nw * origRatio()).toInt(); if (Math.abs(nh - oh) < dp(10)) { nh = oh; orig = true } }
+                    if (which == 2) { val oh = (nw * origRatio()).toInt(); if (Math.abs(nh - oh) < (if (origSnap) dp(14) else dp(7))) { nh = oh; orig = true } }
                     if (orig != origSnap) { origSnap = orig; if (orig) { v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK); (v as StretchDot).flash() } }
                     if (edgeX.isNaN() != snapped.isNaN() || (!edgeX.isNaN() && edgeX != snapped)) {
                         if (!edgeX.isNaN()) { v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK); (v as StretchDot).flash() }
@@ -1128,6 +1138,8 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     (v as StretchDot).grab(false)
+                    stretching = false
+                    placeKnob(); knob.animate().alpha(1f).setDuration(220).start()
                     if (block.ar <= 0f) img.scaleType = ImageView.ScaleType.CENTER_CROP
                     ed.host.showEdge(-1f, 0f, 0f); ed.host.showGuides(-1f, -1f, "", null)
                     if (box.width > loadedW) { loadedW = box.width; loadImg(box.width) }
