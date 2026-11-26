@@ -77,6 +77,25 @@ class EditorView(ctx: Context, val host: Host) : LinearLayout(ctx) {
      *  si caen dentro de su "cajita", así que aquí los atrapamos primero y se los pasamos a la perilla. */
     var knobView: View? = null
     var knobTouch: View.OnTouchListener? = null
+    /* ---------- 🔒 la nota quieta mientras cambias el tamaño de una foto o video ---------- */
+    private var lockSv: android.widget.ScrollView? = null
+    private var lockY = 0
+    private val lockL = android.view.ViewTreeObserver.OnScrollChangedListener { lockSv?.let { sv -> if (sv.scrollY != lockY) sv.scrollTo(sv.scrollX, lockY) } }
+    /** on = la página no se mueve para nada (ni sola ni con el dedo) hasta que sueltes. */
+    fun lockScroll(on: Boolean) {
+        if (on) {
+            var p: android.view.ViewParent? = parent
+            while (p != null && p !is android.widget.ScrollView) p = p.parent
+            val sv = p as? android.widget.ScrollView ?: return
+            if (lockSv == null) viewTreeObserver.addOnScrollChangedListener(lockL)
+            lockSv = sv; lockY = sv.scrollY
+            sv.requestDisallowInterceptTouchEvent(true)
+        } else {
+            if (lockSv != null) viewTreeObserver.removeOnScrollChangedListener(lockL)
+            lockSv = null
+        }
+    }
+
     /** Lo mismo para las bolitas de estirar la foto (quedan en la orilla, medio afuera). */
     val floaters = ArrayList<Pair<View, View.OnTouchListener>>()
     private var routeV: View? = null; private var routeT: View.OnTouchListener? = null
@@ -1080,6 +1099,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                     // 📌 la nota no se mueve mientras estiras: si la foto se achica, la página guarda su alto
                     // (si no, la pantalla se corre y la orilla ya no queda debajo del dedo)
                     minH0 = ed.minimumHeight; ed.minimumHeight = ed.height
+                    ed.lockScroll(true)
                     knob.animate().alpha(0f).setDuration(120).start()          // la perilla se esconde: así no salta de esquina en esquina
                     (v as StretchDot).grab(true)
                     v.parent.requestDisallowInterceptTouchEvent(true)
@@ -1145,6 +1165,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                     (v as StretchDot).grab(false)
                     stretching = false
                     ed.minimumHeight = minH0
+                    ed.lockScroll(false)
                     placeKnob(); knob.animate().alpha(1f).setDuration(220).start()
                     if (block.ar <= 0f) img.scaleType = ImageView.ScaleType.CENTER_CROP
                     ed.host.showEdge(-1f, 0f, 0f); ed.host.showGuides(-1f, -1f, "", null)
@@ -1792,6 +1813,7 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
                     if (block.pin) return false
                     x0 = e.rawX; l0 = card.left; r0 = card.right; snapped = false
                     minH0 = ed.minimumHeight; ed.minimumHeight = ed.height          // la nota no se corre mientras cambias el tamaño
+                    ed.lockScroll(true)
                     val fl = IntArray(2); flow.getLocationOnScreen(fl); screenL = fl[0]
                     (v as StretchDot).grab(true); v.parent.requestDisallowInterceptTouchEvent(true)
                     v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
@@ -1825,7 +1847,7 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
                     ed.host.showGuides(-1f, -1f, "", if (ok) "📏 " + L.t("sameWidth") else "↔ ${Math.round(block.pct)}%")
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    ed.minimumHeight = minH0
+                    ed.minimumHeight = minH0; ed.lockScroll(false)
                     (v as StretchDot).grab(false)
                     ed.host.showEdge(-1f, 0f, 0f); ed.host.showGuides(-1f, -1f, "", null)
                     ed.host.onDirty()
