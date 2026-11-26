@@ -1313,7 +1313,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         }
         // 📍 su lugar de siempre: pegadita al lado derecho, justo arriba de la esquina de abajo (lejos de la barrita)
         fun sideLow(sx: Float): Pair<Float, Float> {
-            val dx = sx * (box.width / 2f + s2 + dp(3)); val dy = box.height / 2f - s2 - dp(14)
+            val dx = sx * (box.width / 2f + s2 + dp(2)); val dy = box.height / 2f - s2 - dp(6)
             return (cx + (dx * Math.cos(a) - dy * Math.sin(a)).toFloat()) to (cy + (dx * Math.sin(a) + dy * Math.cos(a)).toFloat())
         }
         val out = cornersAt(s2 + dp(5))
