@@ -820,7 +820,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         private set
     private var loadedW = 0
     private var glow: GlowBorder? = null
-    private val infoBar = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(ed.dp(4), ed.dp(2), 0, 0) }
+    private val infoBar = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(ed.dp(4), ed.dp(14), 0, 0) }      // separada de la foto: así las bolitas no tapan los botones
     private val infoLabel = ctx.tv("", 11.5f, T.muted).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
     /** ↻ La perilla para GIRAR la foto con un solo dedo (en la esquina de arriba a la derecha). */
     private val knob = RotKnob(ctx).apply { visibility = View.GONE }
@@ -1092,6 +1092,11 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     if (block.pin || !straight()) return false
+                    // si tocaste un botón de la barrita de abajo (⋮, ⛶, 📍…), es para el botón, no para estirar
+                    if (infoShown && infoBar.isShown) {
+                        val ib = IntArray(2); infoBar.getLocationOnScreen(ib)
+                        if (e.rawY >= ib[1] + dp(4) && e.rawY <= ib[1] + infoBar.height && e.rawX >= ib[0] && e.rawX <= ib[0] + infoBar.width) return false
+                    }
                     x0 = e.rawX; y0 = e.rawY; pw0 = box.width; ph0 = box.height; l0 = box.left; r0 = box.right
                     val fl = IntArray(2); flow.getLocationOnScreen(fl); screenL = fl[0]
                     snapped = Float.NaN; origSnap = false; lockW = -1
@@ -1218,6 +1223,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
     /** Girar con un dedo: arrastras la perilla alrededor de la foto. Se "pega" en 0°, 45°, 90°… */
     private inner class KnobTouch : View.OnTouchListener {
         private var cx = 0f; private var cy = 0f; private var a0 = 0f; private var r0 = 0f; private var lastSnap = Float.NaN
+        private var minH0 = 0
         @SuppressLint("ClickableViewAccessibility")
         override fun onTouch(v: View, e: MotionEvent): Boolean {
             when (e.actionMasked) {
@@ -1231,6 +1237,10 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                     a0 = Math.toDegrees(Math.atan2((e.rawY - cy).toDouble(), (e.rawX - cx).toDouble())).toFloat(); r0 = block.rot
                     v.parent.requestDisallowInterceptTouchEvent(true)
                     knob.grab(true); knobHeld = true
+                    // 🔒 igual que al estirar: la nota se queda quieta mientras giras (si no, el centro se corre y gira raro)
+                    stretching = true
+                    minH0 = ed.minimumHeight; ed.minimumHeight = ed.height
+                    ed.lockScroll(true)
                     v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -1252,6 +1262,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     knob.grab(false); knobHeld = false; placeKnob()
+                    stretching = false; ed.minimumHeight = minH0; ed.lockScroll(false)
                     ed.host.showGuides(-1f, -1f, "", null)
                     ed.host.onDirty(); ed.host.onImageChanged(this@FotoView)
                 }
