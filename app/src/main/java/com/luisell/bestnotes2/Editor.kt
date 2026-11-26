@@ -1311,13 +1311,13 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             val dx = sx * (box.width / 2f + m); val dy = sy * (box.height / 2f + m)
             (cx + (dx * Math.cos(a) - dy * Math.sin(a)).toFloat()) to (cy + (dx * Math.sin(a) + dy * Math.cos(a)).toFloat())
         }
-        // al lado derecho (o izquierdo), un poco arriba de la esquina de abajo: lejos de la barrita y de las bolitas
+        // 📍 su lugar de siempre: pegadita al lado derecho, justo arriba de la esquina de abajo (lejos de la barrita)
         fun sideLow(sx: Float): Pair<Float, Float> {
-            val dx = sx * (box.width / 2f + s2 + dp(5)); val dy = box.height / 2f - maxOf(box.height * 0.2f, s2 * 2.4f)
+            val dx = sx * (box.width / 2f + s2 + dp(3)); val dy = box.height / 2f - s2 - dp(14)
             return (cx + (dx * Math.cos(a) - dy * Math.sin(a)).toFloat()) to (cy + (dx * Math.sin(a) + dy * Math.cos(a)).toFloat())
         }
         val out = cornersAt(s2 + dp(5))
-        val corners = listOf(out[0], out[1], sideLow(1f), sideLow(-1f), out[2], out[3]) + cornersAt(-s2 - dp(6))     // flotando afuera, sin tocar la foto
+        val corners = listOf(sideLow(1f), sideLow(-1f), out[0], out[1], out[2], out[3]) + cornersAt(-s2 - dp(6))     // flotando afuera, sin tocar la foto
         // ¿dónde se ve? (dentro del pedazo de la nota que está en la pantalla)
         val vis = android.graphics.Rect()
         var sv: View? = flow; while (sv != null && sv !is android.widget.ScrollView) sv = sv.parent as? View
