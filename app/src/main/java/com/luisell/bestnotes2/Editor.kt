@@ -813,7 +813,40 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
     private val stampTv = TextView(ctx)
     private val pinsView = PinsOverlay(ctx)
     private val baBtn by lazy { ctx.tv("↔", 17f, 0xFF64D2FF.toInt(), true).apply { gravity = Gravity.CENTER; setOnClickListener { v -> Anim.bump(v); ed.host.beforeAfter(this@FotoView) } } }
-    fun paintBa() { baBtn.visibility = if (block.orig.isNotEmpty()) View.VISIBLE else View.GONE }
+    fun paintBa() { flow.requestLayout() }
+
+    /* ---------- la barrita debajo de la foto: si la foto es chiquita, los botones que no caben se esconden detrás de › ---------- */
+    private val barBtns = ArrayList<View>()
+    private var barOpen = false
+    private val moreBtn by lazy {
+        ctx.tv("›", 22f, T.accent, true).apply {
+            gravity = Gravity.CENTER; setPadding(0, 0, 0, ed.dp(3)); background = Glass.make(ctx, 17f)
+            setOnClickListener { v ->
+                barOpen = !barOpen
+                v.animate().rotationBy(180f).setDuration(260).setInterpolator(android.view.animation.OvershootInterpolator(1.6f)).start()
+                flow.requestLayout()
+                // los botones que aparecen entran deslizándose
+                if (barOpen) infoBar.post { for ((i, b) in barBtns.withIndex()) if (b.visibility == View.VISIBLE) { b.alpha = 0f; b.translationX = -ed.dp(12).toFloat(); b.animate().alpha(1f).translationX(0f).setStartDelay(i * 35L).setDuration(220).start() } }
+            }
+        }
+    }
+    private fun wantBtn(v: View) = v !== baBtn || block.orig.isNotEmpty()
+    private fun setVis(v: View, on: Boolean) { val w = if (on) View.VISIBLE else View.GONE; if (v.visibility != w) v.visibility = w }
+    /** Decide qué botones se ven y qué ancho tiene la barrita. */
+    private fun fitBar(pw: Int, W: Int): Int {
+        val base = maxOf(pw, dp(96))
+        val all = barBtns.filter { wantBtn(it) }
+        barBtns.forEach { if (!wantBtn(it)) setVis(it, false) }
+        val head = dp(30); val moreW = dp(36)
+        val full = head + all.sumOf { it.layoutParams.width }
+        if (full <= base) { barOpen = false; all.forEach { setVis(it, true) }; setVis(moreBtn, false); moreBtn.rotation = 0f; return base }
+        setVis(moreBtn, true)
+        if (barOpen) { all.forEach { setVis(it, true) }; setVis(infoLabel, false); return minOf(W, full + moreW) }
+        setVis(infoLabel, true)
+        var room = base - head - moreW; var fits = true
+        for (b in all) { val w = b.layoutParams.width; if (fits && w <= room) { setVis(b, true); room -= w } else { fits = false; setVis(b, false) } }
+        return base
+    }
     /** 🗺️ Volvió del plano con los pines nuevos. */
     fun setPins(json: String) { block.pins = json; pinsView.pins = Pins.parse(json); Anim.sparkle(box, 50f, 600); ed.host.onDirty() }
     private val edit = RichEdit(ctx)                    // el texto de al lado
@@ -901,10 +934,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             box.measure(MeasureSpec.makeMeasureSpec(pw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(ph, MeasureSpec.EXACTLY))
             val (bw, bh0) = rotBox(pw, ph)
             // 🖼 la barrita va pegada debajo de la foto y es del MISMO ancho (cambia de tamaño con ella)
-            // ...pero nunca más angosta que sus botones (si no, se van perdiendo uno por uno al achicar la foto)
-            var btnW = dp(30)
-            for (k in 0 until infoBar.childCount) { val c = infoBar.getChildAt(k); if (c !== infoLabel && c.visibility != View.GONE && c.layoutParams.width > 0) btnW += c.layoutParams.width }
-            infoBar.measure(MeasureSpec.makeMeasureSpec(minOf(W, maxOf(pw, btnW, dp(96))), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+            infoBar.measure(MeasureSpec.makeMeasureSpec(fitBar(pw, W), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
             knob.measure(MeasureSpec.makeMeasureSpec(dp(28), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(28), MeasureSpec.EXACTLY))
             for (d in dots) d.measure(MeasureSpec.makeMeasureSpec(dp(44), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(44), MeasureSpec.EXACTLY))
             val bh = bh0 + infoH()
@@ -989,6 +1019,10 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         infoBar.addView(ctx.iconBtn(Icons.MAP_PIN, 7.5f, 0xFFFF6FB5.toInt()) { v -> Anim.bump(v); ed.host.openPlan(this) }.apply { layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)) })
         infoBar.addView(ctx.iconBtn(MoreIcons.FULL, 7.5f, T.muted) { v -> Anim.bump(v); viewBig() }.apply { layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)) })
         infoBar.addView(ctx.iconBtn(MoreIcons.DOTS_V, 8f, T.muted) { options() }.apply { layoutParams = LinearLayout.LayoutParams(dp(36), dp(38)) })
+        // los botones que se pueden esconder cuando la foto es chiquita (todos menos el dibujito y el tamaño)
+        for (k in 2 until infoBar.childCount) barBtns.add(infoBar.getChildAt(k))
+        // ›  el botón para ver los que no caben
+        infoBar.addView(moreBtn, LinearLayout.LayoutParams(dp(34), dp(34)).apply { marginStart = dp(2) })
         flow.addView(infoBar)
         flow.addView(knob)
         knob.setOnTouchListener(knobTouchL)
@@ -1285,6 +1319,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
     private fun showInfo(on: Boolean) {
         if (on == infoShown) return
         infoShown = on
+        if (!on && barOpen) { barOpen = false; moreBtn.rotation = 0f }
         if (on) { infoBar.alpha = 0f; infoBar.translationY = -dp(8).toFloat() + box.translationY
             flow.requestLayout(); infoBar.post { infoBar.animate().alpha(1f).translationY(box.translationY).setDuration(240).setInterpolator(android.view.animation.DecelerateInterpolator()).start() } }
         else flow.requestLayout()
