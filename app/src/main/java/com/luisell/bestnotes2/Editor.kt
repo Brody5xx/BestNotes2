@@ -820,63 +820,84 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
     private var barOpen = false
     private var busyBar = false
     private val moreBtn by lazy {
-        ctx.tv("›", 22f, T.accent, true).apply {
-            gravity = Gravity.CENTER; setPadding(0, 0, 0, ed.dp(3)); background = Glass.make(ctx, 17f)
-            setOnClickListener { v ->
-                if (busyBar) return@setOnClickListener
-                val open = !barOpen
-                val act = ctx as? android.app.Activity
-                val root = act?.findViewById<ViewGroup>(android.R.id.content)
-                v.animate().rotation(if (open) 180f else 0f).setDuration(650).setInterpolator(android.view.animation.OvershootInterpolator(1.4f)).start()
-                // ✨ como el menú lateral: una luz recorre la fila y deja un rastro de estrellitas
-                fun trail(forward: Boolean, btns: List<View>, onEnd: () -> Unit) {
-                    if (root == null || btns.isEmpty()) { onEnd(); return }
-                    val rl = IntArray(2); root.getLocationInWindow(rl)
-                    val a = IntArray(2); btns.first().getLocationInWindow(a)
-                    val z = IntArray(2); btns.last().getLocationInWindow(z)
-                    val left = (minOf(a[0], z[0]) - rl[0]).toFloat(); val right = (maxOf(a[0], z[0]) - rl[0] + btns.last().width).toFloat()
-                    val top = (a[1] - rl[1]).toFloat(); val h = btns.first().height.toFloat()
-                    val sp = SparkleView(ctx, Fx.rowTrail(ctx, left, top, right - left, h, forward))
-                    root.addView(sp, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-                    sp.play(1300)
-                    // cada botón aparece (o se apaga) justo cuando la luz pasa por él
-                    val xs = btns.map { b -> val q = IntArray(2); b.getLocationInWindow(q); ((q[0] - rl[0] + b.width / 2f) - left) / maxOf(1f, right - left) }
-                    val done = BooleanArray(btns.size)
-                    Fx.sweep(root, left, top, right - left, h, forward, 820, { p ->
-                        for ((k, b) in btns.withIndex()) {
-                            val reached = if (forward) p >= xs[k] else (1 - p) <= xs[k]
-                            if (reached && !done[k]) {
-                                done[k] = true
-                                if (forward) { b.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(300).setInterpolator(android.view.animation.OvershootInterpolator(2f)).start() }
-                                else b.animate().alpha(0f).scaleX(0.6f).scaleY(0.6f).setDuration(220).start()
-                            }
+        ctx.tv("›", 15f, T.accent, true).apply {
+            gravity = Gravity.CENTER; setPadding(0, 0, 0, ed.dp(2)); background = Glass.make(ctx, 13f)
+            setOnClickListener { v -> toggleBar(v) }
+        }
+    }
+
+    /**
+     * ✨ Desplegar / recoger los botones que no caben. Los botones SALEN del › volando en arco,
+     * dando una vuelta, crecen con un rebotito y sueltan estrellitas al llegar a su lugar.
+     * Al recoger, vuelven al › girando como un remolino y el › hace un destello.
+     */
+    private fun toggleBar(v: View) {
+        if (busyBar) return
+        val open = !barOpen
+        busyBar = true
+        v.animate().rotation(if (open) 180f else 0f).setDuration(520).setInterpolator(android.view.animation.OvershootInterpolator(1.6f)).start()
+        val d = ed.dp(1).toFloat()
+        fun center(x: View): FloatArray { val q = IntArray(2); x.getLocationInWindow(q); return floatArrayOf(q[0] + x.width / 2f, q[1] + x.height / 2f) }
+        if (open) {
+            val before = barBtns.filter { it.visibility == View.VISIBLE }.toSet()
+            barOpen = true; flow.requestLayout()
+            infoBar.post {
+                val fresh = barBtns.filter { it.visibility == View.VISIBLE && it !in before }
+                val m = center(v)
+                fresh.forEach { it.alpha = 0f }
+                for ((k, b) in fresh.withIndex()) {
+                    val c = center(b); val dx = m[0] - c[0]; val dy = m[1] - c[1]
+                    android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                        startDelay = 60L + k * 120L; duration = 620
+                        interpolator = android.view.animation.DecelerateInterpolator(1.6f)
+                        addUpdateListener { a ->
+                            val t = a.animatedValue as Float
+                            b.translationX = dx * (1 - t); b.translationY = dy * (1 - t) - Math.sin(t * Math.PI).toFloat() * 26 * d      // en arco
+                            b.rotation = -300f * (1 - t)
+                            val sc = if (t < 0.8f) 0.25f + t * 1.1f else 1.13f - (t - 0.8f) * 0.65f      // crece, se pasa un poquito y se acomoda
+                            b.scaleX = sc; b.scaleY = sc; b.alpha = minOf(1f, t * 2.5f)
                         }
-                    }, onEnd)
+                        addListener(object : android.animation.AnimatorListenerAdapter() {
+                            override fun onAnimationEnd(a: android.animation.Animator) {
+                                b.translationX = 0f; b.translationY = 0f; b.rotation = 0f; b.scaleX = 1f; b.scaleY = 1f; b.alpha = 1f
+                                Anim.sparkle(b, 22f, 520)
+                                b.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+                                if (k == fresh.size - 1) busyBar = false
+                            }
+                        })
+                        start()
+                    }
                 }
-                if (open) {
-                    val before = barBtns.filter { it.visibility == View.VISIBLE }.toSet()
-                    barOpen = true; flow.requestLayout()
-                    busyBar = true
-                    infoBar.post {
-                        val fresh = barBtns.filter { it.visibility == View.VISIBLE && it !in before }
-                        fresh.forEach { it.alpha = 0f; it.scaleX = 0.6f; it.scaleY = 0.6f }
-                        trail(true, fresh) { busyBar = false; fresh.forEach { it.alpha = 1f; it.scaleX = 1f; it.scaleY = 1f } }
+                if (fresh.isEmpty()) busyBar = false
+            }
+        } else {
+            // cuáles se quedan cuando la fila está recogida
+            val keep = HashSet<View>()
+            run { var room = maxOf(box.width, dp(96)) - dp(30) - dp(30); for (b in barBtns.filter { wantBtn(it) }) { val w = b.layoutParams.width; if (w <= room) { keep.add(b); room -= w } else break } }
+            val going = barBtns.filter { it.visibility == View.VISIBLE && it !in keep }.reversed()
+            val m = center(v)
+            if (going.isEmpty()) { barOpen = false; busyBar = false; flow.requestLayout(); return }
+            for ((k, b) in going.withIndex()) {
+                val c = center(b); val dx = m[0] - c[0]; val dy = m[1] - c[1]
+                android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                    startDelay = k * 90L; duration = 420
+                    interpolator = android.view.animation.AccelerateInterpolator(1.4f)
+                    addUpdateListener { a ->
+                        val t = a.animatedValue as Float
+                        b.translationX = dx * t; b.translationY = dy * t - Math.sin(t * Math.PI).toFloat() * 18 * d
+                        b.rotation = 360f * t; val sc = 1f - 0.8f * t; b.scaleX = sc; b.scaleY = sc; b.alpha = 1f - t * 0.9f
                     }
-                } else {
-                    // los que se van a esconder: la luz pasa de derecha a izquierda y se apagan a su paso
-                    val vis = barBtns.filter { it.visibility == View.VISIBLE }
-                    barOpen = false
-                    // cuáles quedan cuando la fila está recogida
-                    val keep = HashSet<View>()
-                    run { var room = maxOf(box.width, dp(96)) - dp(30) - dp(36); for (b in barBtns.filter { wantBtn(it) }) { val w = b.layoutParams.width; if (w <= room) { keep.add(b); room -= w } else break } }
-                    barOpen = true
-                    val going = vis.filter { it !in keep }
-                    busyBar = true
-                    trail(false, going) {
-                        busyBar = false; barOpen = false
-                        barBtns.forEach { it.alpha = 1f; it.scaleX = 1f; it.scaleY = 1f }
-                        flow.requestLayout()
-                    }
+                    addListener(object : android.animation.AnimatorListenerAdapter() {
+                        override fun onAnimationEnd(a: android.animation.Animator) {
+                            if (k != going.size - 1) return
+                            // ✦ el › se "traga" los botones y hace un destello
+                            v.animate().scaleX(1.35f).scaleY(1.35f).setDuration(120).withEndAction { v.animate().scaleX(1f).scaleY(1f).setDuration(260).setInterpolator(android.view.animation.OvershootInterpolator(3f)).start() }.start()
+                            Anim.sparkle(v, 30f, 600)
+                            barBtns.forEach { x -> x.translationX = 0f; x.translationY = 0f; x.rotation = 0f; x.scaleX = 1f; x.scaleY = 1f; x.alpha = 1f }
+                            barOpen = false; busyBar = false; flow.requestLayout()
+                        }
+                    })
+                    start()
                 }
             }
         }
@@ -888,7 +909,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         val base = maxOf(pw, dp(96))
         val all = barBtns.filter { wantBtn(it) }
         barBtns.forEach { if (!wantBtn(it)) setVis(it, false) }
-        val head = dp(30); val moreW = dp(36)
+        val head = dp(30); val moreW = dp(30)
         val full = head + all.sumOf { it.layoutParams.width }
         if (full <= base) { barOpen = false; all.forEach { setVis(it, true) }; setVis(moreBtn, false); moreBtn.rotation = 0f; return base }
         setVis(moreBtn, true)
@@ -1073,7 +1094,8 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
         // los botones que se pueden esconder cuando la foto es chiquita (todos menos el dibujito y el tamaño)
         for (k in 2 until infoBar.childCount) barBtns.add(infoBar.getChildAt(k))
         // ›  el botón para ver los que no caben
-        infoBar.addView(moreBtn, LinearLayout.LayoutParams(dp(34), dp(34)).apply { marginStart = dp(2) })
+        infoBar.addView(moreBtn, LinearLayout.LayoutParams(dp(26), dp(26)).apply { marginStart = dp(2) })
+        infoBar.clipChildren = false; infoBar.clipToPadding = false          // los botones vuelan en arco (sin cortarse)
         flow.addView(infoBar)
         flow.addView(knob)
         knob.setOnTouchListener(knobTouchL)

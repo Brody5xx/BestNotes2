@@ -64,6 +64,15 @@ object Pins {
         l.forEach { p -> a.put(JSONObject().put("x", Math.round(p.x * 10000) / 10000.0).put("y", Math.round(p.y * 10000) / 10000.0).put("k", p.k).put("t", p.t).apply { if (p.d.isNotEmpty()) put("d", p.d); if (p.f.isNotEmpty()) put("f", p.f); if (p.e.isNotEmpty()) put("e", p.e) }) }
     }.toString()
 
+    /** ✂ Recortaste la foto: los pines se acomodan (y se quitan los que quedaron afuera). */
+    fun crop(s: String, l: Float, t: Float, r: Float, b: Float): String {
+        if (s.isBlank() || r - l <= 0f || b - t <= 0f) return s
+        val out = parse(s).mapNotNull { p -> val x = (p.x - l) / (r - l); val y = (p.y - t) / (b - t); if (x in 0f..1f && y in 0f..1f) p.also { it.x = x; it.y = y } else null }
+        return json(out)
+    }
+    /** ⟳ Giraste la foto 90° (a la derecha): los pines giran con ella. */
+    fun rotate90(s: String): String { if (s.isBlank()) return s; return json(parse(s).onEach { p -> val x = p.x; p.x = 1f - p.y; p.y = x }) }
+
     /** El texto de los pines (para buscar y para la IA). */
     fun plain(s: String?): String = parse(s).joinToString("\n") { p -> p.emoji + " " + p.t + (if (p.d.isNotEmpty()) ": " + p.d else "") }
 

@@ -63,6 +63,12 @@ class PantallaTest {
         // "Otro" con cualquier emoji
         val o = Pins.parse(Pins.json(listOf(Pins.P(0.1f, 0.1f, "pin", "Escalera", e = "🪜"))))[0]
         assertEquals("🪜", o.emoji); assertEquals("📹", l[0].emoji)
+        // ✂ recortar y ⟳ girar: los pines se acomodan con la foto
+        val cut = Pins.parse(Pins.crop(Pins.json(l), 0.2f, 0f, 1f, 1f))
+        assertEquals(2, cut.size); assertEquals((0.25f - 0.2f) / 0.8f, cut[0].x, 0.001f)
+        assertEquals(1, Pins.parse(Pins.crop(Pins.json(l), 0.5f, 0f, 1f, 1f)).size)       // el de x=0.25 quedó afuera
+        val rot = Pins.parse(Pins.rotate90(Pins.json(l)))[0]
+        assertEquals(0.5f, rot.x, 0.001f); assertEquals(0.25f, rot.y, 0.001f)
         // el buscador y la IA ven lo que dicen los pines
         assertTrue(blocksPlain(listOf(back)).contains("IP 10.0.0.5"))
         // la foto del pin NO se borra al limpiar (va guardada como texto con \")

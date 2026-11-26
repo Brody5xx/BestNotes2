@@ -1439,7 +1439,7 @@ class NoteActivity : Activity(), EditorView.Host {
 
     override fun drawOnImage(f: FotoView) {
         cropTarget = f.block
-        startActivityForResult(Intent(this, PhotoDrawActivity::class.java).putExtra(PhotoDrawActivity.FILE, f.block.file), REQ_PHOTO_DRAW)
+        startActivityForResult(Intent(this, PhotoDrawActivity::class.java).putExtra(PhotoDrawActivity.FILE, f.block.file).putExtra(PhotoDrawActivity.PINS, f.block.pins), REQ_PHOTO_DRAW)
     }
 
     /* ---------- fotos ---------- */
@@ -1597,7 +1597,9 @@ class NoteActivity : Activity(), EditorView.Host {
                 val nf = data?.getStringExtra(CropActivity.OUT) ?: return
                 editor.flushAll()
                 t.keepOrig()
-                t.file = nf; t.w = data.getIntExtra(CropActivity.OUT_W, 0); t.h = data.getIntExtra(CropActivity.OUT_H, 0); t.ar = 0f      // recortada: vuelve a su forma
+                t.file = nf; t.w = data.getIntExtra(CropActivity.OUT_W, 0); t.h = data.getIntExtra(CropActivity.OUT_H, 0); t.ar = 0f
+                // 🗺️ los pines se acomodan al recorte (los que quedaron afuera se quitan)
+                data.getFloatArrayExtra(CropActivity.CUT)?.let { c -> t.pins = Pins.crop(t.pins, c[0], c[1], c[2], c[3]) }      // recortada: vuelve a su forma
                 editor.rebuild(null, t); onDirty()
             }
         }
@@ -1626,7 +1628,7 @@ class NoteActivity : Activity(), EditorView.Host {
 
     override fun cropImage(f: FotoView) {
         cropTarget = f.block
-        startActivityForResult(Intent(this, CropActivity::class.java).putExtra(CropActivity.FILE, f.block.file), REQ_CROP)
+        startActivityForResult(Intent(this, CropActivity::class.java).putExtra(CropActivity.FILE, f.block.file).putExtra(CropActivity.PINS, f.block.pins), REQ_CROP)
     }
 
     override fun rotateImage(f: FotoView) {
@@ -1638,7 +1640,8 @@ class NoteActivity : Activity(), EditorView.Host {
                 if (r == null) return@runOnUiThread
                 b.file = r.file; b.w = r.w; b.h = r.h; if (b.ar > 0f) b.ar = 1f / b.ar
                 if (ro != null) b.orig = ro.file
-                f.reload(); onDirty()
+                b.pins = Pins.rotate90(b.pins)          // 🗺️ los pines giran con la foto
+                f.reload(); f.setPins(b.pins); onDirty()
             }
         }
     }

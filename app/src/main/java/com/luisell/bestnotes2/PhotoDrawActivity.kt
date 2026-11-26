@@ -20,7 +20,8 @@ import java.io.FileOutputStream
    "Listo" guarda una foto nueva con el dibujo; la original no se toca.
    ============================================================ */
 class PhotoDrawActivity : Activity() {
-    companion object { const val FILE = "archivo" }
+    companion object { const val FILE = "archivo"; const val PINS = "pines" }
+    private lateinit var pinsOver: PinsOverlay
 
     private lateinit var file: String
     private lateinit var ink: InkView
@@ -47,6 +48,9 @@ class PhotoDrawActivity : Activity() {
         area.addView(img, FrameLayout.LayoutParams(MATCH, MATCH))
         ink = InkView(this).apply { drawing = true; objects = true; color = 0xFFFF453A.toInt() }
         area.addView(ink, FrameLayout.LayoutParams(0, 0, Gravity.CENTER))
+        // 🗺️ los pines de la foto también se ven aquí (encima del dibujo; los toques pasan al dibujo)
+        pinsOver = PinsOverlay(this).apply { pins = Pins.parse(intent.getStringExtra(PINS)) }
+        area.addView(pinsOver, FrameLayout.LayoutParams(0, 0, Gravity.CENTER))
         // ✋ la barrita del texto / figura escogida (color, tamaño, fondo, copiar, borrar)
         objBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; visibility = View.GONE
@@ -164,6 +168,8 @@ class PhotoDrawActivity : Activity() {
         val lp = ink.layoutParams as FrameLayout.LayoutParams
         val w = (b.width * k).toInt(); val h = (b.height * k).toInt()
         if (lp.width != w || lp.height != h) { lp.width = w; lp.height = h; ink.post { ink.layoutParams = lp } }
+        val pl = pinsOver.layoutParams as FrameLayout.LayoutParams
+        if (pl.width != w || pl.height != h) { pl.width = w; pl.height = h; pinsOver.post { pinsOver.layoutParams = pl } }
     }
 
     private fun paint() {

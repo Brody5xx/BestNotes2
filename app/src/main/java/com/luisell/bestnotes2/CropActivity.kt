@@ -25,6 +25,8 @@ class CropActivity : Activity() {
     companion object {
         const val FILE = "archivo"
         const val OUT = "nuevo"; const val OUT_W = "w"; const val OUT_H = "h"
+        /** 🗺️ los pines de la foto (se ven mientras recortas) y dónde se cortó (0..1) para moverlos. */
+        const val PINS = "pines"; const val CUT = "corte"
     }
 
     private lateinit var cv: CropView
@@ -42,7 +44,7 @@ class CropActivity : Activity() {
         top.addView(tv(L.t("reset"), 15f, T.muted).apply { setPadding(dp(12), dp(10), dp(12), dp(10)); setOnClickListener { cv.reset() } })
         top.addView(tv(L.t("done"), 16f, T.accent, true).apply { setPadding(dp(14), dp(10), dp(14), dp(10)); setOnClickListener { done() } })
         root.addView(top, lp(MATCH, WRAP))
-        cv = CropView(this)
+        cv = CropView(this).apply { pins = Pins.parse(intent.getStringExtra(PINS)) }
         root.addView(cv, lp(MATCH, 0, 1f))
         setContentView(root)
         Loader.pool.execute {
@@ -57,7 +59,7 @@ class CropActivity : Activity() {
         Loader.pool.execute {
             val res = Photos.crop(file, r.left, r.top, r.right, r.bottom)
             runOnUiThread {
-                if (res != null) setResult(RESULT_OK, Intent().putExtra(OUT, res.file).putExtra(OUT_W, res.w).putExtra(OUT_H, res.h))
+                if (res != null) setResult(RESULT_OK, Intent().putExtra(OUT, res.file).putExtra(OUT_W, res.w).putExtra(OUT_H, res.h).putExtra(CUT, floatArrayOf(r.left, r.top, r.right, r.bottom)))
                 finish()
             }
         }
@@ -65,6 +67,7 @@ class CropActivity : Activity() {
 
     @SuppressLint("ViewConstructor")
     class CropView(ctx: Context) : View(ctx) {
+        var pins: List<Pins.P> = emptyList()
         private var bm: Bitmap? = null
         private val img = RectF()            // dónde se dibuja la foto
         private val sel = RectF()            // el cuadro (en pantalla)
@@ -95,6 +98,9 @@ class CropActivity : Activity() {
         override fun onDraw(c: Canvas) {
             val b = bm ?: return
             c.drawBitmap(b, null, img, p)
+            // 🗺️ los pines (los que quedan afuera del cuadro se van con lo recortado)
+            val ps = (minOf(img.width(), img.height()) / 26f).coerceIn(dp(9).toFloat(), dp(14).toFloat())
+            for (pn in pins) Pins.draw(c, img.left + pn.x * img.width(), img.top + pn.y * img.height(), ps, pn, true)
             // oscuro afuera del cuadro
             p.style = Paint.Style.FILL; p.color = 0xA0000000.toInt()
             val path = Path().apply { addRect(img, Path.Direction.CW); addRect(sel, Path.Direction.CCW) }
