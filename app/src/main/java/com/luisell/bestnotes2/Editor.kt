@@ -882,7 +882,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             // 🖼 la barrita va pegada debajo de la foto y es del MISMO ancho (cambia de tamaño con ella)
             infoBar.measure(MeasureSpec.makeMeasureSpec(maxOf(pw, dp(96)), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
             knob.measure(MeasureSpec.makeMeasureSpec(dp(28), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(28), MeasureSpec.EXACTLY))
-            for (d in dots) d.measure(MeasureSpec.makeMeasureSpec(dp(26), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(26), MeasureSpec.EXACTLY))
+            for (d in dots) d.measure(MeasureSpec.makeMeasureSpec(dp(44), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(44), MeasureSpec.EXACTLY))
             val bh = bh0 + infoH()
             val top = dp(block.y.toInt())
             var h = top + bh
@@ -1043,7 +1043,7 @@ class FotoView(val ed: EditorView, override val block: Block.Img) : BlockView {
             val vis = show && want[i]
             if (vis && d.visibility != View.VISIBLE) { d.visibility = View.VISIBLE; d.alpha = 1f }
             if (!vis && d.visibility == View.VISIBLE) d.visibility = View.GONE
-            val h = (d.measuredWidth.takeIf { it > 0 } ?: dp(26)) / 2
+            val h = (d.measuredWidth.takeIf { it > 0 } ?: dp(44)) / 2
             val (x, y) = pos[i]
             d.layout(x - h, y - h, x + h, y + h)
         }
@@ -1692,7 +1692,7 @@ class VideoCard(val ed: EditorView, override val block: Block.Media) : BlockView
             val W = MeasureSpec.getSize(ws)
             val pw = (W * block.pct / 100f).toInt().coerceIn(ctx.dp(120), W)
             card.measure(MeasureSpec.makeMeasureSpec(pw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
-            for (d in dots) d.measure(MeasureSpec.makeMeasureSpec(ctx.dp(26), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(ctx.dp(26), MeasureSpec.EXACTLY))
+            for (d in dots) d.measure(MeasureSpec.makeMeasureSpec(ctx.dp(44), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(ctx.dp(44), MeasureSpec.EXACTLY))
             var h = card.measuredHeight
             if (side().isNotEmpty()) {
                 edit.visibility = View.VISIBLE
@@ -2141,8 +2141,8 @@ class StretchDot(ctx: Context, private val kind: Int) : View(ctx) {
 
     override fun onDraw(c: android.graphics.Canvas) {
         val cx = width / 2f; val cy = height / 2f
-        val grow = 1f + 0.35f * held
-        val (hw, hh) = when (kind) { 0 -> 3.2f * d to 9f * d; 1 -> 9f * d to 3.2f * d; else -> 5f * d to 5f * d }
+        val grow = 1f + 0.22f * held
+        val (hw, hh) = when (kind) { 0 -> 4.6f * d to 13f * d; 1 -> 13f * d to 4.6f * d; else -> 7.5f * d to 7.5f * d }
         val w = hw * grow; val h = hh * grow
         val ring = maxOf(held * 0.7f, glowK)
         if (ring > 0f) { p.style = android.graphics.Paint.Style.FILL; p.color = (accent and 0xFFFFFF) or ((80 * ring).toInt() shl 24)
