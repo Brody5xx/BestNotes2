@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Looper
 import android.view.View
+import android.widget.EditText
 import android.view.ViewGroup
 import android.view.MotionEvent
 import org.junit.Assert.assertEquals
@@ -556,6 +557,25 @@ class PantallaTest {
         assertEquals(St.PLAIN, word("cuatro")); assertEquals(St.PLAIN, word("tres"))
         me.invoke(act); idle()
         assertEquals("uno no se tocó", St.PLAIN, word("uno"))
+    }
+
+    @Test fun dosToquesSeleccionaUnaPalabra() {
+        importar()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n1")).setup().get(); waitIo(); idle()
+        val e = find(act.window.decorView, RichEdit::class.java).filter { it !is TitleEdit && it.text.isNotEmpty() }.first()
+        e.setText(Rich.build(listOf(Run("uno, dos, tres, cuatro"))), android.widget.TextView.BufferType.EDITABLE); idle()
+        val lay = e.layout!!
+        val at = e.text.indexOf("dos") + 1
+        val x = lay.getPrimaryHorizontal(at) + e.totalPaddingLeft; val y = (lay.getLineTop(0) + lay.getLineBottom(0)) / 2f + e.totalPaddingTop
+        fun ev(a: Int, t: Long) = MotionEvent.obtain(1000, t, a, x, y, 0)
+        e.dispatchTouchEvent(ev(MotionEvent.ACTION_DOWN, 1000)); e.dispatchTouchEvent(ev(MotionEvent.ACTION_UP, 1060))
+        e.dispatchTouchEvent(ev(MotionEvent.ACTION_DOWN, 1180)); e.dispatchTouchEvent(ev(MotionEvent.ACTION_UP, 1240)); idle()
+        @Suppress("UNCHECKED_CAST")
+        val pcs = NoteActivity::class.java.getDeclaredMethod("mPieces").apply { isAccessible = true }.invoke(act) as List<Triple<EditText, Int, Int>>
+        // (en la prueba las letras no tienen el ancho real: se mira qué palabra quedó bajo el dedo)
+        val off = e.getOffsetForPosition(x, y)
+        val want = Regex("[\\p{L}]+").findAll(e.text).first { off in it.range.first..it.range.last + 1 }.value
+        assertEquals("solo la palabra, sin la coma", listOf(want), pcs.map { (ed, a, b) -> ed.text.substring(a, b) })
     }
 
     @Test fun respaldoIdaYVuelta() {

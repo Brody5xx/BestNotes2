@@ -164,6 +164,8 @@ open class RichEdit(ctx: Context) : EditText(ctx) {
         var onSelectMore: ((RichEdit) -> Unit)? = null
         /** Seleccionaste con el dedo (dejando presionado): la nota pone sus propias gotitas que cruzan renglones. */
         var onUserSelect: ((RichEdit, Int, Int) -> Unit)? = null
+        /** Dos toques en una palabra: la nota la selecciona (devuelve false si ahí no hay palabra). */
+        var onDoubleWord: ((RichEdit, Int) -> Boolean)? = null
         const val MENU_MORE = 9901
         /** 🔗 Tocaste un enlace a otra nota ("nota:…"). */
         var onLinkTap: ((String) -> Unit)? = null
@@ -257,8 +259,36 @@ open class RichEdit(ctx: Context) : EditText(ctx) {
     }
 
     private var lastTouch = 0L
+    // 👆👆 dos toques seguidos en una palabra = se selecciona SOLO esa palabra (lo hace la nota, no el teléfono)
+    private var downT = 0L; private var downX = 0f; private var downY = 0f; private var moved = false
+    private var lastUpT = 0L; private var lastUpX = 0f; private var lastUpY = 0f
+    private var eating = false
     override fun dispatchTouchEvent(e: android.view.MotionEvent): Boolean {
         if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN) lastTouch = android.os.SystemClock.uptimeMillis()
+        if (eating) {
+            if (e.actionMasked == android.view.MotionEvent.ACTION_UP || e.actionMasked == android.view.MotionEvent.ACTION_CANCEL) eating = false
+            return true
+        }
+        val vc = android.view.ViewConfiguration.get(context)
+        when (e.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> {
+                val dbl = onDoubleWord
+                val dt = e.eventTime - lastUpT
+                if (dbl != null && lastUpT > 0 && dt in 30..android.view.ViewConfiguration.getDoubleTapTimeout().toLong() &&
+                    Math.hypot((e.x - lastUpX).toDouble(), (e.y - lastUpY).toDouble()) < vc.scaledDoubleTapSlop) {
+                    lastUpT = 0
+                    val off = getOffsetForPosition(e.x, e.y).coerceIn(0, text.length)
+                    if (dbl(this, off)) { eating = true; performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); return true }
+                }
+                downT = e.eventTime; downX = e.x; downY = e.y; moved = false
+            }
+            android.view.MotionEvent.ACTION_MOVE -> if (Math.abs(e.x - downX) > vc.scaledTouchSlop || Math.abs(e.y - downY) > vc.scaledTouchSlop) moved = true
+            android.view.MotionEvent.ACTION_UP -> {
+                // solo cuenta si fue un toquecito (no arrastrar ni dejar presionado)
+                if (!moved && e.eventTime - downT < android.view.ViewConfiguration.getLongPressTimeout()) { lastUpT = e.eventTime; lastUpX = e.x; lastUpY = e.y } else lastUpT = 0
+            }
+            android.view.MotionEvent.ACTION_CANCEL -> lastUpT = 0
+        }
         return super.dispatchTouchEvent(e)
     }
 

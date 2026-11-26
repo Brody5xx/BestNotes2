@@ -562,6 +562,7 @@ class NoteActivity : Activity(), EditorView.Host {
         RichEdit.onSelectAll = { multiStart(null, true) }
         RichEdit.onSelectMore = { e -> multiStart(e, false, lines = true) }
         RichEdit.onUserSelect = { e, a, b -> startFromNative(e, a, b) }
+        RichEdit.onDoubleWord = { e, off -> selectWord(e, off) }
         RichEdit.onLinkTap = { u -> openLinked(u) }
         RichEdit.onBrackets = { e, at -> if (!editor.readOnly) linkNote(e, at, 2) }
     }
@@ -632,7 +633,7 @@ class NoteActivity : Activity(), EditorView.Host {
 
     override fun onPause() {
         super.onPause()
-        RichEdit.onSelectAll = null; RichEdit.onSelectMore = null; RichEdit.onUserSelect = null
+        RichEdit.onSelectAll = null; RichEdit.onSelectMore = null; RichEdit.onUserSelect = null; RichEdit.onDoubleWord = null
         RichEdit.onLinkTap = null; RichEdit.onBrackets = null
         speaker?.stop()
         if (dict != null) stopDictation()
@@ -2336,7 +2337,7 @@ class NoteActivity : Activity(), EditorView.Host {
 
     /** Dónde empieza y termina la palabra que está en [off] (letras, números, #, @…). */
     private fun wordAt(t: String, off: Int): Pair<Int, Int> {
-        fun w(c: Char) = c.isLetterOrDigit() || c == '_' || c == '#' || c == '@' || c == '\'' || c == '-'
+        fun w(c: Char) = c.isLetterOrDigit() || c == '_' || c == '#' || c == '\''
         var a = off.coerceIn(0, t.length); var b = a
         if ((a >= t.length || !w(t[a])) && a > 0 && w(t[a - 1])) { a--; b = a }
         while (a > 0 && w(t[a - 1])) a--
@@ -2524,6 +2525,19 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     /** Dejaste presionada una palabra (o la seleccionaste): empieza la selección que cruza renglones. */
+    /** 👆👆 Dos toques: se selecciona exactamente esa palabra (para más, se arrastran las gotitas). */
+    private fun selectWord(e: RichEdit, off: Int): Boolean {
+        if (ink.drawing || editor.readOnly || !loaded) return false
+        val (ws, we) = wordAt(e.text.toString(), off)
+        if (ws >= we) return false
+        if (multi != null) multiEnd()
+        if (allEdits().indexOf(e) < 0) return false
+        RichEdit.toolbar?.finish()
+        multiStart(e, false, ws, we)
+        Anim.bump(e, 1.015f)
+        return true
+    }
+
     private fun startFromNative(e: RichEdit, a: Int, b: Int) {
         if (multi != null || ink.drawing) return
         if (allEdits().indexOf(e) < 0) return
