@@ -947,6 +947,8 @@ class NoteActivity : Activity(), EditorView.Host {
             .item(Icons.BOOK, L.t("sharePdf"), Sheet.RED, "Gmail, Outlook…") { shareAs("pdf") }
             .item(MoreIcons.TEXT_T, L.t("shareText"), Sheet.BLUE) { editor.flushAll(); Share.sendText(this, title.text.toString(), Share.text(title.text.toString(), editor.blocks)) }
             .item(Icons.BUBBLE, L.t("shareSms"), Sheet.GREEN) { editor.flushAll(); Share.sms(this, Share.text(title.text.toString(), editor.blocks)) }
+            .item(Icons.GLOBE, L.t("lsTitle"), Sheet.TEAL, L.t("lsSub")) { save(); Store.io.execute { Store.main.post { LocalShare.show(this, meta.id) } } }
+            .item(Icons.BOX, L.t("packTitle"), Sheet.AMBER, L.t("packSub")) { save(); Store.io.execute { Store.main.post { NotePack.send(this, meta.id) } } }
             .item(MoreIcons.QR, L.t("qrSendTitle"), Sheet.VIOLET, L.t("qrSendSub")) { save(); editor.flushAll(); QrShare.send(this, title.text.toString(), editor.blocks) }
             .show()
     }

@@ -57,6 +57,7 @@
                 <data android:mimeType="application/json" />
                 <data android:mimeType="application/octet-stream" />
                 <data android:mimeType="text/plain" />
+                <data android:mimeType="application/zip" />
             </intent-filter>
             <!-- 📥 Guardar fotos de otras apps en una nota -->
             <intent-filter android:label="@string/share_label">
@@ -72,6 +73,8 @@
                 <data android:scheme="content" />
                 <data android:scheme="file" />
                 <data android:mimeType="application/json" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip-compressed" />
             </intent-filter>
         </activity>
 

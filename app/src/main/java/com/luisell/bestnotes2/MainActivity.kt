@@ -1180,6 +1180,8 @@ class MainActivity : Activity() {
             Intent.ACTION_VIEW -> i.data
             else -> null
         }
+        // 📦 una nota que te mandaron completa (por Quick Share): se guarda sola, sin contraseña
+        if (uri != null && NotePack.isPack(this, uri)) { i.action = null; Store.load { NotePack.receive(this, uri) { m -> open(m) } }; return }
         if (uri != null) { i.action = null; Store.load { askPassword(uri) } }
     }
 

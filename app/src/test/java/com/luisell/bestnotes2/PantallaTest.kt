@@ -92,6 +92,31 @@ class PantallaTest {
         assertEquals(null, QrShare.parsePiece("https://example.com"))
     }
 
+    @Test fun verEnOtroTelefonoYNotaCompleta() {
+        Store.init(ctx); L.init(ctx); reload()
+        // 🌐 la pagina y un video (con "Range" para adelantarlo)
+        val html = File(ctx.cacheDir, "p.html").apply { writeText("<html>hola</html>") }
+        val vid = File(ctx.cacheDir, "v.mp4").apply { writeBytes(ByteArray(1000) { (it % 256).toByte() }) }
+        val srv = LocalShare.Server("tok123", html, mapOf("v.mp4" to vid), { null }, {})
+        srv.start()
+        try {
+            val c = java.net.URL("http://127.0.0.1:${srv.port}/tok123/").openConnection() as java.net.HttpURLConnection
+            assertEquals(200, c.responseCode); assertTrue(c.inputStream.readBytes().toString(Charsets.UTF_8).contains("hola"))
+            val r = java.net.URL("http://127.0.0.1:${srv.port}/tok123/m/v.mp4").openConnection() as java.net.HttpURLConnection
+            r.setRequestProperty("Range", "bytes=100-199")
+            assertEquals(206, r.responseCode); val b = r.inputStream.readBytes(); assertEquals(100, b.size); assertEquals(100.toByte(), b[0])
+            val bad = java.net.URL("http://127.0.0.1:${srv.port}/otra/").openConnection() as java.net.HttpURLConnection
+            assertEquals(404, bad.responseCode)
+        } finally { srv.stop() }
+        // 📦 la nota completa en un archivo
+        val f = File(Store.mediaDir, "fpack.jpg"); f.writeBytes(ByteArray(500) { 7 })
+        val m = Store.createNote("Paquete", mutableListOf(Block.Text(mutableListOf(Run("Hola"))), Block.Img("fpack.jpg", 80f)))
+        waitIo()
+        val z = NotePack.make(ctx, m.id)!!
+        assertTrue(NotePack.isPack(ctx, android.net.Uri.fromFile(z)))
+        assertTrue(!NotePack.isPack(ctx, android.net.Uri.fromFile(html)))
+    }
+
     @Test fun avisoDelViernes() {
         val c = java.util.Calendar.getInstance().apply { set(2026, java.util.Calendar.NOVEMBER, 24, 10, 0, 0) }      // martes
         val f = java.util.Calendar.getInstance().apply { timeInMillis = Weekly.nextFriday(c) }
@@ -451,7 +476,7 @@ class PantallaTest {
         val page = File(ctx.cacheDir, "p.html")
         Export.page(ctx, items, page)
         val html = page.readText()
-        assertTrue(html.contains("<img src=\"data:image"))
+        assertTrue(html.contains("src=\"data:image"))
         assertTrue(html.contains("<audio") || html.contains("<video"))
         assertTrue(html.contains("Ticket"))
         assertTrue(Export.text(items).contains("☐"))

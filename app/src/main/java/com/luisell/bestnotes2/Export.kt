@@ -106,7 +106,8 @@ object Export {
         return bm
     }
 
-    fun page(ctx: Context, items: List<Item>, out: File) {
+    /** [link] = en vez de meter las fotos y videos dentro de la página, se ponen como enlaces (para verla desde otro teléfono). */
+    fun page(ctx: Context, items: List<Item>, out: File, link: ((File) -> String)? = null) {
         java.io.BufferedWriter(java.io.OutputStreamWriter(FileOutputStream(out), Charsets.UTF_8), 1 shl 16).use { w ->
             val title = if (items.size == 1) items[0].meta.title.ifBlank { L.t("untitled") } else "Best Notes · ${items.size}"
             w.write("""<!DOCTYPE html><html lang="${L.lang}"${if (L.isRtl) " dir=\"rtl\"" else ""}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -141,14 +142,14 @@ p{margin:6px 0;white-space:normal}a{color:#64d2ff}.f{text-align:center;color:rgb
                     }
                     is Block.Img -> {
                         val f = File(Store.mediaDir, b.file)
-                        if (f.isFile) { w.write("<img src=\""); dataUri(w, f); w.write("\" style=\"width:${b.pct.toInt()}%${if (b.ar > 0f) ";aspect-ratio:1/" + b.ar + ";object-fit:fill" else ""}\">") }
+                        if (f.isFile) { w.write("<img loading=\"lazy\" src=\""); if (link != null) w.write(link(f)) else dataUri(w, f); w.write("\" style=\"width:${b.pct.toInt()}%${if (b.ar > 0f) ";aspect-ratio:1/" + b.ar + ";object-fit:fill" else ""}\">") }
                         if (b.beside.isNotEmpty()) w.write("<p>${runsHtml(b.beside)}</p>")
                     }
                     is Block.Media -> {
                         val f = File(Store.mediaDir, b.file)
                         if (f.isFile) {
-                            if (b.kind == "video") { w.write("<video controls playsinline preload=\"metadata\"${if (b.muted) " muted" else ""} src=\""); dataUri(w, f); w.write("\"></video>") }
-                            else { w.write("<audio controls preload=\"metadata\" src=\""); dataUri(w, f); w.write("\"></audio>") }
+                            if (b.kind == "video") { w.write("<video controls playsinline preload=\"metadata\"${if (b.muted) " muted" else ""} src=\""); if (link != null) w.write(link(f)) else dataUri(w, f); w.write("\"></video>") }
+                            else { w.write("<audio controls preload=\"metadata\" src=\""); if (link != null) w.write(link(f)) else dataUri(w, f); w.write("\"></audio>") }
                         }
                         if (b.beside.isNotEmpty()) w.write("<p>${runsHtml(b.beside)}</p>")
                     }

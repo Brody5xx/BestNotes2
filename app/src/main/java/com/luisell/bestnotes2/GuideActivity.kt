@@ -15,6 +15,8 @@ class GuideActivity : Activity() {
     class Sec(val icon: Int, val es: Pair<String, List<String>>, val en: Pair<String, List<String>>)
 
     private val NEWS = listOf(
+        "2026-11-26" to ("🌐 Ver en otro teléfono: un QR que abre la nota completa en el navegador, con fotos y videos, sin internet. 📦 Nota completa por Quick Share (fotos y videos en calidad completa)" to
+            "🌐 View on another phone: a QR that opens the whole note in the browser, with photos and videos, no internet. 📦 Whole note by Quick Share (full-quality photos and videos)"),
         "2026-11-24" to ("🗺️ Plano con pines (cámaras, puertas, racks… con foto y nota). 🤖 Pregúntale a tus notas. 🔔 Aviso al llegar a un lugar con pendientes. ↔️ Antes y después. 🌐 La nota en 3 idiomas. 📲 Pasar una nota por QR sin internet. ✍️ Escribir a mano → texto. 🧤 Modo trabajo. 📅 Resumen del viernes" to
             "🗺️ Plan with pins (cameras, doors, racks… with photo and note). 🤖 Ask your notes. 🔔 Arrival alert at places with to-dos. ↔️ Before and after. 🌐 The note in 3 languages. 📲 Pass a note by QR without internet. ✍️ Handwriting → text. 🧤 Work mode. 📅 Friday summary"),
         "2026-11-24" to ("📋 Plantillas nuevas: cámara, mag lock, corrida de cable y servicio con firma (deja presionado el +). 🔊 Leer la nota en voz alta. 🔗 Enlazar notas escribiendo [[. 📊 Resumen de tu semana. ✍️ Firma del cliente. 🎉 Confeti al terminar todos los pendientes" to
