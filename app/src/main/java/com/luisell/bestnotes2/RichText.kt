@@ -166,6 +166,8 @@ open class RichEdit(ctx: Context) : EditText(ctx) {
         var onUserSelect: ((RichEdit, Int, Int) -> Unit)? = null
         /** Dos toques en una palabra: la nota la selecciona (devuelve false si ahí no hay palabra). */
         var onDoubleWord: ((RichEdit, Int) -> Boolean)? = null
+        /** Tres toques: el renglón completo. */
+        var onTripleLine: ((RichEdit, Int) -> Boolean)? = null
         const val MENU_MORE = 9901
         /** 🔗 Tocaste un enlace a otra nota ("nota:…"). */
         var onLinkTap: ((String) -> Unit)? = null
@@ -259,35 +261,48 @@ open class RichEdit(ctx: Context) : EditText(ctx) {
     }
 
     private var lastTouch = 0L
-    // 👆👆 dos toques seguidos en una palabra = se selecciona SOLO esa palabra (lo hace la nota, no el teléfono)
+    // 👆👆 dos toques = la palabra; 👆👆👆 tres toques = el renglón (lo hace la nota, no el teléfono)
     private var downT = 0L; private var downX = 0f; private var downY = 0f; private var moved = false
     private var lastUpT = 0L; private var lastUpX = 0f; private var lastUpY = 0f
+    private var taps = 0
     private var eating = false
     override fun dispatchTouchEvent(e: android.view.MotionEvent): Boolean {
         if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN) lastTouch = android.os.SystemClock.uptimeMillis()
+        val vc = android.view.ViewConfiguration.get(context)
         if (eating) {
-            if (e.actionMasked == android.view.MotionEvent.ACTION_UP || e.actionMasked == android.view.MotionEvent.ACTION_CANCEL) eating = false
+            when (e.actionMasked) {
+                android.view.MotionEvent.ACTION_UP -> { eating = false; lastUpT = e.eventTime; lastUpX = e.x; lastUpY = e.y }
+                android.view.MotionEvent.ACTION_CANCEL -> { eating = false; lastUpT = 0; taps = 0 }
+            }
             return true
         }
-        val vc = android.view.ViewConfiguration.get(context)
         when (e.actionMasked) {
             android.view.MotionEvent.ACTION_DOWN -> {
-                val dbl = onDoubleWord
                 val dt = e.eventTime - lastUpT
-                if (dbl != null && lastUpT > 0 && dt in 30..android.view.ViewConfiguration.getDoubleTapTimeout().toLong() &&
-                    Math.hypot((e.x - lastUpX).toDouble(), (e.y - lastUpY).toDouble()) < vc.scaledDoubleTapSlop) {
-                    lastUpT = 0
-                    val off = getOffsetForPosition(e.x, e.y).coerceIn(0, text.length)
-                    if (dbl(this, off)) { eating = true; performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); return true }
+                val near = Math.hypot((e.x - lastUpX).toDouble(), (e.y - lastUpY).toDouble()) < vc.scaledDoubleTapSlop
+                val seq = if (lastUpT > 0 && dt in 30..android.view.ViewConfiguration.getDoubleTapTimeout().toLong() + 60 && near) taps + 1 else 1
+                lastUpT = 0
+                val off = { getOffsetForPosition(e.x, e.y).coerceIn(0, text.length) }
+                val done = when (seq) {
+                    2 -> onDoubleWord?.invoke(this, off()) == true
+                    3 -> onTripleLine?.invoke(this, off()) == true
+                    else -> false
                 }
+                if (done) {
+                    taps = if (seq >= 3) 0 else seq
+                    eating = true
+                    performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                    return true
+                }
+                taps = 1
                 downT = e.eventTime; downX = e.x; downY = e.y; moved = false
             }
             android.view.MotionEvent.ACTION_MOVE -> if (Math.abs(e.x - downX) > vc.scaledTouchSlop || Math.abs(e.y - downY) > vc.scaledTouchSlop) moved = true
             android.view.MotionEvent.ACTION_UP -> {
                 // solo cuenta si fue un toquecito (no arrastrar ni dejar presionado)
-                if (!moved && e.eventTime - downT < android.view.ViewConfiguration.getLongPressTimeout()) { lastUpT = e.eventTime; lastUpX = e.x; lastUpY = e.y } else lastUpT = 0
+                if (!moved && e.eventTime - downT < android.view.ViewConfiguration.getLongPressTimeout()) { lastUpT = e.eventTime; lastUpX = e.x; lastUpY = e.y } else { lastUpT = 0; taps = 0 }
             }
-            android.view.MotionEvent.ACTION_CANCEL -> lastUpT = 0
+            android.view.MotionEvent.ACTION_CANCEL -> { lastUpT = 0; taps = 0 }
         }
         return super.dispatchTouchEvent(e)
     }
@@ -366,6 +381,59 @@ open class RichEdit(ctx: Context) : EditText(ctx) {
     override fun onDraw(canvas: android.graphics.Canvas) {
         drawOutlines(this, canvas, stroke)
         super.onDraw(canvas)
+        if (brushes.isNotEmpty()) drawBrushes(canvas)
+    }
+
+    /* ---------- 🖌️ el pincel: al poner un estilo, una luz pasa de izquierda a derecha sobre las letras ---------- */
+    private class Brush(val a: Int, val b: Int, val color: Int, val start: Long) { var ticks = 0 }
+    private val brushes = ArrayList<Brush>()
+    private val brushPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    private val brushPath = android.graphics.Path()
+    private val brushBox = android.graphics.RectF()
+    private val brushTick = object : Runnable {
+        override fun run() {
+            // se borran solos al terminar (aunque la pantalla no se esté dibujando)
+            val now = android.os.SystemClock.uptimeMillis()
+            brushes.removeAll { br -> br.ticks++; now - br.start > 700 || br.ticks > 120 }
+            invalidate()
+            if (brushes.isNotEmpty() && isAttachedToWindow) postOnAnimation(this)
+        }
+    }
+    fun brush(a: Int, b: Int, color: Int, delay: Long = 0) {
+        if (a >= b || b > length() || !isAttachedToWindow) return
+        brushes.add(Brush(a, b, color, android.os.SystemClock.uptimeMillis() + delay))
+        removeCallbacks(brushTick); postOnAnimation(brushTick)
+    }
+    private fun drawBrushes(c: android.graphics.Canvas) {
+        val lay = layout ?: return
+        val now = android.os.SystemClock.uptimeMillis()
+        val dur = 560f
+        val it = brushes.iterator()
+        while (it.hasNext()) {
+            val br = it.next()
+            val t = (now - br.start) / dur
+            if (t < 0f) continue
+            if (t >= 1f || br.b > length()) { it.remove(); continue }
+            brushPath.reset()
+            try { lay.getSelectionPath(br.a, br.b, brushPath) } catch (_: Throwable) { it.remove(); continue }
+            brushPath.computeBounds(brushBox, true)
+            if (brushBox.width() <= 0f) { it.remove(); continue }
+            val e = android.view.animation.DecelerateInterpolator(1.6f).getInterpolation(t)
+            val band = maxOf(brushBox.width() * 0.35f, resources.displayMetrics.density * 34f)
+            val x = brushBox.left - band + (brushBox.width() + band * 2) * e
+            val col = br.color and 0xFFFFFF
+            val fade = (1f - t).coerceIn(0f, 1f)
+            c.save()
+            c.translate(totalPaddingLeft.toFloat(), totalPaddingTop.toFloat())
+            c.clipPath(brushPath)
+            // lo ya "pintado" brilla suavecito y se apaga; la punta del pincel es más clara
+            brushPaint.shader = android.graphics.LinearGradient(x - band, 0f, x + band * 0.4f, 0f,
+                intArrayOf(col or ((0x30 * fade).toInt() shl 24), col or ((0x90 * fade).toInt() shl 24), 0x00FFFFFF and col),
+                floatArrayOf(0f, 0.8f, 1f), android.graphics.Shader.TileMode.CLAMP)
+            c.drawRect(brushBox.left, brushBox.top, minOf(brushBox.right, x + band * 0.4f), brushBox.bottom, brushPaint)
+            brushPaint.shader = null
+            c.restore()
+        }
     }
 
     /** Copiar y pegar: se pega solo el texto (sin estilos raros de otras apps). */

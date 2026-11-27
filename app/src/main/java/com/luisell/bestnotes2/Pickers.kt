@@ -41,7 +41,7 @@ fun addRecentColor(ctx: Context, c: Int) {
  * Ventana para escoger un color. [current] = el color de ahora (0 = ninguno).
  * [onPick] recibe el color escogido, o 0 si tocaste "Sin color".
  */
-fun Context.pickColor(title: String, current: Int, presets: IntArray, onLive: ((Int) -> Unit)? = null, onPick: (Int) -> Unit) {
+fun Context.pickColor(title: String, current: Int, presets: IntArray, onLive: ((Int) -> Unit)? = null, onCancel: ((Boolean) -> Unit)? = null, onPick: (Int) -> Unit) {
     val act = this as? android.app.Activity ?: return
     val ctx = this
     val hsv = FloatArray(3).also { Color.colorToHSV(if (current != 0) current or 0xFF000000.toInt() else T.textColors[4], it) }
@@ -144,7 +144,8 @@ fun Context.pickColor(title: String, current: Int, presets: IntArray, onLive: ((
     if (rec.isNotEmpty()) sheet.custom(label(L.t("colorsRecent"))).custom(dots(rec))
     sheet.custom(favBox).footer(btns)
     // si cierras sin tocar "Listo", la letra vuelve como estaba
-    sheet.onClose = { if (!decided && touched) onLive?.invoke(current) }
+    // ([onCancel] lo deja exactamente como estaba, aunque tuviera varios colores)
+    sheet.onClose = { if (!decided) { if (onCancel != null) onCancel(touched) else if (touched) onLive?.invoke(current) } }
     paint()
     sheet.show()
 }

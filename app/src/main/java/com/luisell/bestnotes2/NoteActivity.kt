@@ -436,21 +436,44 @@ class NoteActivity : Activity(), EditorView.Host {
         }
     }
 
-    private fun style(fn: (St) -> St) {
-        if (multi != null) { multiStyle(fn); return }      // ↕ con la selección de la app: a todo lo seleccionado
+    /**
+     * [live] = mientras mueves la rueda de colores (vista previa): no se guarda un paso de "deshacer" por cada
+     * movimiento ni se pinta el pincel; el paso se guarda una sola vez cuando tocas "Listo".
+     */
+    private fun style(live: Boolean = false, fn: (St) -> St) {
+        if (multi != null) { multiStyle(fn, live); return }      // ↕ con la selección de la app: a todo lo seleccionado
         val e = target() ?: return
         if (!e.hasFocus()) return
         // en el título sin seleccionar nada: se pinta TODO el título
         if (e === title && e.selectionStart == e.selectionEnd && e.text.isNotEmpty()) {
             val pos = e.selectionStart
-            e.setSelection(0, e.text.length); style(fn); e.setSelection(pos.coerceAtMost(e.text.length)); return
+            e.setSelection(0, e.text.length); style(live, fn); e.setSelection(pos.coerceAtMost(e.text.length)); return
         }
+        val a = minOf(e.selectionStart, e.selectionEnd); val b = maxOf(e.selectionStart, e.selectionEnd)
+        val sel = a in 0 until b
+        // ↩️ cada estilo es su propio paso de "deshacer" (no se mezcla con lo que escribiste antes)
+        if (sel && !live && snapPending && !liveMode) snapshot()
         val c = e.currentStyle()
         e.applyStyle(styleChange(c, fn))
         // cambiar el estilo SIEMPRE cuenta como cambio (para que se guarde al salir)
         onDirty(); dirty = true
+        if (sel && !live) { if (!liveMode) snapshot(); e.brush(a, b, brushColor(fn)); if (fn(St.PLAIN).b && !c.b) Anim.bump(e, 1.01f) }
         Store.main.post { paintTools(e) }
     }
+
+    /** El color del pincel: el del estilo que pusiste (o una luz blanca si quitaste algo). */
+    private fun brushColor(fn: (St) -> St): Int {
+        val f = fn(St.PLAIN)
+        return when {
+            f.color != 0 -> f.color or 0xFF000000.toInt()
+            f.bg != 0 -> f.bg or 0xFF000000.toInt()
+            f.o != 0 -> f.o or 0xFF000000.toInt()
+            else -> if (T.light) 0xFF8B7CFF.toInt() else 0xFFFFFFFF.toInt()
+        }
+    }
+
+    /** Mientras está abierta la rueda de colores: los cambios son "de prueba" (no van a deshacer). */
+    private var liveMode = false
 
     private fun pickSize() {
         val e = target() ?: return
@@ -465,21 +488,35 @@ class NoteActivity : Activity(), EditorView.Host {
     /** Color de letra (o del título si estás en el título), resaltar o contorno. */
     private fun pickColor(kind: String) {
         val e = target() ?: return
-        val c = e.currentStyle()
+        val c = cur()                 // lo que tiene TODO lo seleccionado (si hay varios colores, empieza sin ninguno)
         val a0 = minOf(e.selectionStart, e.selectionEnd); val b0 = maxOf(e.selectionStart, e.selectionEnd)
-        // en vivo: se pinta lo seleccionado mientras mueves la rueda
+        // así estaba todo antes de abrir la rueda: si cierras sin "Listo", vuelve EXACTO (aunque tuviera varios colores)
+        val before = (if (multi != null) mEdits.filterIsInstance<RichEdit>() else listOf(e)).map { it to Rich.runs(it.text) }
+        if (snapPending) snapshot()
+        liveMode = true
         fun sel() {
+            if (multi != null) return
             if (!e.hasFocus()) e.requestFocus()
             if (a0 in 0 until b0 && (e.selectionStart != a0 || e.selectionEnd != b0) && b0 <= e.text.length) e.setSelection(a0, b0)
         }
-        fun liveOn(f: (St, Int) -> St): (Int) -> Unit = { col -> sel(); style { s -> f(s, col) } }
+        // 🎨 vista previa: la letra cambia mientras mueves el dedo por los colores
+        fun liveOn(f: (St, Int) -> St): (Int) -> Unit = { col -> sel(); style(live = true) { s -> f(s, col) } }
+        val cancel: (Boolean) -> Unit = { touched ->
+            liveMode = false
+            if (touched) {
+                for ((ed, runs) in before) if (runsPlain(runs) == ed.text.toString()) { Rich.restyle(ed.text, runs); ed.invalidate() }
+                if (multi != null) multiPaint(false)
+                onDirty(); paintTools(target())
+            }
+        }
+        fun done(f: (St) -> St) { liveMode = false; sel(); style(fn = f); Store.main.post { fillStyle() } }
         when (kind) {
             "hi" -> pickColor(L.t("hilite"), if (c.bg != 0) c.bg or 0xFF000000.toInt() else 0, T.hiliteColors.map { it or 0xFF000000.toInt() }.toIntArray(),
-                liveOn { s, col -> s.copy(bg = if (col == 0) 0 else (col and 0xFFFFFF) or 0x73000000) }) { col ->
-                sel(); style { s -> s.copy(bg = if (col == 0) 0 else (col and 0xFFFFFF) or 0x73000000) }; Store.main.post { fillStyle() }
+                liveOn { s, col -> s.copy(bg = if (col == 0) 0 else (col and 0xFFFFFF) or 0x73000000) }, cancel) { col ->
+                done { s -> s.copy(bg = if (col == 0) 0 else (col and 0xFFFFFF) or 0x73000000) }
             }
-            "ol" -> pickColor(L.t("outline"), c.o, T.textColors, liveOn { s, col -> s.copy(o = col) }) { col -> sel(); style { s -> s.copy(o = col) }; Store.main.post { fillStyle() } }
-            else -> pickColor(L.t("textColor"), c.color, T.textColors, liveOn { s, col -> s.copy(color = col) }) { col -> sel(); style { s -> s.copy(color = col) }; Store.main.post { fillStyle() } }
+            "ol" -> pickColor(L.t("outline"), c.o, T.textColors, liveOn { s, col -> s.copy(o = col) }, cancel) { col -> done { s -> s.copy(o = col) } }
+            else -> pickColor(L.t("textColor"), c.color, T.textColors, liveOn { s, col -> s.copy(color = col) }, cancel) { col -> done { s -> s.copy(color = col) } }
         }
     }
 
@@ -518,6 +555,7 @@ class NoteActivity : Activity(), EditorView.Host {
         if (muting || !loaded) return
         dirty = true
         Store.main.removeCallbacks(saveRun); Store.main.postDelayed(saveRun, 1200)
+        if (liveMode) return            // 🎨 probando colores: el paso de deshacer se guarda al tocar "Listo"
         Store.main.removeCallbacks(snapRun); Store.main.postDelayed(snapRun, 700); snapPending = true
         if (speaker != null) { Store.main.removeCallbacks(speakRefresh); Store.main.postDelayed(speakRefresh, 900) }
     }
@@ -563,6 +601,7 @@ class NoteActivity : Activity(), EditorView.Host {
         RichEdit.onSelectMore = { e -> multiStart(e, false, lines = true) }
         RichEdit.onUserSelect = { e, a, b -> startFromNative(e, a, b) }
         RichEdit.onDoubleWord = { e, off -> selectWord(e, off) }
+        RichEdit.onTripleLine = { e, off -> selectLine(e, off) }
         RichEdit.onLinkTap = { u -> openLinked(u) }
         RichEdit.onBrackets = { e, at -> if (!editor.readOnly) linkNote(e, at, 2) }
     }
@@ -633,7 +672,7 @@ class NoteActivity : Activity(), EditorView.Host {
 
     override fun onPause() {
         super.onPause()
-        RichEdit.onSelectAll = null; RichEdit.onSelectMore = null; RichEdit.onUserSelect = null; RichEdit.onDoubleWord = null
+        RichEdit.onSelectAll = null; RichEdit.onSelectMore = null; RichEdit.onUserSelect = null; RichEdit.onDoubleWord = null; RichEdit.onTripleLine = null
         RichEdit.onLinkTap = null; RichEdit.onBrackets = null
         speaker?.stop()
         if (dict != null) stopDictation()
@@ -1905,7 +1944,7 @@ class NoteActivity : Activity(), EditorView.Host {
     /** Aplica el estilo sin quitar lo que seleccionaste, y repinta el panel. */
     private fun styleNow(f: (St) -> St) {
         target()?.let { if (!it.hasFocus()) it.requestFocus() }
-        style(f)
+        style(fn = f)
         Store.main.post { fillStyle() }
     }
 
@@ -2298,7 +2337,33 @@ class NoteActivity : Activity(), EditorView.Host {
        - Copiar, cortar, borrar y TODA la barra de abajo (negrita, colores,
          tamaño, contorno…) funcionan con lo seleccionado.
        ========================================================= */
-    private class SelS(c: Int) : android.text.style.BackgroundColorSpan(c)
+    /** Lo seleccionado (su color "respira" suavecito mientras está seleccionado). */
+    private class SelS(var c: Int) : android.text.style.CharacterStyle(), android.text.style.UpdateAppearance {
+        override fun updateDrawState(tp: android.text.TextPaint) { tp.bgColor = c }
+    }
+    private var breath: android.animation.ValueAnimator? = null
+    private fun selBase() = if (T.light) 0x4FC3F7 else 0x8B7CFF
+    private fun startBreath() {
+        breath?.cancel()
+        breath = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 1500; repeatCount = android.animation.ValueAnimator.INFINITE; repeatMode = android.animation.ValueAnimator.REVERSE
+            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+            var last = -1
+            addUpdateListener { va ->
+                if (multi == null) { cancel(); return@addUpdateListener }
+                val al = (0x52 + (0x80 - 0x52) * (va.animatedValue as Float)).toInt()
+                if (al == last) return@addUpdateListener
+                last = al
+                val col = (al shl 24) or selBase()
+                for (e in mEdits) {
+                    val sp = e.text.getSpans(0, e.text.length, SelS::class.java)
+                    if (sp.isEmpty()) continue
+                    sp.forEach { it.c = col }; e.invalidate()
+                }
+            }
+            start()
+        }
+    }
     private var multi: LinearLayout? = null
     private var mEdits: List<EditText> = emptyList()
     private var mA = 0 to 0
@@ -2365,7 +2430,7 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     private fun multiPaint(wave: Boolean) {
-        val col = if (T.light) 0x664FC3F7 else 0x668B7CFF.toInt()
+        val col = (0x66 shl 24) or selBase()
         for (e in mEdits) e.text.getSpans(0, e.text.length, SelS::class.java).forEach { e.text.removeSpan(it) }
         for ((k, p) in mPieces().withIndex()) {
             val (e, a, b) = p
@@ -2415,6 +2480,39 @@ class NoteActivity : Activity(), EditorView.Host {
      * Al moverlas sale la lupa, que va siguiendo tu dedo.
      */
     @android.annotation.SuppressLint("ViewConstructor")
+    /**
+     * ↕ Si arrastras (una gotita o la selección) hasta el borde de arriba o de abajo, la nota se mueve sola:
+     * más rápido mientras más cerca del borde, y se detiene suavecito.
+     */
+    private inner class EdgeScroll {
+        private var y = -1f
+        private var tick: (() -> Unit)? = null
+        private var on = false
+        private val run = object : Runnable {
+            override fun run() {
+                if (!on || multi == null) { on = false; return }
+                val h = noteHolder.height.toFloat(); val edge = dp(76).toFloat()
+                val f = when {
+                    y < edge -> -((edge - y) / edge).coerceIn(0f, 1f)
+                    y > h - edge -> ((y - (h - edge)) / edge).coerceIn(0f, 1f)
+                    else -> 0f
+                }
+                if (f != 0f && scroll.canScrollVertically(if (f < 0) -1 else 1)) {
+                    val step = (dp(2) + dp(22) * f * f) * (if (f < 0) -1 else 1)
+                    scroll.scrollBy(0, step.toInt())
+                    tick?.invoke()
+                }
+                noteHolder.postOnAnimation(this)
+            }
+        }
+        fun feed(yInHolder: Float, onTick: () -> Unit) {
+            y = yInHolder; tick = onTick
+            if (!on) { on = true; noteHolder.postOnAnimation(run) }
+        }
+        fun stop() { on = false; tick = null; noteHolder.removeCallbacks(run) }
+    }
+    private val edgeScroll by lazy { EdgeScroll() }
+
     inner class HandlesView : View(this@NoteActivity) {
         private var drag = 0          // 0 nada, 1 = la de A, 2 = la de B
         private var lastX = 0f; private var lastY = 0f
@@ -2425,18 +2523,34 @@ class NoteActivity : Activity(), EditorView.Host {
             val d = a.getDrawable(0)?.mutate(); a.recycle(); d?.setTint(tint); d
         } catch (_: Throwable) { null }
         private val hl = handle(true); private val hr = handle(false)
-        private val mag: android.widget.Magnifier? = if (android.os.Build.VERSION.SDK_INT >= 28) try { android.widget.Magnifier(noteHolder) } catch (_: Throwable) { null } else null
-        private val autoScroll = object : Runnable {
-            override fun run() {
-                if (drag == 0) return
-                val edge = dp(60); var dy = 0
-                if (lastY < edge) dy = -dp(12) else if (lastY > height - edge) dy = dp(12)
-                if (dy != 0) { scroll.scrollBy(0, dy); move() }
-                postOnAnimation(this)
-            }
+        // 🔍 la lupa: redonda, con borde de cristal (en teléfonos nuevos)
+        private val mag: android.widget.Magnifier? = when {
+            android.os.Build.VERSION.SDK_INT >= 29 -> try {
+                android.widget.Magnifier.Builder(noteHolder)
+                    .setSize(dp(112), dp(112)).setCornerRadius(dp(56).toFloat())
+                    .setInitialZoom(1.55f).setElevation(dp(10).toFloat())
+                    .setDefaultSourceToMagnifierOffset(0, -dp(78))
+                    .setOverlay(android.graphics.drawable.GradientDrawable().apply {
+                        shape = android.graphics.drawable.GradientDrawable.OVAL
+                        setStroke(dp(2), if (T.light) 0x552979FF else 0x88FFFFFF.toInt())
+                        colors = intArrayOf(0x22FFFFFF, 0x00FFFFFF); gradientType = android.graphics.drawable.GradientDrawable.LINEAR_GRADIENT
+                    })
+                    .build()
+            } catch (_: Throwable) { null }
+            android.os.Build.VERSION.SDK_INT >= 28 -> try { android.widget.Magnifier(noteHolder) } catch (_: Throwable) { null }
+            else -> null
         }
+        // ✨ las gotitas aparecen con un rebote
+        private var appear = 0f
+        private val pop = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 340; interpolator = android.view.animation.OvershootInterpolator(2.6f)
+            addUpdateListener { appear = it.animatedValue as Float; invalidate() }
+        }
+        // para saber qué tan rápido mueves el dedo (rápido = salta por palabras; despacio = letra por letra)
+        private var prevX = 0f; private var prevY = 0f; private var prevT = 0L; private var speed = 0f
         init { isClickable = false }
-        override fun onDetachedFromWindow() { super.onDetachedFromWindow(); try { mag?.dismiss() } catch (_: Throwable) {} }
+        override fun onAttachedToWindow() { super.onAttachedToWindow(); pop.start() }
+        override fun onDetachedFromWindow() { super.onDetachedFromWindow(); pop.cancel(); edgeScroll.stop(); try { mag?.dismiss() } catch (_: Throwable) {} }
 
         /** La agarradera de la izquierda va donde EMPIEZA lo seleccionado; la de la derecha donde TERMINA. */
         private fun pts(): List<Triple<Int, Pair<Int, Int>, Boolean>> {
@@ -2471,7 +2585,12 @@ class NoteActivity : Activity(), EditorView.Host {
                 val d = (if (isStart) hl else hr) ?: continue
                 d.bounds = r
                 d.alpha = if (drag == k) 255 else 235
+                // crece desde la puntita (donde toca la letra); la que arrastras se ve un poquito más grande
+                val sc = appear * (if (drag == k) 1.12f else 1f)
+                val tipX = if (isStart) r.left + r.width() * 3 / 4f else r.left + r.width() / 4f
+                c.save(); c.scale(sc, sc, tipX, r.top.toFloat())
                 d.draw(c)
+                c.restore()
             }
         }
 
@@ -2492,9 +2611,28 @@ class NoteActivity : Activity(), EditorView.Host {
             return best
         }
 
+        /** Dónde está la otra gotita (la que NO arrastras). */
+        private fun partner(id: Int): Pair<Int, Int>? = when {
+            id == 1 -> mB
+            id == 2 -> mA
+            id >= 10 -> mRanges.getOrNull((id - 10) / 2)?.get(1 - (id - 10) % 2)
+            else -> null
+        }
         private fun move() {
             val tx = lastX + grabDx; val ty = lastY + grabDy
-            val s = spotAt(tx, ty) ?: return
+            var s = spotAt(tx, ty) ?: return
+            // 🧲 rápido = la gotita se pega a la palabra entera; despacio = letra por letra
+            val other = partner(drag)
+            if (speed > dp(1) * 0.75f && other != null) {
+                val t = mEdits.getOrNull(s.first)?.text?.toString()
+                if (t != null) {
+                    val (ws, we) = wordAt(t, s.second)
+                    if (s.second in (ws + 1) until we) {
+                        val before = s.first < other.first || (s.first == other.first && s.second < other.second)
+                        s = s.first to (if (before) ws else we)
+                    }
+                }
+            }
             setPt(drag, s)
             multiPaint(false)
             // 🔍 la lupa sigue al dedo
@@ -2510,13 +2648,23 @@ class NoteActivity : Activity(), EditorView.Host {
                     drag = hit(e.x, e.y); if (drag == 0) return false
                     parent.requestDisallowInterceptTouchEvent(true)
                     lastX = e.x; lastY = e.y
+                    prevX = e.x; prevY = e.y; prevT = e.eventTime; speed = 0f
                     performHapticFeedback(android.view.HapticFeedbackConstants.TEXT_HANDLE_MOVE)
-                    postOnAnimation(autoScroll)
+                    invalidate()
                     return true
                 }
-                android.view.MotionEvent.ACTION_MOVE -> if (drag != 0) { lastX = e.x; lastY = e.y; move() }
+                android.view.MotionEvent.ACTION_MOVE -> if (drag != 0) {
+                    val dt = (e.eventTime - prevT).coerceAtLeast(1L)
+                    val v = Math.hypot((e.x - prevX).toDouble(), (e.y - prevY).toDouble()).toFloat() / dt
+                    speed = speed * 0.6f + v * 0.4f            // suavizado (un temblor del dedo no cuenta)
+                    prevX = e.x; prevY = e.y; prevT = e.eventTime
+                    val before = mRange()
+                    lastX = e.x; lastY = e.y; move()
+                    if (mRange() != before) performHapticFeedback(android.view.HapticFeedbackConstants.TEXT_HANDLE_MOVE)
+                    edgeScroll.feed(e.y) { speed = 0f; move() }
+                }
                 android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> if (drag != 0) {
-                    drag = 0; try { mag?.dismiss() } catch (_: Throwable) {}
+                    drag = 0; edgeScroll.stop(); try { mag?.dismiss() } catch (_: Throwable) {}
                     invalidate(); placeSelBar()
                 }
             }
@@ -2535,6 +2683,23 @@ class NoteActivity : Activity(), EditorView.Host {
         RichEdit.toolbar?.finish()
         multiStart(e, false, ws, we)
         Anim.bump(e, 1.015f)
+        return true
+    }
+
+    /** 👆👆👆 Tres toques: el renglón completo (de Enter a Enter, sin los espacios de las puntas). */
+    private fun selectLine(e: RichEdit, off: Int): Boolean {
+        if (ink.drawing || editor.readOnly || !loaded) return false
+        val t = e.text.toString()
+        val o = off.coerceIn(0, t.length)
+        var a = if (o == 0) 0 else t.lastIndexOf('\n', o - 1) + 1
+        var b = t.indexOf('\n', o).let { if (it < 0) t.length else it }
+        while (a < b && t[a].isWhitespace()) a++
+        while (b > a && t[b - 1].isWhitespace()) b--
+        if (a >= b) return false
+        if (multi != null) multiEnd()
+        if (allEdits().indexOf(e) < 0) return false
+        multiStart(e, false, a, b)
+        multiPaint(true)
         return true
     }
 
@@ -2567,6 +2732,7 @@ class NoteActivity : Activity(), EditorView.Host {
         }
         if (lines && from != null) toggleLine(i, mA.second)
         multi = LinearLayout(this)            // (marca de que la selección está activa)
+        startBreath()
         // 🔍 se "cancela" el toque del teléfono: así su lupa se cierra y no se queda trabada
         from?.let { f -> try { val t = android.os.SystemClock.uptimeMillis(); val c = android.view.MotionEvent.obtain(t, t, android.view.MotionEvent.ACTION_CANCEL, 0f, 0f, 0); f.onTouchEvent(c); c.recycle() } catch (_: Throwable) {} }
         // primero se pinta lo seleccionado; después se quita la del teléfono (así no parpadea)
@@ -2602,13 +2768,14 @@ class NoteActivity : Activity(), EditorView.Host {
                         v.postDelayed(press, android.view.ViewConfiguration.getLongPressTimeout().toLong())
                         return@setOnTouchListener true
                     }
-                    android.view.MotionEvent.ACTION_CANCEL -> { v.removeCallbacks(press); mine = false; anchor = null; if (held) { held = false; placeSelBar() }; return@setOnTouchListener true }
+                    android.view.MotionEvent.ACTION_CANCEL -> { v.removeCallbacks(press); edgeScroll.stop(); mine = false; anchor = null; if (held) { held = false; placeSelBar() }; return@setOnTouchListener true }
                     android.view.MotionEvent.ACTION_MOVE -> {
                         if (mine && !held && (Math.abs(ev.x - downX) > slop || Math.abs(ev.y - downY) > slop)) v.removeCallbacks(press)
                         if ((!mine || held) && !mLinesMode) {
                             // arrastrando después de dejar presionado: la selección crece por palabras enteras
                             val hs = IntArray(2); noteHolder.getLocationOnScreen(hs)
-                            spotAt(ev.rawX - hs[0], ev.rawY - hs[1])?.let { sp ->
+                            val rx = ev.rawX; val ry = ev.rawY
+                            fun grow() = spotAt(rx - hs[0], ry - hs[1])?.let { sp ->
                                 val t = mEdits.getOrNull(sp.first)?.text?.toString() ?: return@let
                                 val (ws, we) = wordAt(t, sp.second)
                                 // la palabra que dejaste presionada se queda siempre seleccionada (hacia arriba o hacia abajo)
@@ -2619,13 +2786,19 @@ class NoteActivity : Activity(), EditorView.Host {
                                     lt(an.second, sp) -> an.first to (if (ws < we) sp.first to we else sp)
                                     else -> an.first to an.second
                                 }
-                                if (na != mA || nb != mB) { mA = na; mB = nb; multiPaint(false); handles?.invalidate(); selBar?.alpha = 0f }
+                                if (na != mA || nb != mB) {
+                                    mA = na; mB = nb; multiPaint(false); handles?.invalidate(); selBar?.alpha = 0f
+                                    v.performHapticFeedback(android.view.HapticFeedbackConstants.TEXT_HANDLE_MOVE)
+                                }
                             }
+                            grow()
+                            // ↕ cerca del borde, la nota se mueve sola y la selección sigue creciendo
+                            edgeScroll.feed(ry - hs[1]) { val h2 = IntArray(2); noteHolder.getLocationOnScreen(h2); hs[0] = h2[0]; hs[1] = h2[1]; grow() }
                         }
                         return@setOnTouchListener true
                     }
                     android.view.MotionEvent.ACTION_UP -> {
-                        v.removeCallbacks(press)
+                        v.removeCallbacks(press); edgeScroll.stop()
                         if (!mine || held) { mine = false; held = false; anchor = null; placeSelBar(); return@setOnTouchListener true }
                     }
                 }
@@ -2651,35 +2824,81 @@ class NoteActivity : Activity(), EditorView.Host {
         hv.post { placeSelBar() }
     }
 
-    /** Pone (o mueve) la barrita flotante arriba de lo seleccionado. */
+    /** ¿El renglón de arriba de [pt] está vacío? (así la barrita puede ir ahí sin tapar nada) */
+    private fun lineAboveBlank(pt: Pair<Int, Int>): Boolean {
+        val e = mEdits.getOrNull(pt.first) ?: return false
+        val lay = e.layout ?: return false
+        val line = lay.getLineForOffset(pt.second.coerceIn(0, e.text.length))
+        if (line > 0) return e.text.subSequence(lay.getLineStart(line - 1), lay.getLineEnd(line - 1)).isBlank()
+        val prev = mEdits.getOrNull(pt.first - 1) ?: return true
+        val pl = prev.layout ?: return false
+        if (prev.text.isEmpty()) return true
+        val last = pl.lineCount - 1
+        return prev.text.subSequence(pl.getLineStart(last), pl.getLineEnd(last)).isBlank()
+    }
+
+    /**
+     * Pone (o mueve) la barrita flotante. Arriba de lo seleccionado si ahí no tapa texto;
+     * si taparía lo que estás leyendo, va debajo de las gotitas; y si no cabe, donde quepa.
+     */
     private fun placeSelBar() {
         if (multi == null) return
         val bar = selBar ?: buildSelBar().also { selBar = it }
+        paintSelBar()
         bar.post {
+            if (multi == null) return@post
             if (bar.width == 0) bar.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
             val bw = if (bar.width > 0) bar.width else bar.measuredWidth
             val bh = if (bar.height > 0) bar.height else bar.measuredHeight
-            val (s, _) = mRange()
-            val first = if (mLinesMode) mRanges.map { ordered(it).first }.minWithOrNull(compareBy({ it.first }, { it.second })) else s
-            val xy = first?.let { spotXY(it) }
-            val top = (xy?.get(1) ?: dp(80).toFloat()) - bh - dp(10)
-            // si no cabe arriba, va debajo de donde TERMINA lo seleccionado (abajo de la gotita)
-            val endXY = if (mLinesMode) null else spotXY(mRange().second)
-            val y = if (top < dp(8)) ((endXY ?: xy)?.get(2) ?: 0f) + dp(40) else top
-            val x = ((xy?.get(0) ?: 0f) - bw / 2f).coerceIn(dp(8).toFloat(), (noteHolder.width - bw - dp(8)).toFloat().coerceAtLeast(dp(8).toFloat()))
+            val firstPt = if (mLinesMode) mRanges.map { ordered(it).first }.minWithOrNull(compareBy({ it.first }, { it.second })) else mRange().first
+            val lastPt = if (mLinesMode) mRanges.map { ordered(it).second }.maxWithOrNull(compareBy({ it.first }, { it.second })) else mRange().second
+            val xyS = firstPt?.let { spotXY(it) }
+            val xyE = lastPt?.let { spotXY(it) }
+            val visTop = dp(6).toFloat(); val visBot = noteHolder.height - dp(6).toFloat()
+            val above = (xyS?.get(1) ?: dp(80).toFloat()) - bh - dp(12)
+            val below = (xyE ?: xyS)?.let { it[2] + dp(30) } ?: (visBot - bh)       // debajo de la gotita
+            val fitsAbove = above >= visTop
+            val fitsBelow = below + bh <= visBot
+            val goAbove = when {
+                fitsAbove && firstPt != null && lineAboveBlank(firstPt) -> true
+                fitsBelow -> false
+                else -> fitsAbove
+            }
+            val y = (if (goAbove) above else if (fitsBelow) below else above).coerceIn(visTop, (visBot - bh).coerceAtLeast(visTop))
+            val cx = (if (goAbove) xyS else xyE ?: xyS)?.get(0) ?: (noteHolder.width / 2f)
+            val x = (cx - bw / 2f).coerceIn(dp(8).toFloat(), (noteHolder.width - bw - dp(8)).toFloat().coerceAtLeast(dp(8).toFloat()))
             val first0 = bar.alpha == 0f && bar.translationY == 0f && bar.translationX == 0f
-            bar.translationX = x
-            if (first0) { bar.translationY = y + dp(10); bar.scaleX = 0.85f; bar.scaleY = 0.85f }
-            bar.animate().translationY(y).alpha(1f).scaleX(1f).scaleY(1f).setDuration(220).setInterpolator(android.view.animation.OvershootInterpolator(1.6f)).start()
+            if (first0) { bar.translationX = x; bar.translationY = y + (if (goAbove) dp(10) else -dp(10)); bar.scaleX = 0.85f; bar.scaleY = 0.85f }
+            bar.pivotY = if (goAbove) bh.toFloat() else 0f
+            bar.animate().translationX(x).translationY(y).alpha(1f).scaleX(1f).scaleY(1f).setDuration(240).setInterpolator(android.view.animation.OvershootInterpolator(1.4f)).start()
+        }
+    }
+
+    private val selStyleBtns = HashMap<String, View>()
+    /** Enciende B, I, U… de la barrita según lo que tiene TODO lo seleccionado. */
+    private fun paintSelBar() {
+        if (selBar == null || multi == null) return
+        val st = cur()
+        fun on(k: String, v: Boolean) {
+            val b = selStyleBtns[k] ?: return
+            if (b.tag == v) return
+            b.tag = v
+            b.background = if (v) roundBg(tw(0x30), dp(16).toFloat()) else null
+        }
+        on("b", st.b); on("i", st.i); on("u", st.u); on("hi", st.bg != 0)
+        (selStyleBtns["color"] as? FrameLayout)?.getChildAt(0)?.let { dot ->
+            val c = if (st.color != 0) st.color else T.text
+            if (dot.tag != c) { dot.tag = c; dot.background = roundBg(c, dp(10).toFloat(), 0x55000000, dp(1)) }
         }
     }
 
     private fun buildSelBar(): LinearLayout {
         val bar = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(4), dp(6), dp(4))
+            orientation = LinearLayout.VERTICAL; setPadding(dp(6), dp(4), dp(6), dp(4))
             background = android.graphics.drawable.LayerDrawable(arrayOf(roundBg(if (T.light) 0xF5FFFFFF.toInt() else 0xF2262629.toInt(), dp(22).toFloat()), Glass.make(this@NoteActivity, 22f, strong = true)))
             elevation = dp(10).toFloat(); alpha = 0f; isClickable = true
         }
+        val row1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         fun item(label: String, act: () -> Unit) = tv(label, 14f, T.text, true).apply {
             setPadding(dp(12), dp(9), dp(12), dp(9)); pressBg(0, 16f)
             setOnClickListener { pop(it); act() }
@@ -2695,7 +2914,28 @@ class NoteActivity : Activity(), EditorView.Host {
                 multiPaint(true); placeSelBar()
             }.also { mLinesBtn = it },
         )
-        for ((k, v) in items.withIndex()) { if (k > 0) bar.addView(sep(), lp(dp(1), dp(22))); bar.addView(v) }
+        for ((k, v) in items.withIndex()) { if (k > 0) row1.addView(sep(), lp(dp(1), dp(22))); row1.addView(v) }
+        bar.addView(row1)
+        bar.addView(View(this).apply { setBackgroundColor(tw(0x18)) }, lp(MATCH, dp(1)).apply { setMargins(dp(8), dp(2), dp(8), dp(2)) })
+        // ✨ estilos aquí mismo (sin bajar a la barra de abajo)
+        val row2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        selStyleBtns.clear()
+        fun icon(key: String, ic: Int, act: () -> Unit) {
+            val v = IconView(this, ic, 8.5f).apply { setOnClickListener { pop(it); act() } }
+            selStyleBtns[key] = v
+            row2.addView(v, lp(0, dp(38), 1f))
+        }
+        icon("b", MoreIcons.BOLD) { style { s -> s.copy(b = !cur().b) } }
+        icon("i", MoreIcons.ITALIC) { style { s -> s.copy(i = !cur().i) } }
+        icon("u", MoreIcons.UNDERLINE) { style { s -> s.copy(u = !cur().u) } }
+        val colorCell = FrameLayout(this).apply {
+            addView(View(this@NoteActivity), android.widget.FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER))
+            setOnClickListener { pop(it); pickColor("color") }
+        }
+        selStyleBtns["color"] = colorCell
+        row2.addView(colorCell, lp(0, dp(38), 1f))
+        icon("hi", MoreIcons.HILITE) { pickColor("hi") }
+        bar.addView(row2, lp(MATCH, WRAP))
         noteHolder.addView(bar, android.widget.FrameLayout.LayoutParams(WRAP, WRAP))
         return bar
     }
@@ -2715,23 +2955,28 @@ class NoteActivity : Activity(), EditorView.Host {
     }
 
     /** Un estilo a TODO lo seleccionado (solo cambia lo que cambió: no pisa otros estilos). */
-    private fun multiStyle(fn: (St) -> St) {
-        if (snapPending) snapshot()
+    private fun multiStyle(fn: (St) -> St, live: Boolean = false) {
+        if (snapPending && !live && !liveMode) snapshot()
         val pieces = mPieces()
         val c = pieces.firstOrNull()?.let { (e, a, _) -> Rich.styleAt(e.text, minOf(a + 1, e.text.length)) } ?: St.PLAIN
         val change = styleChange(c, fn)
-        for ((e, a, b0) in pieces) {
+        val col = brushColor(fn)
+        val bold = fn(St.PLAIN).b && !c.b
+        for ((k, p) in pieces.withIndex()) {
+            val (e, a, b0) = p
             val r = e as? RichEdit ?: continue
             // el "Enter" invisible al final del renglón también (si no, lo que escribas abajo sale con el estilo viejo)
             val b = if (b0 < r.text.length && r.text[b0] == '\n') b0 + 1 else b0
             r.setSelection(a, b)
             r.applyStyle(change)
             r.setSelection(b)
+            // 🖌️ el pincel pasa renglón por renglón, uno detrás del otro
+            if (!live) { r.brush(a, b0, col, 55L * minOf(k, 12)); if (bold) r.postDelayed({ Anim.bump(r, 1.01f) }, 55L * minOf(k, 12)) }
         }
         dirty = true; onDirty()
         multiPaint(false)
-        snapshot()
-        Store.main.post { paintTools(target()) }
+        if (!live && !liveMode) snapshot()
+        Store.main.post { paintTools(target()); paintSelBar() }
     }
 
     private fun multiDelete() {
@@ -2753,6 +2998,8 @@ class NoteActivity : Activity(), EditorView.Host {
     private fun multiEnd() {
         if (multi == null) return
         multi = null
+        breath?.cancel(); breath = null
+        edgeScroll.stop()
         for (e in mEdits) {
             e.text.getSpans(0, e.text.length, SelS::class.java).forEach { e.text.removeSpan(it) }
             e.setOnTouchListener(null); e.showSoftInputOnFocus = true; e.isCursorVisible = true

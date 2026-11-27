@@ -444,10 +444,10 @@ class PantallaTest {
         waitIo(); idle()
         val t = NoteActivity::class.java.getDeclaredField("title").apply { isAccessible = true }.get(act) as TitleEdit
         t.requestFocus(); t.setSelection(0, 3)
-        val style = NoteActivity::class.java.getDeclaredMethod("style", Function1::class.java).apply { isAccessible = true }
-        style.invoke(act, { s: St -> s.copy(color = 0xFF30D158.toInt()) })
+        val style = NoteActivity::class.java.getDeclaredMethod("style", Boolean::class.java, Function1::class.java).apply { isAccessible = true }
+        style.invoke(act, false, { s: St -> s.copy(color = 0xFF30D158.toInt()) })
         t.setSelection(3, 6)
-        style.invoke(act, { s: St -> s.copy(color = 0xFFBF5AF2.toInt(), o = 0xFFFF375F.toInt()) })
+        style.invoke(act, false, { s: St -> s.copy(color = 0xFFBF5AF2.toInt(), o = 0xFFFF375F.toInt()) })
         act.finish(); idle(); waitIo()
         // al volver a entrar, los colores siguen
         act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n1")).setup().get()
@@ -464,27 +464,27 @@ class PantallaTest {
         importar()
         fun open(): NoteActivity { val a = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n1")).setup().get(); waitIo(); idle(); return a }
         fun edits(a: NoteActivity) = find(a.window.decorView, RichEdit::class.java).filter { it !is TitleEdit && it.text.isNotEmpty() }
-        val style = NoteActivity::class.java.getDeclaredMethod("style", Function1::class.java).apply { isAccessible = true }
+        val style = NoteActivity::class.java.getDeclaredMethod("style", Boolean::class.java, Function1::class.java).apply { isAccessible = true }
         var act = open()
         val e = edits(act).first()
         e.requestFocus(); e.setSelection(0, e.text.length)
-        style.invoke(act, { s: St -> s.copy(color = 0xFF0A84FF.toInt(), bg = 0xFF690AFF.toInt(), o = 0xFF0A84FF.toInt()) })
+        style.invoke(act, false, { s: St -> s.copy(color = 0xFF0A84FF.toInt(), bg = 0xFF690AFF.toInt(), o = 0xFF0A84FF.toInt()) })
         act.finish(); idle(); waitIo()
         act = open()
         assertTrue("se guardó el color", Rich.runs(edits(act).first().text).any { it.st.color != 0 })
         // ahora se quitan con la selección de varias líneas (Seleccionar todo)
         val ms = NoteActivity::class.java.getDeclaredMethod("multiStart", RichEdit::class.java, Boolean::class.java, Int::class.java, Int::class.java, Boolean::class.java).apply { isAccessible = true }
         ms.invoke(act, null, true, -1, -1, false); idle()
-        style.invoke(act, { s: St -> s.copy(color = 0) }); idle()
-        style.invoke(act, { s: St -> s.copy(bg = 0) }); idle()
-        style.invoke(act, { s: St -> s.copy(o = 0) }); idle()
+        style.invoke(act, false, { s: St -> s.copy(color = 0) }); idle()
+        style.invoke(act, false, { s: St -> s.copy(bg = 0) }); idle()
+        style.invoke(act, false, { s: St -> s.copy(o = 0) }); idle()
         act.finish(); idle(); waitIo()
         act = open()
         val runs = edits(act).flatMap { Rich.runs(it.text) }
         // y si después de quitarlos sigues escribiendo al final, lo nuevo sale sin color y todo se queda así
         val me = NoteActivity::class.java.getDeclaredMethod("multiEnd").apply { isAccessible = true }
         ms.invoke(act, null, true, -1, -1, false); idle()
-        style.invoke(act, { s: St -> s.copy(color = 0) }); idle()
+        style.invoke(act, false, { s: St -> s.copy(color = 0) }); idle()
         me.invoke(act); idle()
         val e2 = edits(act).last()
         e2.requestFocus(); e2.setSelection(e2.text.length)
@@ -503,7 +503,7 @@ class PantallaTest {
         importar()
         fun open(): NoteActivity { val a = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n1")).setup().get(); waitIo(); idle(); return a }
         fun edits(a: NoteActivity) = find(a.window.decorView, RichEdit::class.java).filter { it !is TitleEdit && it.text.isNotEmpty() }
-        val style = NoteActivity::class.java.getDeclaredMethod("style", Function1::class.java).apply { isAccessible = true }
+        val style = NoteActivity::class.java.getDeclaredMethod("style", Boolean::class.java, Function1::class.java).apply { isAccessible = true }
         val ms = NoteActivity::class.java.getDeclaredMethod("multiStart", RichEdit::class.java, Boolean::class.java, Int::class.java, Int::class.java, Boolean::class.java).apply { isAccessible = true }
         val me = NoteActivity::class.java.getDeclaredMethod("multiEnd").apply { isAccessible = true }
         val bad = { r: Run -> r.st.color != 0 || r.st.bg != 0 || r.st.o != 0 }
@@ -515,9 +515,9 @@ class PantallaTest {
         act = open(); e = edits(act).first()
         val a = e.text.indexOf("Ndnd"); val b = e.text.lastIndexOf("Jdkd") + 4
         ms.invoke(act, e, false, a, b, false); idle()
-        style.invoke(act, { s: St -> s.copy(bg = 0) }); idle()
-        style.invoke(act, { s: St -> s.copy(o = 0) }); idle()
-        style.invoke(act, { s: St -> s.copy(color = 0) }); idle()
+        style.invoke(act, false, { s: St -> s.copy(bg = 0) }); idle()
+        style.invoke(act, false, { s: St -> s.copy(o = 0) }); idle()
+        style.invoke(act, false, { s: St -> s.copy(color = 0) }); idle()
         me.invoke(act); idle()
         e.requestFocus(); e.setSelection(e.text.length)
         e.text.insert(e.text.length, "Jdjd"); idle()
@@ -576,6 +576,39 @@ class PantallaTest {
         val off = e.getOffsetForPosition(x, y)
         val want = Regex("[\\p{L}]+").findAll(e.text).first { off in it.range.first..it.range.last + 1 }.value
         assertEquals("solo la palabra, sin la coma", listOf(want), pcs.map { (ed, a, b) -> ed.text.substring(a, b) })
+    }
+
+    @Test fun tresToquesYDeshacerFino() {
+        importar()
+        val act = Robolectric.buildActivity(NoteActivity::class.java, Intent(ctx, NoteActivity::class.java).putExtra(NoteActivity.EXTRA_ID, "n1")).setup().get(); waitIo(); idle()
+        val e = find(act.window.decorView, RichEdit::class.java).filter { it !is TitleEdit && it.text.isNotEmpty() }.first()
+        e.setText(Rich.build(listOf(Run("primera linea\n  segunda linea aqui  \ntercera"))), android.widget.TextView.BufferType.EDITABLE); idle()
+        val lay = e.layout!!
+        // un toque en "segunda" (renglón 2)
+        val line = lay.getLineForOffset(e.text.indexOf("segunda") + 2)
+        val x = lay.getPrimaryHorizontal(e.text.indexOf("segunda") + 2) + e.totalPaddingLeft
+        val y = (lay.getLineTop(line) + lay.getLineBottom(line)) / 2f + e.totalPaddingTop
+        fun ev(a: Int, t: Long) = MotionEvent.obtain(1000, t, a, x, y, 0)
+        var t0 = 5000L
+        repeat(3) { e.dispatchTouchEvent(ev(MotionEvent.ACTION_DOWN, t0)); e.dispatchTouchEvent(ev(MotionEvent.ACTION_UP, t0 + 50)); t0 += 150 }
+        idle()
+        @Suppress("UNCHECKED_CAST")
+        fun pcs() = (NoteActivity::class.java.getDeclaredMethod("mPieces").apply { isAccessible = true }.invoke(act) as List<Triple<EditText, Int, Int>>).map { (ed, a, b) -> ed.text.substring(a, b) }
+        val off = e.getOffsetForPosition(x, y)
+        val t = e.text.toString()
+        val want = t.substring(t.lastIndexOf('\n', off - 1) + 1, t.indexOf('\n', off).let { if (it < 0) t.length else it }).trim()
+        assertEquals("tres toques = el renglón (sin espacios de las puntas)", listOf(want), pcs())
+        // ↩️ cada estilo es un paso de deshacer
+        @Suppress("UNCHECKED_CAST") val btn = (NoteActivity::class.java.getDeclaredField("toolBtns").apply { isAccessible = true }.get(act) as HashMap<String, View>)
+        btn["b"]!!.performClick(); idle()
+        btn["i"]!!.performClick(); idle()
+        val w = want.split(" ").first()
+        fun st(): St { val at = e.text.indexOf(w); var i = 0; for (r in Rich.runs(e.text)) { if (at >= i && at < i + r.text.length) return r.st; i += r.text.length }; return St.PLAIN }
+        assertTrue(st().b && st().i)
+        NoteActivity::class.java.getDeclaredMethod("undo").apply { isAccessible = true }.invoke(act); idle()
+        val e2 = find(act.window.decorView, RichEdit::class.java).filter { it !is TitleEdit && it.text.contains(w) }.first()
+        val st2 = Rich.runs(e2.text).let { rs -> val at = e2.text.indexOf(w); var i = 0; var r0 = St.PLAIN; for (r in rs) { if (at >= i && at < i + r.text.length) r0 = r.st; i += r.text.length }; r0 }
+        assertTrue("deshacer quitó SOLO la cursiva", st2.b && !st2.i)
     }
 
     @Test fun respaldoIdaYVuelta() {
@@ -788,8 +821,8 @@ class PantallaTest {
         @Suppress("UNCHECKED_CAST")
         val pieces = NoteActivity::class.java.getDeclaredMethod("mPieces").apply { isAccessible = true }.invoke(act) as List<Triple<android.widget.EditText, Int, Int>>
         assertEquals("título + 1 texto + 3 renglones", 5, pieces.size)
-        val sty = NoteActivity::class.java.getDeclaredMethod("multiStyle", Function1::class.java).apply { isAccessible = true }
-        sty.invoke(act, { s: St -> s.copy(b = !s.b) }); idle()
+        val sty = NoteActivity::class.java.getDeclaredMethod("multiStyle", Function1::class.java, Boolean::class.java).apply { isAccessible = true }
+        sty.invoke(act, { s: St -> s.copy(b = !s.b) }, false); idle()
         NoteActivity::class.java.getDeclaredMethod("multiEnd").apply { isAccessible = true }.invoke(act); idle()
         act.finish(); waitIo()
         val saved = blocksFromJson(Store.readBody(m.id).first)
